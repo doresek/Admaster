@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: #070A0E;
+  color: #D9E8F5;
+}
+
+/* RTL select fix */
+select { text-align: right; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #0C1118; }
+::-webkit-scrollbar-thumb { background: #1D2D3E; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #2A4158; }
