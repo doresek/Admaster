@@ -42,13 +42,6 @@ export default function CreditsPage() {
     }
   }
 
-  async function addDemoCredits() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase.from('users').update({ credits: credits + 50 }).eq('id', user.id);
-    setCredits(c => c + 50);
-  }
-
   const actionLabels: Record<string, string> = {
     post:'✨ יצירת פוסט', analyze:'🔬 ניתוח מודעה', variations:'🔀 וריאציות',
     holiday:'📅 פוסט חג', publish:'📤 פרסום', campaign:'🚀 קמפיין',
@@ -59,10 +52,7 @@ export default function CreditsPage() {
     <div>
       <PageHeader eyebrow="חשבון" title="קרדיטים ותוכניות" sub="שדרג לקבל יותר פעולות AI"
         right={
-          <div className="flex items-center gap-2">
-            <div className="bg-[#0A7AFF]/10 border border-[#0A7AFF]/20 text-[#3D9FFF] font-mono text-sm font-bold px-3 py-1.5 rounded-lg">⚡ {credits.toLocaleString()}</div>
-            <Btn variant="ghost" size="sm" onClick={addDemoCredits}>+50 Demo</Btn>
-          </div>
+          <div className="bg-[#0A7AFF]/10 border border-[#0A7AFF]/20 text-[#3D9FFF] font-mono text-sm font-bold px-3 py-1.5 rounded-lg">⚡ {credits.toLocaleString()}</div>
         } />
 
       {/* Credit costs */}
