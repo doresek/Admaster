@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 const SECTIONS = [
@@ -34,7 +34,15 @@ const SECTIONS = [
   ]},
 ];
 
-export default function BriefFormPage() {
+export default function BriefPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#070A0E]" />}>
+      <BriefFormPage />
+    </Suspense>
+  );
+}
+
+function BriefFormPage() {
   const params = useSearchParams();
   const code   = params.get('code') ?? '';
   const [vals,  setVals]      = useState<Record<string, string>>({});

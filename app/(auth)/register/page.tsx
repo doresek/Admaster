@@ -8,7 +8,6 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState('');
   const router = useRouter();
-  const supabase = createClient();
   const u = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
   async function handleRegister(e: React.FormEvent) {
@@ -18,6 +17,7 @@ export default function RegisterPage() {
     if (form.pw.length < 6)   { setError('סיסמה — לפחות 6 תווים');  return; }
     setLoading(true);
 
+    const supabase = createClient();
     const { error } = await supabase.auth.signUp({
       email: form.email,
       password: form.pw,
