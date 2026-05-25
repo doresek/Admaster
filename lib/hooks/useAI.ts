@@ -59,7 +59,7 @@ export function useAI({ onCreditsUpdated, onError }: UseAIOptions = {}) {
 function getCost(action: CreditAction): number {
   const costs: Record<CreditAction, number> = {
     post: 3, analyze: 5, variations: 8, holiday: 3,
-    publish: 2, campaign: 15, avatar: 10, ads_avatar: 8, funnel: 12,
+    publish: 2, campaign: 15, avatar: 10, avatar_v2: 20, ads_avatar: 8, funnel: 12,
   };
   return costs[action] ?? 0;
 }

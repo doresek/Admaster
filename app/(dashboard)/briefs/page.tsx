@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Btn, CopyBtn, Tabs, OutputBox, Alert, PageHeader, CostBadge } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
-import type { Brief } from '@/types';
+import type { Brief, AvatarV2, AvatarV2Meta } from '@/types';
 import { clsx } from 'clsx';
 
 const xt = (raw:string,t:string)=>{const m=raw.match(new RegExp(`\\[${t}\\]([\\s\\S]*?)\\[\\/${t}\\]`));return m?m[1].trim():'';};
@@ -14,6 +14,10 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
   const [av,   setAv]    = useState(brief.avatar ?? '');
   const [ads,  setAds]   = useState(brief.ads ?? '');
   const [fn,   setFn]    = useState(brief.funnel ?? '');
+  const [avV2, setAvV2]  = useState<AvatarV2     | null>(brief.avatar_v2      ?? null);
+  const [avV2Meta, setAvV2Meta] = useState<AvatarV2Meta | null>(brief.avatar_v2_meta ?? null);
+  const [v2Loading, setV2Loading] = useState(false);
+  const [v2Error,   setV2Error]   = useState<string | null>(null);
   const { call, loading, error } = useAI();
   const v = brief.values;
 
@@ -23,6 +27,38 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
     const upd = { ...brief, [field]: value };
     await supabase.from('briefs').update({ [field]: value, updated_at: new Date().toISOString() }).eq('id', brief.id);
     onUpdate(upd);
+  }
+
+  async function buildAvatarV2() {
+    if (v2Loading) return;
+    setV2Loading(true); setV2Error(null);
+    try {
+      const res = await fetch('/api/avatars/generate-v2', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ briefId: brief.id, language: 'he' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data.error === 'insufficient_credits'
+          ? 'אין מספיק קרדיטים (נדרש 20)'
+          : data.error || `שגיאה ${res.status}`;
+        throw new Error(msg);
+      }
+      setAvV2(data.avatar);
+      setAvV2Meta(data.meta);
+      onUpdate({
+        ...brief,
+        avatar_v2:           data.avatar,
+        avatar_v2_meta:      data.meta,
+        avatar_generated_at: new Date().toISOString(),
+      });
+      setTab('avatar');
+    } catch (e: any) {
+      setV2Error(e?.message || 'שגיאה');
+    } finally {
+      setV2Loading(false);
+    }
   }
 
   async function buildAvatar() {
@@ -78,10 +114,10 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
   }
 
   const pipe = [
-    { l:'בריף', done:true },
-    { l:'אווטאר', done:!!av },
+    { l:'בריף',   done:true },
+    { l:'אווטאר', done:!!av || !!avV2 },
     { l:'מודעות', done:!!ads },
-    { l:'משפך', done:!!fn },
+    { l:'משפך',   done:!!fn },
   ];
 
   const adTypes = [
@@ -110,9 +146,10 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
           </div>
         </div>
         <div className="flex gap-2">
-          <Btn variant="primary"  size="sm" loading={loading} onClick={buildAvatar}>🧬 אווטאר <CostBadge cost={10} /></Btn>
-          <Btn variant="amber"    size="sm" loading={loading} onClick={buildAds}    disabled={!av}>✍️ מודעות <CostBadge cost={8} /></Btn>
-          <Btn variant="violet"   size="sm" loading={loading} onClick={buildFunnel} disabled={!av}>🔮 משפך <CostBadge cost={12} /></Btn>
+          <Btn variant="primary"  size="sm" loading={loading}   onClick={buildAvatar}>🧬 אווטאר <CostBadge cost={10} /></Btn>
+          <Btn variant="gold"     size="sm" loading={v2Loading} onClick={buildAvatarV2}>🧬+ V2 <CostBadge cost={20} /></Btn>
+          <Btn variant="amber"    size="sm" loading={loading}   onClick={buildAds}    disabled={!av}>✍️ מודעות <CostBadge cost={8} /></Btn>
+          <Btn variant="violet"   size="sm" loading={loading}   onClick={buildFunnel} disabled={!av}>🔮 משפך <CostBadge cost={12} /></Btn>
         </div>
       </div>
 
@@ -129,12 +166,13 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
         ))}
       </div>
 
-      {error && <Alert type="red" className="mb-3">❌ {error}</Alert>}
+      {error   && <Alert type="red" className="mb-3">❌ {error}</Alert>}
+      {v2Error && <Alert type="red" className="mb-3">❌ V2: {v2Error}</Alert>}
 
       <Tabs
         tabs={[
           {id:'overview',  label:'📋 סקירה'},
-          {id:'avatar',    label:`🧬 אווטאר${av?' ✓':''}`},
+          {id:'avatar',    label:`🧬 אווטאר${avV2?' ✓ V2':av?' ✓':''}`},
           {id:'offer',     label:'💎 הצעה'},
           {id:'ads',       label:`✍️ מודעות${ads?' ✓':''}`},
           {id:'funnel',    label:`🔮 משפך${fn?' ✓':''}`},
@@ -154,8 +192,10 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
         </div>
       )}
 
-      {/* Avatar */}
-      {tab==='avatar' && (av ? (
+      {/* Avatar — prefer v2 (rich JSON), fallback to v1 (tagged text) */}
+      {tab==='avatar' && (avV2 ? (
+        <AvatarV2View avatar={avV2} meta={avV2Meta} />
+      ) : av ? (
         <div className="border border-[#1E2F42] rounded-xl overflow-hidden">
           <div className="bg-gradient-to-r from-[#070A0E] to-[#1D2D3E] p-4 flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-white/5 border-2 border-[#D4AF55] flex items-center justify-center text-2xl">{xt(av,'AE')||'👤'}</div>
@@ -176,7 +216,16 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
             })}
           </div>
         </div>
-      ):<div className="text-center py-12 text-[#2E4459]"><div className="text-4xl mb-3 opacity-30">🧬</div><div className="text-sm mb-4">האווטאר עוד לא נבנה</div><Btn variant="primary" onClick={buildAvatar} loading={loading}>🧬 בנה עכשיו</Btn></div>)}
+      ):(
+        <div className="text-center py-12 text-[#2E4459]">
+          <div className="text-4xl mb-3 opacity-30">🧬</div>
+          <div className="text-sm mb-4">האווטאר עוד לא נבנה</div>
+          <div className="flex items-center justify-center gap-2">
+            <Btn variant="primary" onClick={buildAvatar}   loading={loading}>🧬 v1 <CostBadge cost={10} /></Btn>
+            <Btn variant="gold"    onClick={buildAvatarV2} loading={v2Loading}>🧬+ V2 <CostBadge cost={20} /></Btn>
+          </div>
+        </div>
+      ))}
 
       {/* Offer */}
       {tab==='offer' && (() => {
@@ -241,6 +290,200 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
           {xt(fn,'KPI')&&<Card className="mt-3" style={{borderColor:'rgba(5,150,105,.3)'}}><CardLabel>📊 KPIs מומלצים</CardLabel><div className="text-[13px] leading-relaxed whitespace-pre-wrap">{xt(fn,'KPI')}</div></Card>}
         </div>
       ):<div className="text-center py-12 text-[#2E4459]"><div className="text-4xl mb-3 opacity-30">🔮</div><div className="text-sm mb-4">משפך עוד לא נבנה</div><Btn variant="violet" onClick={buildFunnel} loading={loading} disabled={!av}>🔮 בנה משפך</Btn></div>)}
+    </div>
+  );
+}
+
+// ─── AVATAR V2 VIEW ──────────────────────────────────────────
+const AWARENESS_HE: Record<AvatarV2['awareness_level'], string> = {
+  unaware:         'לא מודע',
+  problem_aware:   'מודע לבעיה',
+  solution_aware:  'מודע לפתרון',
+  product_aware:   'מודע למוצר',
+  most_aware:      'מודע מלא',
+};
+
+function AvatarV2View({ avatar, meta }: { avatar: AvatarV2; meta: AvatarV2Meta | null }) {
+  const a = avatar;
+  const scores = meta?.scores ?? null;
+
+  const ChipList = ({ items, color }: { items: string[]; color: string }) => (
+    <div className="flex flex-wrap gap-1.5">
+      {items.map((t, i) => (
+        <span key={i}
+          className="text-[12px] leading-snug px-2.5 py-1.5 rounded-lg"
+          style={{ background: `${color}10`, border: `1px solid ${color}33`, color }}>
+          {t}
+        </span>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="border border-[#1E2F42] rounded-xl overflow-hidden">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-[#070A0E] to-[#1D2D3E] p-4 flex items-center gap-3">
+        <div className="w-12 h-12 rounded-full bg-white/5 border-2 border-[#D4AF55] flex items-center justify-center text-2xl">👤</div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="font-bold text-base">{a.name}</div>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#D4AF55]/15 text-[#D4AF55] border border-[#D4AF55]/30">V2</span>
+            {meta?.refined && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#059669]/15 text-[#34D399] border border-[#059669]/30">refined</span>}
+          </div>
+          <div className="text-xs text-[#6B8FA8] mt-0.5">
+            {a.age} · {a.occupation} · {a.location}
+          </div>
+        </div>
+      </div>
+
+      {/* Scores strip */}
+      {scores && (
+        <div className="bg-[#0C1520] border-b border-[#1E2F42] px-4 py-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-[11px]">
+          {(['specificity','voice','consistency','usefulness','originality'] as const).map((k) => (
+            <div key={k} className="flex items-center gap-1.5">
+              <span className="text-[#2E4459] uppercase tracking-wider">{k}</span>
+              <span className={clsx(
+                'font-mono font-bold',
+                scores[k] >= 8 ? 'text-[#34D399]' :
+                scores[k] >= 6 ? 'text-[#D4AF55]' :
+                                 'text-rose-400',
+              )}>
+                {scores[k]}/10
+              </span>
+            </div>
+          ))}
+          {typeof meta?.research_snippet_count === 'number' && (
+            <div className="text-[#6B8FA8]">🔎 {meta.research_snippet_count} מקורות</div>
+          )}
+        </div>
+      )}
+
+      <div className="p-4 space-y-4">
+        {/* Demographics + Psychographics */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1">👤 דמוגרפיה</div>
+            <div className="text-[12.5px] leading-relaxed bg-[#162030] rounded-lg p-2.5">
+              {a.demographics_summary}
+              <div className="text-[11px] text-[#6B8FA8] mt-1.5">
+                {a.income_range && <>הכנסה: {a.income_range}<br/></>}
+                {a.family_status && <>סטטוס: {a.family_status}</>}
+              </div>
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1">🧠 פסיכוגרפיה</div>
+            <div className="text-[12.5px] leading-relaxed bg-[#162030] rounded-lg p-2.5">{a.psychographics_summary}</div>
+          </div>
+        </div>
+
+        {/* Pains / Desires */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1.5">🔥 כאבים</div>
+            <ChipList items={a.pains} color="#DC2626" />
+          </div>
+          <div>
+            <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1.5">⭐ רצונות</div>
+            <ChipList items={a.desires} color="#059669" />
+          </div>
+        </div>
+
+        {/* Fears / Status */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1.5">⚠️ פחדים</div>
+            <ChipList items={a.fears} color="#D97706" />
+          </div>
+          <div>
+            <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1.5">👑 רווחי סטטוס</div>
+            <ChipList items={a.status_gains} color="#6D28D9" />
+          </div>
+        </div>
+
+        {/* Voice quotes */}
+        {a.voice_quotes?.length > 0 && (
+          <div>
+            <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1.5">💭 קול הלקוח</div>
+            <div className="space-y-1.5">
+              {a.voice_quotes.map((q, i) => (
+                <div key={i} className="text-[12.5px] leading-relaxed bg-[#162030] border-r-2 border-[#D4AF55] rounded-lg px-3 py-2 italic">
+                  „{q}"
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Daily routine */}
+        {a.daily_routine && (
+          <div>
+            <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1">📅 יום ביומו</div>
+            <div className="text-[12.5px] leading-relaxed bg-[#162030] rounded-lg p-2.5">{a.daily_routine}</div>
+          </div>
+        )}
+
+        {/* JTBD */}
+        {a.jobs_to_be_done && (
+          <div>
+            <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1.5">🎯 Jobs-to-be-Done</div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-[#162030] rounded-lg p-2.5"><div className="text-[10px] text-[#6B8FA8] mb-0.5">פונקציונלי</div><div className="text-[12.5px]">{a.jobs_to_be_done.functional}</div></div>
+              <div className="bg-[#162030] rounded-lg p-2.5"><div className="text-[10px] text-[#6B8FA8] mb-0.5">רגשי</div><div className="text-[12.5px]">{a.jobs_to_be_done.emotional}</div></div>
+              <div className="bg-[#162030] rounded-lg p-2.5"><div className="text-[10px] text-[#6B8FA8] mb-0.5">חברתי</div><div className="text-[12.5px]">{a.jobs_to_be_done.social}</div></div>
+              <div className="bg-[#162030] rounded-lg p-2.5"><div className="text-[10px] text-[#6B8FA8] mb-0.5">המתחרה הנוכחי</div><div className="text-[12.5px]">{a.jobs_to_be_done.old_hire}</div></div>
+            </div>
+          </div>
+        )}
+
+        {/* Awareness + Sophistication */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-[#162030] rounded-lg p-3">
+            <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1">📡 רמת מודעות (שוורץ)</div>
+            <div className="text-[13px] font-bold text-[#3D9FFF]">{AWARENESS_HE[a.awareness_level] ?? a.awareness_level}</div>
+            <div className="text-[12px] text-[#D9E8F5] mt-1 leading-relaxed">{a.awareness_strategy}</div>
+          </div>
+          <div className="bg-[#162030] rounded-lg p-3">
+            <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1">📊 תחכום שוק</div>
+            <div className="text-[13px] font-bold text-[#D4AF55]">רמה {a.market_sophistication_level}/5</div>
+            <div className="text-[12px] text-[#D9E8F5] mt-1 leading-relaxed">{a.recommended_angle}</div>
+          </div>
+        </div>
+
+        {/* Objections + Buying triggers */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1.5">🚧 התנגדויות</div>
+            <ChipList items={a.objections} color="#0A7AFF" />
+          </div>
+          <div>
+            <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1.5">⚡ טריגרים לרכישה</div>
+            <ChipList items={a.buying_triggers} color="#D4AF55" />
+          </div>
+        </div>
+
+        {/* Channels + Creative angles */}
+        <div className="grid grid-cols-2 gap-3">
+          {a.channels?.length > 0 && (
+            <div>
+              <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1.5">📺 ערוצים</div>
+              <ChipList items={a.channels} color="#6B8FA8" />
+            </div>
+          )}
+          {a.recommended_creative_angles?.length > 0 && (
+            <div>
+              <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1.5">📐 זוויות מסר מומלצות</div>
+              <ChipList items={a.recommended_creative_angles} color="#059669" />
+            </div>
+          )}
+        </div>
+
+        {meta?.critique_summary && (
+          <div className="text-[11px] text-[#6B8FA8] border-t border-[#1E2F42] pt-3">
+            ⚙️ {meta.critique_summary} · {meta.total_time_ms ? `${(meta.total_time_ms/1000).toFixed(1)}s` : ''}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

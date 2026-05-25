@@ -12,6 +12,7 @@ export type CreditAction =
   | 'publish'
   | 'campaign'
   | 'avatar'
+  | 'avatar_v2'
   | 'ads_avatar'
   | 'funnel';
 
@@ -23,6 +24,7 @@ export const CREDIT_COSTS: Record<CreditAction, number> = {
   publish:    2,
   campaign:   15,
   avatar:     10,
+  avatar_v2:  20,
   ads_avatar: 8,
   funnel:     12,
 };
@@ -103,16 +105,80 @@ export interface BriefValues {
 export type BriefStatus = 'new' | 'has_avatar' | 'complete';
 
 export interface Brief {
-  id:           string;
-  code:         string;
-  user_id:      string;
-  values:       BriefValues;
-  avatar:       string | null;
-  ads:          string | null;
-  funnel:       string | null;
-  status:       BriefStatus;
-  submitted_at: string;
-  updated_at:   string;
+  id:                   string;
+  code:                 string;
+  user_id:              string;
+  values:               BriefValues;
+  avatar:               string | null;
+  ads:                  string | null;
+  funnel:               string | null;
+  status:               BriefStatus;
+  submitted_at:         string;
+  updated_at:           string;
+  avatar_v2?:           AvatarV2 | null;
+  avatar_v2_meta?:      AvatarV2Meta | null;
+  avatar_generated_at?: string | null;
+}
+
+// ── Avatar v2 (richer multi-pass output, stored as JSONB) ─────
+export type AwarenessLevel =
+  | 'unaware'
+  | 'problem_aware'
+  | 'solution_aware'
+  | 'product_aware'
+  | 'most_aware';
+
+export interface AvatarV2 {
+  name:                        string;
+  age:                         string;
+  occupation:                  string;
+  location:                    string;
+  income_range:                string;
+  family_status:               string;
+  demographics_summary:        string;
+  psychographics_summary:      string;
+  pains:                       string[];
+  desires:                     string[];
+  fears:                       string[];
+  status_gains:                string[];
+  voice_quotes:                string[];
+  daily_routine:               string;
+  jobs_to_be_done: {
+    functional: string;
+    emotional:  string;
+    social:     string;
+    old_hire:   string;
+  };
+  awareness_level:             AwarenessLevel;
+  awareness_strategy:          string;
+  market_sophistication_level: 1 | 2 | 3 | 4 | 5;
+  recommended_angle:           string;
+  objections:                  string[];
+  buying_triggers:             string[];
+  channels:                    string[];
+  recommended_creative_angles: string[];
+}
+
+export interface AvatarV2Scores {
+  specificity: number;
+  voice:       number;
+  consistency: number;
+  usefulness:  number;
+  originality: number;
+}
+
+export interface AvatarV2Meta {
+  model:                  string;
+  language:               'he' | 'en';
+  frameworks:             string[];
+  research_snippet_count: number;
+  draft_tokens?:          number;
+  critique_tokens?:       number;
+  refine_tokens?:         number;
+  refined:                boolean;
+  scores:                 AvatarV2Scores | null;
+  critique_summary:       string;
+  total_time_ms:          number;
 }
 
 export interface MetaPage {
