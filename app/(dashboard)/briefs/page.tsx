@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Btn, CopyBtn, Tabs, OutputBox, Alert, PageHeader, CostBadge } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
@@ -252,22 +252,22 @@ export default function BriefsPage() {
   const [sel,    setSel]    = useState<Brief|null>(null);
   const [loading, setLoading] = useState(true);
   const [newCode, setNewCode] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
   const supabase = createClient();
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const [bRes, cRes] = await Promise.all([
-        supabase.from('briefs').select('*').eq('user_id', user.id).order('submitted_at', { ascending: false }),
-        supabase.from('brief_codes').select('code').eq('user_id', user.id),
-      ]);
-      setBriefs(bRes.data ?? []);
-      setCodes(cRes.data?.map(r=>r.code) ?? []);
-      setLoading(false);
-    }
-    load();
-  }, []);
+  async function loadBriefs() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const [bRes, cRes] = await Promise.all([
+      supabase.from('briefs').select('*').eq('user_id', user.id).order('submitted_at', { ascending: false }),
+      supabase.from('brief_codes').select('code').eq('user_id', user.id),
+    ]);
+    setBriefs(bRes.data ?? []);
+    setCodes(cRes.data?.map(r=>r.code) ?? []);
+    setLoading(false);
+  }
+
+  useEffect(() => { loadBriefs(); }, []);
 
   async function createCode() {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -290,7 +290,22 @@ export default function BriefsPage() {
   return (
     <div>
       <PageHeader eyebrow="בריפים" title="בריפי לקוחות" sub={`${briefs.length} בריפים התקבלו`}
-        right={<Btn variant="primary" onClick={createCode}>+ צור קישור בריף</Btn>} />
+        right={
+          <>
+            <Btn variant="ghost" size="sm" onClick={createCode}>+ קוד 6 ספרות</Btn>
+            <button
+              type="button"
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-[13px] font-semibold transition shadow-[0_4px_14px_rgba(0,0,0,0.35)]"
+            >
+              <span>צור בריף ללקוח חדש</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+          </>
+        } />
 
       {newCode && (
         <Card className="mb-4" style={{borderColor:'rgba(184,149,58,.3)'}}>
@@ -346,6 +361,216 @@ export default function BriefsPage() {
           </div>
         );
       })}
+
+      {showCreate && (
+        <CreateBriefDialog
+          onClose={() => setShowCreate(false)}
+          onCreated={() => { loadBriefs(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── CREATE BRIEF DIALOG (tokenized v2) ──────────────────────
+function CreateBriefDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [clientName, setClientName]   = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [submitting, setSubmitting]   = useState(false);
+  const [result, setResult]           = useState<{ url: string; whatsapp_url: string | null } | null>(null);
+  const [err, setErr]                 = useState<string | null>(null);
+  const [copied, setCopied]           = useState(false);
+  const firstInputRef = useRef<HTMLInputElement>(null);
+  const cardRef       = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => firstInputRef.current?.focus(), 30);
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose(); return; }
+      if (e.key !== 'Tab' || !cardRef.current) return;
+      const focusables = cardRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last  = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => { clearTimeout(t); document.removeEventListener('keydown', onKey); };
+  }, [onClose]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!clientName.trim() || submitting) return;
+    setSubmitting(true); setErr(null);
+    try {
+      const res = await fetch('/api/briefs/create-tokenized', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_name:  clientName.trim(),
+          client_phone: clientPhone.trim() || undefined,
+          client_email: clientEmail.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `שגיאה ${res.status}`);
+      setResult({ url: data.url, whatsapp_url: data.whatsapp_url });
+      onCreated();
+    } catch (e: any) {
+      setErr(e?.message || 'שגיאה ביצירת הקישור');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function copyUrl() {
+    if (!result) return;
+    navigator.clipboard.writeText(result.url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-brief-title"
+      dir="rtl"
+    >
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={submitting ? undefined : onClose}
+        aria-hidden="true"
+      />
+
+      <div
+        ref={cardRef}
+        className="relative bg-white border border-stone-200 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden"
+      >
+        {result ? (
+          <div className="p-7">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-lg">✓</div>
+              <h2 id="create-brief-title" className="font-serif text-2xl text-stone-900">הקישור מוכן</h2>
+            </div>
+            <p className="text-stone-500 text-sm mb-5">
+              שלח את הקישור ללקוח. הוא יוכל למלא את הבריף בנוחות.
+            </p>
+
+            <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 mb-5">
+              <div className="text-[11px] uppercase tracking-wider text-stone-500 mb-2">קישור הבריף</div>
+              <div className="font-mono text-[12.5px] text-stone-700 break-all leading-relaxed" dir="ltr">
+                {result.url}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mb-6">
+              <button
+                type="button"
+                onClick={copyUrl}
+                className="px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-900 text-sm font-medium transition"
+              >
+                {copied ? '✓ הועתק!' : '📋 העתק קישור'}
+              </button>
+              {result.whatsapp_url && (
+                <a
+                  href={result.whatsapp_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition inline-flex items-center gap-2"
+                >
+                  💬 שתף ב-WhatsApp
+                </a>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-stone-100">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium transition shadow-sm"
+              >
+                סיום
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={submit} className="p-7">
+            <h2 id="create-brief-title" className="font-serif text-2xl text-stone-900 mb-1">בריף חדש ללקוח</h2>
+            <p className="text-stone-500 text-sm mb-6">
+              נצור קישור ייחודי ללקוח, תוכל לשלוח לו ב-WhatsApp או להעתיק.
+            </p>
+
+            <label className="block mb-4">
+              <span className="block text-[13px] text-stone-700 font-medium mb-1.5">
+                שם הלקוח <span className="text-amber-700">*</span>
+              </span>
+              <input
+                ref={firstInputRef}
+                type="text"
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                required
+                className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:bg-white focus:border-stone-900 focus:ring-2 focus:ring-stone-900/5 outline-none transition"
+                dir="rtl"
+              />
+            </label>
+
+            <label className="block mb-4">
+              <span className="block text-[13px] text-stone-700 font-medium mb-1.5">טלפון</span>
+              <input
+                type="tel"
+                value={clientPhone}
+                onChange={(e) => setClientPhone(e.target.value)}
+                placeholder="0501234567"
+                className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:bg-white focus:border-stone-900 focus:ring-2 focus:ring-stone-900/5 outline-none transition"
+                dir="ltr"
+              />
+            </label>
+
+            <label className="block mb-5">
+              <span className="block text-[13px] text-stone-700 font-medium mb-1.5">אימייל</span>
+              <input
+                type="email"
+                value={clientEmail}
+                onChange={(e) => setClientEmail(e.target.value)}
+                placeholder="client@example.com"
+                className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:bg-white focus:border-stone-900 focus:ring-2 focus:ring-stone-900/5 outline-none transition"
+                dir="ltr"
+              />
+            </label>
+
+            {err && (
+              <div className="mb-4 text-rose-700 text-sm bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5">
+                {err}
+              </div>
+            )}
+
+            <div className="flex justify-between items-center pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={submitting}
+                className="px-4 py-2.5 text-stone-600 hover:text-stone-900 text-sm font-medium transition disabled:opacity-50"
+              >
+                ביטול
+              </button>
+              <button
+                type="submit"
+                disabled={!clientName.trim() || submitting}
+                className="px-6 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-sm font-medium transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+              >
+                {submitting ? 'יוצר...' : 'צור קישור'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   );
 }
