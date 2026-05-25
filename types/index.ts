@@ -13,7 +13,8 @@ export type CreditAction =
   | 'campaign'
   | 'avatar'
   | 'ads_avatar'
-  | 'funnel';
+  | 'funnel'
+  | 'image';
 
 export const CREDIT_COSTS: Record<CreditAction, number> = {
   post:       3,
@@ -25,6 +26,7 @@ export const CREDIT_COSTS: Record<CreditAction, number> = {
   avatar:     10,
   ads_avatar: 8,
   funnel:     12,
+  image:      5,
 };
 
 export const PLAN_CONFIG = {
@@ -149,6 +151,35 @@ export interface MetaClient {
   campaigns_created:       number;
   connected_at:            string;
   updated_at:              string;
+}
+
+export type ImagenAspectRatio =
+  | 'ASPECT_1_1'
+  | 'ASPECT_16_9'
+  | 'ASPECT_9_16'
+  | 'ASPECT_4_3'
+  | 'ASPECT_3_4'
+  | 'ASPECT_4_5';
+
+export type ImageProvider = 'imagen' | 'ideogram' | 'dalle';
+
+export interface GeneratedImage {
+  id:           string;
+  user_id:      string;
+  brief_id:     string | null;
+  prompt:       string;
+  image_url:    string;
+  storage_path: string | null;
+  provider:     ImageProvider;
+  model:        string | null;
+  style:        string | null;
+  aspect_ratio: string;
+  cost:         number | null;
+  width:        number | null;
+  height:       number | null;
+  error:        string | null;
+  used_in:      string | null;
+  created_at:   string;
 }
 
 export interface GeneratedContent {

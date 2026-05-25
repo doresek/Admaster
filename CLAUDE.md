@@ -82,13 +82,19 @@ Clients never call Anthropic directly. The pattern is:
 2. `/api/ai/route.ts` checks auth, calls `deduct_credits` for the action, calls Claude, persists output to `generated_content`, returns text + new credit balance
 3. Output is often structured with `[TAG]...[/TAG]` blocks parsed client-side by the `xt(raw, tag)` helper (search any briefs page).
 
+### Image generation goes through `/api/images` (Imagen 3)
+
+The default provider is Google **Imagen 3** (`imagen-3.0-generate-002` via AI Studio REST). The wrapper lives at `lib/imagen.ts` — it returns base64, which the route uploads to the Supabase Storage bucket `generated-images` (must be created manually, public-read; see comment at the bottom of migration `005_imagen_module.sql`). The legacy Ideogram and DALL-E providers are kept behind `?provider=ideogram|dalle` for fallback — their remote URLs are stored as-is and may expire.
+
+Every generation costs `CREDIT_COSTS.image` credits, deducted through the same `deduct_credits` RPC as the AI route, with `action: 'image'`. Rows in `generated_images` may link to a brief via `brief_id` (added in migration 005) — the page picks this up from `?briefId=` in the URL for forward-compat with brief-driven asset flows.
+
 ### Meta API always goes through `/api/meta`
 
 The Meta access token lives in `meta_clients.token` and must not reach the browser. `app/api/meta/route.ts` is a proxy: `GET ?clientId=X&path=...` and `POST {clientId, path, body}`. The hook `useMeta()` (same file as `useAI`) is the client interface.
 
 ### Supabase migrations run manually
 
-Migrations under `supabase/migrations/` are **not** auto-applied. After merging a PR that adds one, paste its SQL into the Supabase SQL Editor before deploying the app code, or the new code will crash on missing columns/policies. The order is `001` → `002` → `003` → `004`.
+Migrations under `supabase/migrations/` are **not** auto-applied. After merging a PR that adds one, paste its SQL into the Supabase SQL Editor before deploying the app code, or the new code will crash on missing columns/policies. The order is `001` → `002` → `003` → `004` → `005`. Migration `005` also requires manually creating the `generated-images` Storage bucket (public-read) — see the comment at the bottom of the SQL file.
 
 ## Git / deploy conventions
 

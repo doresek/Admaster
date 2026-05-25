@@ -17,6 +17,8 @@
 | 10 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | חובה | https://dashboard.stripe.com/apikeys → **Publishable key** | `pk_live_51XXXX...` או `pk_test_51XXXX...` |
 | 11 | `NEXT_PUBLIC_APP_URL` | חובה | ה-URL הציבורי של ה-deployment — דומיין מותאם או Vercel URL (ללא `/` בסוף) | `https://admaster-pro.co.il` |
 | 12 | `IDEOGRAM_API_KEY` | אופציונלי | https://ideogram.ai/manage-api → **Create API Key** | `ideogram-XXXX...` |
+| 13 | `GOOGLE_AI_API_KEY` | חובה למודול Imagen ⚠️ סודי | https://aistudio.google.com/apikey → **Create API key** | `AIzaSy...` (~39 תווים) |
+| 14 | `OPENAI_API_KEY` | אופציונלי (fallback DALL-E) ⚠️ סודי | https://platform.openai.com/api-keys → **Create new secret key** | `sk-XXXX...` |
 
 ## איך להגדיר אחרי שיש לי את הערכים
 
