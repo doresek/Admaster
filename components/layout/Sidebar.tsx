@@ -27,6 +27,8 @@ const NAV = [
   { id:'publish',    href:'/publish',     icon:'📤', label:'פרסם',          cost:2 },
   { id:'campaign',   href:'/campaign',    icon:'🚀', label:'קמפיין',        cost:15 },
   { id:'pixel',      href:'/pixel',       icon:'📊', label:'Pixel Builder', badge:'חדש' },
+  { sec:'🔌 Google Ads' },
+  { id:'google-ads', href:'/google-ads',  icon:'🎯', label:'Google Ads',    badge:'חדש' },
   { sec:'⚙️ ניהול' },
   { id:'team',       href:'/team',        icon:'👤', label:'צוות',          badge:'חדש' },
   { id:'agency',     href:'/agency',      icon:'🏢', label:'White-Label',   badge:'Pro' },

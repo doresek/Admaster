@@ -151,6 +151,24 @@ export interface MetaClient {
   updated_at:              string;
 }
 
+export interface GoogleAdsCustomerRef {
+  id:               string;
+  descriptive_name?: string;
+}
+
+export interface GoogleAdsConnection {
+  id:                string;
+  user_id:           string;
+  refresh_token:     string;
+  google_user_id:    string | null;
+  google_user_email: string | null;
+  customer_ids:      GoogleAdsCustomerRef[];
+  status:            'connected' | 'error' | 'revoked';
+  last_synced_at:    string | null;
+  connected_at:      string;
+  updated_at:        string;
+}
+
 export interface GeneratedContent {
   id:         string;
   user_id:    string;
