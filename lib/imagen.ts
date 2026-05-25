@@ -1,24 +1,32 @@
 // ════════════════════════════════════════════
-// Imagen 3 (Google AI Studio) — REST wrapper
+// Gemini 2.5 Flash Image (Google AI Studio) — REST wrapper
 // + Supabase Storage upload helper
+//
+// NOTE: We previously used `imagen-3.0-generate-002`, but that model is
+// only reachable via Vertex AI (service-account auth). The Google AI
+// Studio API key path (v1beta) returns 404 for it. `gemini-2.5-flash-image-preview`
+// is available with an API key, but its output is effectively 1024×1024 only —
+// it does NOT honor aspect-ratio hints today. The UI still lets the user pick
+// 16:9 / 9:16 / 4:3 / 3:4 / 4:5, but the model returns square images for now.
+// TODO: bring back full aspect-ratio support by adding a Vertex AI path for Imagen 3.
 // ════════════════════════════════════════════
 
 import { createAdminClient } from '@/lib/supabase/server';
 import type { ImagenAspectRatio } from '@/types';
 
-export const IMAGEN_MODEL = 'imagen-3.0-generate-002';
+export const IMAGEN_MODEL = 'gemini-2.5-flash-image-preview';
 export const IMAGEN_BUCKET = 'generated-images';
 
-// Imagen accepts colon-separated ratios. Keep a mapping from the
-// UI's ASPECT_X_Y enum to the API form + final pixel dimensions
-// (Imagen 3 fixed output sizes).
+// Kept for downstream display/metadata. The `api` field is unused right now
+// because gemini-2.5-flash-image-preview ignores aspectRatio — every response
+// comes back ~1024×1024 regardless. Once we move to Vertex/Imagen 3 we'll
+// wire this back into the request body.
 const ASPECT_MAP: Record<ImagenAspectRatio, { api: string; width: number; height: number }> = {
   ASPECT_1_1:  { api: '1:1',  width: 1024, height: 1024 },
   ASPECT_16_9: { api: '16:9', width: 1408, height: 768  },
   ASPECT_9_16: { api: '9:16', width: 768,  height: 1408 },
   ASPECT_4_3:  { api: '4:3',  width: 1280, height: 896  },
   ASPECT_3_4:  { api: '3:4',  width: 896,  height: 1280 },
-  // 4:5 isn't natively supported by Imagen 3 — fall back to 3:4 (closest portrait).
   ASPECT_4_5:  { api: '3:4',  width: 896,  height: 1280 },
 };
 
@@ -40,16 +48,15 @@ export async function generateImagen(
 
   const dim = ASPECT_MAP[aspectRatio] ?? ASPECT_MAP.ASPECT_1_1;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${IMAGEN_MODEL}:predict?key=${apiKey}`;
+  // gemini-2.5-flash-image-preview uses the generateContent endpoint (not :predict)
+  // and returns the image as an inlineData part on the candidate's content.
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${IMAGEN_MODEL}:generateContent?key=${apiKey}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      instances: [{ prompt }],
-      parameters: {
-        sampleCount: 1,
-        aspectRatio: dim.api,
-      },
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { responseModalities: ['IMAGE'] },
     }),
   });
 
@@ -59,17 +66,31 @@ export async function generateImagen(
     throw new Error(msg);
   }
 
-  const pred = data?.predictions?.[0];
-  if (!pred?.bytesBase64Encoded) {
-    // Imagen sometimes returns an empty predictions array when the prompt is filtered.
-    throw new Error('Imagen לא החזיר תמונה — ייתכן שה-prompt נחסם על-ידי מסנן בטיחות');
+  // Walk the candidate parts looking for the first inlineData blob.
+  const parts: Array<{ inlineData?: { data?: string; mimeType?: string } }> =
+    data?.candidates?.[0]?.content?.parts ?? [];
+  const imgPart = parts.find((p) => p.inlineData?.data);
+
+  if (!imgPart?.inlineData?.data) {
+    // Safety filters or text-only response.
+    const blockReason =
+      data?.promptFeedback?.blockReason ||
+      data?.candidates?.[0]?.finishReason;
+    throw new Error(
+      blockReason
+        ? `Imagen לא החזיר תמונה (${blockReason}) — ייתכן שה-prompt נחסם על-ידי מסנן בטיחות`
+        : 'Imagen לא החזיר תמונה — ייתכן שה-prompt נחסם על-ידי מסנן בטיחות',
+    );
   }
 
+  // gemini-2.5-flash-image-preview returns ~1024×1024 regardless of the
+  // requested aspect ratio. Report the actual output size, not the
+  // requested one, so DB rows reflect reality.
   return {
-    base64:   pred.bytesBase64Encoded,
-    mimeType: pred.mimeType || 'image/png',
-    width:    dim.width,
-    height:   dim.height,
+    base64:   imgPart.inlineData.data,
+    mimeType: imgPart.inlineData.mimeType || 'image/png',
+    width:    1024,
+    height:   1024,
   };
 }
 
