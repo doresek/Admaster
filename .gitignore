@@ -26,7 +26,12 @@ next-env.d.ts
 .DS_Store
 Thumbs.db
 
+# Local exploration artifacts (screenshots, html, session data)
+.exploration/
+scripts/.pw-data/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.claude/worktrees/

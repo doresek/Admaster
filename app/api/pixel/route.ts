@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getDecryptedMetaToken } from '@/lib/meta';
 
 const GRAPH = 'https://graph.facebook.com/v19.0';
 
@@ -25,13 +26,15 @@ export async function POST(req: NextRequest) {
 
   const { clientId, name, websiteUrl } = await req.json();
 
-  // Get client token
   const { data: client } = await supabase
     .from('meta_clients')
-    .select('token, selected_ad_account_id')
+    .select('selected_ad_account_id')
     .eq('id', clientId).eq('user_id', user.id).single();
 
   if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+
+  const token = await getDecryptedMetaToken(supabase, clientId, user.id);
+  if (!token) return NextResponse.json({ error: 'Client token missing' }, { status: 404 });
 
   let metaPixelId = null;
   let pixelCode = null;
@@ -41,14 +44,14 @@ export async function POST(req: NextRequest) {
     const res = await fetch(`${GRAPH}/${client.selected_ad_account_id}/adspixels`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ access_token: client.token, name }),
+      body: JSON.stringify({ access_token: token, name }),
     });
     const data = await res.json();
     if (!data.error) {
       metaPixelId = data.id;
 
       // Get pixel code
-      const codeRes = await fetch(`${GRAPH}/${data.id}?fields=code&access_token=${client.token}`);
+      const codeRes = await fetch(`${GRAPH}/${data.id}?fields=code&access_token=${encodeURIComponent(token)}`);
       const codeData = await codeRes.json();
       pixelCode = codeData.code;
     }

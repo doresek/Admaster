@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Card, CardLabel, Chip, Textarea, Btn, OutputBox, Tabs, CopyBtn, CostBadge, Alert, PageHeader } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
+import { FRAMEWORKS, FRAMEWORKS_BY_ID, composeSystemPrompt, type FrameworkId } from '@/lib/frameworks';
 
 const PLATFORMS = [{ id:'facebook',l:'Facebook',i:'📘'},{id:'instagram',l:'Instagram',i:'📸'},{id:'whatsapp',l:'WhatsApp',i:'💬'},{id:'tiktok',l:'TikTok',i:'🎵'}];
 const TONES     = ['חם ואישי','מקצועי','חסידי','דחיפות','סיפור'];
@@ -18,23 +19,18 @@ export default function CreatePage() {
   const [tone, setTone]  = useState('חם ואישי');
   const [type, setType]  = useState('הצגת מוצר');
   const [hook, setHook]  = useState('שאלה פרובוקטיבית');
+  const [fw,   setFw]    = useState<FrameworkId>('pas');
   const [brief, setBrief] = useState('');
   const [tab,  setTab]   = useState('post');
   const [out,  setOut]   = useState<{ post:string; hashtags:string[]; img:string; tips:string; wa:string } | null>(null);
 
   const { call, loading, error } = useAI();
   const pLabel = PLATFORMS.find(p => p.id === plt)?.l ?? plt;
+  const fwObj  = FRAMEWORKS_BY_ID[fw];
 
   async function generate() {
     if (!brief.trim()) return;
-    const system = `סוכן שיווק מקצועי. פלטפורמה:${pLabel} טון:${tone} סוג:${type} פתיחה:${hook}
-החזר בפורמט זה בלבד:
-[POST]הפוסט המלא עם אמוג'ים וקריאה לפעולה[/POST]
-[HASHTAGS]12-15 האשטגים בעברית ואנגלית[/HASHTAGS]
-[IMAGE_PROMPT]Detailed English prompt for Ideogram/Midjourney[/IMAGE_PROMPT]
-[TIPS]3 טיפים לפרסום: מתי, לאיזה קהל, תקציב[/TIPS]
-[WHATSAPP]גרסה קצרה לWhatsApp ללא אמוג'ים מוגזמים[/WHATSAPP]`;
-
+    const system = composeSystemPrompt({ framework: fw, platform: pLabel, tone, type, hook });
     const text = await call('post', system, `בריף: ${brief}`, 1200, plt);
     if (!text) return;
 
@@ -65,6 +61,17 @@ export default function CreatePage() {
         {/* Left — settings */}
         <div>
           <Card className="mb-3">
+            <CardLabel>Framework קופירייטינג</CardLabel>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {FRAMEWORKS.map(f => (
+                <Chip key={f.id} label={`${f.emoji} ${f.name_he.split('—')[0].trim()}`} active={fw===f.id} onClick={()=>setFw(f.id)} />
+              ))}
+            </div>
+            <div className="text-[11px] text-[#6B8FA8] bg-[#162030] rounded-lg px-3 py-2 mb-4 leading-relaxed">
+              <strong className="text-[#D9E8F5]">{fwObj.name_en}:</strong> {fwObj.description}
+              <div className="mt-1 text-[10px] text-[#2E4459]">מבנה: {fwObj.structure.join(' → ')}</div>
+            </div>
+
             <CardLabel>פלטפורמה</CardLabel>
             <div className="flex flex-wrap gap-1.5 mb-4">
               {PLATFORMS.map(p => <Chip key={p.id} label={`${p.i} ${p.l}`} active={plt===p.id} onClick={()=>setPlt(p.id)} />)}

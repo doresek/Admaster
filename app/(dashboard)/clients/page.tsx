@@ -9,20 +9,27 @@ import { clsx } from 'clsx';
 
 function useClients() {
   const [clients, setClients] = useState<MetaClient[]>([]);
-  const [userId,  setUserId]  = useState('');
   const supabase = createClient();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      setUserId(user.id);
       supabase.from('meta_clients').select('*').eq('user_id', user.id).then(({ data }) => setClients(data ?? []));
     });
   }, []);
 
-  async function addClient(c: MetaClient) {
-    const { data } = await supabase.from('meta_clients').insert({ ...c, user_id: userId }).select().single();
-    if (data) setClients(p => [...p, data]);
+  // Adds a new Meta client via the secure server endpoint. The token is
+  // verified, encrypted and stored server-side — never sent to the DB
+  // in plaintext from the browser.
+  async function addClient(input: { name: string; industry?: string; emoji?: string; token: string }) {
+    const res  = await fetch('/api/meta/clients', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'שגיאה בחיבור');
+    setClients(p => [...p, data]);
     return data;
   }
 
@@ -31,7 +38,7 @@ function useClients() {
     setClients(p => p.map(c => c.id === id ? { ...c, ...updates } : c));
   }
 
-  return { clients, setClients, addClient, updateClient, userId };
+  return { clients, setClients, addClient, updateClient };
 }
 
 // ─── CLIENTS PAGE ────────────────────────────────────────────
@@ -48,28 +55,7 @@ export default function ClientsPage() {
     if (!form.name || !form.token) { setErr('מלא שם וToken'); return; }
     setConnecting(true); setErr('');
     try {
-      // Verify token via our secure proxy
-      const meRes  = await fetch(`/api/meta/verify?token=${encodeURIComponent(form.token)}`);
-      const meData = await meRes.json();
-      if (!meRes.ok) throw new Error(meData.error);
-
-      const newClient = {
-        id:                     '',
-        user_id:                '',
-        ...form,
-        meta_user_id:           meData.id,
-        meta_user_name:         meData.name,
-        pages:                  meData.pages ?? [],
-        ad_accounts:            meData.adAccounts ?? [],
-        selected_page_id:       meData.pages?.[0]?.id ?? null,
-        selected_ad_account_id: meData.adAccounts?.[0]?.id ?? null,
-        status:                 'connected' as const,
-        posts_published:        0,
-        campaigns_created:      0,
-        connected_at:           new Date().toISOString(),
-        updated_at:             new Date().toISOString(),
-      };
-      await addClient(newClient);
+      await addClient(form);
       setShowForm(false);
       setForm({ name:'', industry:'', emoji:'🏢', token:'' });
     } catch (e: any) {

@@ -285,6 +285,20 @@ export default function BriefsPage() {
     complete:   { bg:'bg-[#059669]/10', text:'text-[#34D399]', border:'border-[#059669]/20', label:'הושלם' },
   };
 
+  // Brief values are stored in `values` JSONB. Compute completion % client-side
+  // (mirrors the SQL function brief_completion_pct).
+  const BRIEF_FIELDS = [
+    'biz_name','biz_what','biz_result','biz_time','biz_price','biz_usp',
+    'cust_who','cust_income','pain_main','pain_internal','desire_dream',
+    'obj_main','obj_tried','obj_fear','mkt_awareness',
+    'offer_anchor','offer_price','offer_bonuses','offer_guarantee','offer_urgency','offer_cta',
+  ] as const;
+  function completionPct(values: any): number {
+    if (!values) return 0;
+    const filled = BRIEF_FIELDS.filter(f => String(values[f] ?? '').trim() !== '').length;
+    return Math.round((filled * 100) / BRIEF_FIELDS.length);
+  }
+
   if (sel) return <BriefWorkspace brief={sel} onBack={()=>setSel(null)} onUpdate={upd=>{setBriefs(p=>p.map(b=>b.id===upd.id?upd:b)); setSel(upd);}} />;
 
   return (
@@ -329,18 +343,29 @@ export default function BriefsPage() {
       )}
 
       {briefs.map(b => {
-        const st = statusStyle[b.status] ?? statusStyle.new;
+        const st  = statusStyle[b.status] ?? statusStyle.new;
+        const pct = completionPct(b.values);
+        const pctColor = pct >= 90 ? '#34D399' : pct >= 50 ? '#D97706' : '#6B8FA8';
         return (
           <div key={b.id} onClick={()=>setSel(b)}
             className="flex items-center gap-3 bg-[#111A24] border border-[#1E2F42] rounded-xl px-4 py-3 mb-2 cursor-pointer hover:border-[#2A4158] hover:-translate-x-0.5 transition-all">
             <div className="w-9 h-9 rounded-lg bg-[#1D2D3E] flex items-center justify-center text-lg">🏢</div>
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-sm">{b.values?.biz_name || 'ללא שם'}</div>
-              <div className="text-xs text-[#2E4459] truncate mt-0.5">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="font-semibold text-sm">{b.values?.biz_name || 'ללא שם'}</span>
+                <span className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded-full border"
+                  style={{ background:`${pctColor}15`, color: pctColor, borderColor: `${pctColor}40` }}>
+                  בריפינג {pct}%
+                </span>
+              </div>
+              <div className="text-xs text-[#2E4459] truncate">
                 {(b.values?.biz_what || '').substring(0, 60)} · {new Date(b.submitted_at).toLocaleDateString('he')}
               </div>
+              <div className="mt-1.5 h-1 bg-[#1D2D3E] rounded-full overflow-hidden">
+                <div className="h-full transition-all" style={{ width: `${pct}%`, background: pctColor }} />
+              </div>
             </div>
-            <div className={clsx('text-[10px] font-bold px-2.5 py-1 rounded-full border', st.bg, st.text, st.border)}>
+            <div className={clsx('text-[10px] font-bold px-2.5 py-1 rounded-full border flex-shrink-0', st.bg, st.text, st.border)}>
               {st.label}
             </div>
           </div>

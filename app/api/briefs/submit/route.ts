@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/rate-limit';
 import type { BriefValues } from '@/types';
 
 // POST /api/briefs/submit
 // Called by client (no auth) when submitting brief form
 export async function POST(req: NextRequest) {
   try {
+    // Public endpoint → rate-limit by IP: 10 submissions / hour.
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown';
+    const rl = checkRateLimit(`brief-submit:${ip}`, { max: 10, windowMs: 60 * 60_000 });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'יותר מדי שליחות — נסה שוב מאוחר יותר', retryAfter: rl.retryAfter },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } }
+      );
+    }
+
     const { code, values } = await req.json() as { code: string; values: BriefValues };
 
     if (!code || !values) {

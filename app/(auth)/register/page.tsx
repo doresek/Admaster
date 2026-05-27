@@ -1,13 +1,11 @@
 'use client';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
 
 export default function RegisterPage() {
   const [form, setForm]     = useState({ name: '', email: '', pw: '', pw2: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState('');
-  const router = useRouter();
   const supabase = createClient();
   const u = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
@@ -25,8 +23,7 @@ export default function RegisterPage() {
     });
 
     if (error) { setError(error.message); setLoading(false); return; }
-    router.push('/');
-    router.refresh();
+    window.location.href = '/';
   }
 
   return (

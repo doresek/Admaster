@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 const SECTIONS = [
@@ -34,7 +34,15 @@ const SECTIONS = [
   ]},
 ];
 
-export default function BriefFormPage() {
+export default function BriefFormPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#070A0E]" />}>
+      <BriefFormPage />
+    </Suspense>
+  );
+}
+
+function BriefFormPage() {
   const params = useSearchParams();
   const code   = params.get('code') ?? '';
   const [vals,  setVals]      = useState<Record<string, string>>({});
@@ -135,7 +143,7 @@ export default function BriefFormPage() {
                   className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]"
                   dir="rtl">
                   <option value="">בחר...</option>
-                  {'opts' in q && q.opts.map((o: string) => <option key={o} value={o} className="bg-[#162030]">{o}</option>)}
+                  {'opts' in q && q.opts?.map((o: string) => <option key={o} value={o} className="bg-[#162030]">{o}</option>)}
                 </select>
               ) : (
                 <input type="text" value={vals[q.id]||''} onChange={e=>uv(q.id,e.target.value)} placeholder={q.ph}

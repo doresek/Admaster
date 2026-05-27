@@ -1,5 +1,12 @@
 import { useCallback, useState } from 'react';
-import type { CreditAction } from '@/types';
+import { CREDIT_COSTS, type CreditAction } from '@/types';
+import { LOCALE_COOKIE, parseLocale, type Locale } from '@/lib/i18n';
+
+function currentLocale(): Locale {
+  if (typeof document === 'undefined') return 'he';
+  const m = document.cookie.match(new RegExp(`(?:^|; )${LOCALE_COOKIE}=([^;]+)`));
+  return parseLocale(m?.[1]);
+}
 
 interface UseAIOptions {
   onCreditsUpdated?: (credits: number) => void;
@@ -21,10 +28,16 @@ export function useAI({ onCreditsUpdated, onError }: UseAIOptions = {}) {
     setError(null);
 
     try {
+      const locale = currentLocale();
+      // Append a small language hint so AI responds in the user's locale, regardless of caller
+      const langSuffix = locale === 'en' ? '\n\nRespond in English.'
+                       : locale === 'ar' ? '\n\nأجب بالعربية.'
+                       : '';
+      const systemWithLocale = system + langSuffix;
       const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, system, prompt, maxTokens, platform }),
+        body: JSON.stringify({ action, system: systemWithLocale, prompt, maxTokens, platform, locale }),
       });
 
       const data = await res.json();
@@ -57,11 +70,7 @@ export function useAI({ onCreditsUpdated, onError }: UseAIOptions = {}) {
 }
 
 function getCost(action: CreditAction): number {
-  const costs: Record<CreditAction, number> = {
-    post: 3, analyze: 5, variations: 8, holiday: 3,
-    publish: 2, campaign: 15, avatar: 10, ads_avatar: 8, funnel: 12,
-  };
-  return costs[action] ?? 0;
+  return CREDIT_COSTS[action] ?? 0;
 }
 
 // ── Meta API hook ─────────────────────────────

@@ -13,7 +13,21 @@ export type CreditAction =
   | 'campaign'
   | 'avatar'
   | 'ads_avatar'
-  | 'funnel';
+  | 'funnel'
+  // ── auto-ads.io parity ───────────────────────
+  | 'lab'        // The Lab — free remix
+  | 'email'      // Email copywriting
+  | 'sms'        // SMS copywriting
+  | 'series'     // Multi-channel message series (up to 180 days)
+  | 'refine'     // Auto-refinement loop based on feedback
+  | 'approval'   // Send for client approval (no extra cost; bundled with publish)
+  | 'img_edit'   // Image refinement via text prompt
+  // ── Phase C ──────────────────────────────────
+  | 'analyze_brief'   // analyze a brief and suggest improvements
+  | 'analyze_weak'    // analyze a weak/failing ad
+  | 'offer_stack'     // Hormozi-style offer stack builder
+  | 'img_adapt'       // adapt existing image to different aspect ratio
+  | 'recommend';      // AI agent recommendations
 
 export const CREDIT_COSTS: Record<CreditAction, number> = {
   post:       3,
@@ -25,6 +39,20 @@ export const CREDIT_COSTS: Record<CreditAction, number> = {
   avatar:     10,
   ads_avatar: 8,
   funnel:     12,
+  // ── auto-ads.io parity ───────────────────────
+  lab:        0,
+  email:      3,
+  sms:        2,
+  series:    20,
+  refine:     4,
+  approval:   0,
+  img_edit:   3,
+  // ── Phase C ──────────────────────────────────
+  analyze_brief: 2,
+  analyze_weak:  3,
+  offer_stack:   6,
+  img_adapt:     1,
+  recommend:     0,
 };
 
 export const PLAN_CONFIG = {

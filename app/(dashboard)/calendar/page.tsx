@@ -1,13 +1,10 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardLabel, Chip, Textarea, Input, Btn, OutputBox, Tabs, CopyBtn, CostBadge, Alert, PageHeader } from '@/components/ui';
+import { Card, Textarea, Btn, OutputBox, Tabs, CopyBtn, CostBadge, Alert, PageHeader } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
 
 const xt = (raw:string,t:string)=>{const m=raw.match(new RegExp(`\\[${t}\\]([\\s\\S]*?)\\[\\/${t}\\]`));return m?m[1].trim():'';};
-
-// ═══ EXPORT for calendar ═══════════════════════════════════════
-export { CalendarPage as default };
 
 const HOLIDAYS = [
   {name:'שבועות',    date:'2026-05-22',emoji:'📜'},
@@ -20,7 +17,7 @@ const HOLIDAYS = [
   {name:'בר מצווה', date:'2026-04-01',emoji:'✡️'},
 ];
 
-function CalendarPage() {
+export default function CalendarPage() {
   const [sel,  setSel]  = useState<{name:string;emoji:string}|null>(null);
   const [tab,  setTab]  = useState('post');
   const [out,  setOut]  = useState<{post:string;hashtags:string[];campaign:string}|null>(null);
@@ -77,9 +74,9 @@ function CalendarPage() {
             <button onClick={() => { setOut(null); setSel(null); }} className="text-[#2E4459] hover:text-[#6B8FA8] text-lg">✕</button>
           </div>
           <Tabs tabs={[{id:'post',label:'📝 פוסט'},{id:'hashtags',label:'# האשטגים'},{id:'campaign',label:'🚀 קמפיין'}]} active={tab} onChange={setTab} />
-          {tab==='post' && <><OutputBox text={out.post} /><CopyBtn text={out.post+'\n\n'+out.hashtags.join(' ')} className="mt-2" /></>}
+          {tab==='post' && <><OutputBox text={out.post} /><CopyBtn text={out.post+'\n\n'+out.hashtags.join(' ')} /></>}
           {tab==='hashtags' && <div className="flex flex-wrap gap-2">{out.hashtags.map((h,i)=><span key={i} className="bg-[#0A7AFF]/10 border border-[#0A7AFF]/20 text-[#3D9FFF] px-3 py-1 rounded-full text-sm">{h}</span>)}</div>}
-          {tab==='campaign' && <OutputBox text={out.campaign} className="text-sm" />}
+          {tab==='campaign' && <OutputBox text={out.campaign} />}
         </Card>
       )}
     </div>

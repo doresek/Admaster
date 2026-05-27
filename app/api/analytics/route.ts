@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getDecryptedMetaToken } from '@/lib/meta';
 
 const GRAPH = 'https://graph.facebook.com/v19.0';
 
@@ -44,16 +45,19 @@ export async function GET(req: NextRequest) {
 
     const { data: client } = await supabase
       .from('meta_clients')
-      .select('token, selected_ad_account_id, name')
+      .select('selected_ad_account_id, name')
       .eq('id', clientId).eq('user_id', user.id).single();
 
     if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     if (!client.selected_ad_account_id) return NextResponse.json({ error: 'No ad account selected' }, { status: 400 });
 
+    const token = await getDecryptedMetaToken(supabase, clientId, user.id);
+    if (!token) return NextResponse.json({ error: 'Client token missing' }, { status: 404 });
+
     const [insights, campaigns, ads] = await Promise.allSettled([
-      fetchInsights(client.selected_ad_account_id, client.token, datePreset),
-      fetchCampaigns(client.selected_ad_account_id, client.token),
-      fetchTopAds(client.selected_ad_account_id, client.token),
+      fetchInsights(client.selected_ad_account_id, token, datePreset),
+      fetchCampaigns(client.selected_ad_account_id, token),
+      fetchTopAds(client.selected_ad_account_id, token),
     ]);
 
     // Cache in DB

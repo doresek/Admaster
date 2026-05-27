@@ -25,8 +25,12 @@ export default function ImagesPage() {
   const [loading,   setLoading]  = useState(false);
   const [images,    setImages]   = useState<any[]>([]);
   const [current,   setCurrent]  = useState<string|null>(null);
+  const [currentId, setCurrentId] = useState<string|null>(null);
   const [error,     setError]    = useState('');
   const [history,   setHistory]  = useState<any[]>([]);
+  // edit modal
+  const [editOpen,  setEditOpen]  = useState(false);
+  const [editPrompt, setEditPrompt] = useState('');
   const { call }    = useAI();
 
   useEffect(() => {
@@ -47,22 +51,65 @@ export default function ImagesPage() {
   }
 
   async function generate() {
-    if (!prompt.trim()) return;
-    setLoading(true); setError(''); setCurrent(null);
+    if (!prompt.trim() || loading) return;
+    setLoading(true); setError(''); setCurrent(null); setCurrentId(null);
 
     try {
       const res  = await fetch('/api/images', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': crypto.randomUUID(),
+        },
         body: JSON.stringify({ prompt, style, aspectRatio: ratio }),
       });
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data.error || 'שגיאה בייצור תמונה');
+      if (!res.ok) {
+        const msg = data.refunded
+          ? `${data.error} — ${data.refunded}⚡ הוחזרו לחשבונך`
+          : data.error || 'שגיאה בייצור תמונה';
+        throw new Error(msg);
+      }
 
       setCurrent(data.url);
+      if (data.warning) setError(`⚠️ ${data.warning}`);
       setImages(p => [{ url: data.url, prompt, style, ratio, createdAt: new Date().toISOString() }, ...p]);
       setHistory(p => [{ image_url: data.url, prompt, created_at: new Date().toISOString() }, ...p.slice(0,19)]);
+    } catch (e: any) {
+      setError(e.message);
+    } finally { setLoading(false); }
+  }
+
+  async function runEdit() {
+    if (!current || !editPrompt.trim() || loading) return;
+    setLoading(true); setError('');
+    try {
+      const res = await fetch('/api/images', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': crypto.randomUUID(),
+        },
+        body: JSON.stringify({
+          mode:            'edit',
+          parentImageId:   currentId,
+          parentImageUrl:  current,
+          editPrompt,
+          aspectRatio:     ratio,
+          style,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data.refunded
+          ? `${data.error} — ${data.refunded}⚡ הוחזרו לחשבונך`
+          : data.error || 'שגיאה בעריכה';
+        throw new Error(msg);
+      }
+      setCurrent(data.url); setCurrentId(null);
+      setHistory(p => [{ image_url: data.url, prompt: `[edit] ${editPrompt}`, created_at: new Date().toISOString() }, ...p.slice(0,19)]);
+      setEditOpen(false); setEditPrompt('');
     } catch (e: any) {
       setError(e.message);
     } finally { setLoading(false); }
@@ -73,7 +120,7 @@ export default function ImagesPage() {
   return (
     <div>
       <PageHeader eyebrow="AI Images" title="מחולל תמונות" sub="Ideogram · DALL-E 3 · עיצובים לפוסטים ומודעות"
-        right={<CostBadge cost={5} />} />
+        right={<CostBadge cost={3} />} />
 
       <div className="grid grid-cols-2 gap-4">
         {/* Left — controls */}
@@ -135,13 +182,60 @@ export default function ImagesPage() {
               <div className="rounded-xl overflow-hidden border border-[#2A4158] mb-3">
                 <img src={current} alt="Generated" className="w-full" />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <a href={current} download="admaster-image.jpg" target="_blank" rel="noreferrer"
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-[#0A7AFF] hover:bg-[#3D9FFF] text-white text-sm font-semibold rounded-lg transition-colors">
                   ⬇️ הורד
                 </a>
+                <Btn variant="ghost" onClick={() => { setEditOpen(true); setEditPrompt(''); }} size="sm">✏️ ערוך</Btn>
                 <Btn variant="ghost" onClick={generate} loading={loading} size="sm">🔄 עוד גרסה</Btn>
               </div>
+
+              {/* Format adapter */}
+              <div className="mt-2 grid grid-cols-4 gap-1.5">
+                {RATIOS.map(r => (
+                  <button key={r.id}
+                    onClick={async () => {
+                      if (r.id === ratio) return;
+                      setLoading(true); setError('');
+                      try {
+                        const res = await fetch('/api/images', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            mode: 'adapt', parentImageId: currentId, parentImageUrl: current,
+                            aspectRatio: r.id, style,
+                          }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error);
+                        setCurrent(data.url); setRatio(r.id);
+                        setHistory(p => [{ image_url: data.url, prompt: `[adapt ${r.label}]`, created_at: new Date().toISOString() }, ...p.slice(0,19)]);
+                      } catch (e: any) { setError(e.message); }
+                      finally { setLoading(false); }
+                    }}
+                    title={`התאם ל-${r.label} (1⚡)`}
+                    className={clsx('py-1.5 text-[10px] font-bold rounded-lg border transition-all',
+                      ratio===r.id ? 'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]' : 'border-[#1E2F42] bg-[#162030] text-[#6B8FA8] hover:border-[#2A4158]')}>
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+
+              {editOpen && (
+                <div className="mt-3 border border-[#0A7AFF]/40 bg-[#0A7AFF]/5 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-bold text-[#3D9FFF]">✏️ עריכת תמונה (3⚡)</div>
+                    <button onClick={() => setEditOpen(false)} className="text-[#2E4459] hover:text-white text-sm">✕</button>
+                  </div>
+                  <Textarea value={editPrompt} onChange={setEditPrompt}
+                    placeholder="מה לשנות? לדוגמה: 'הוסף לוגו פינה שמאלית', 'שנה רקע לים', 'החלף צבע ל-teal'"
+                    rows={3} />
+                  <Btn variant="primary" full loading={loading} onClick={runEdit} disabled={!editPrompt.trim()}>
+                    🪄 הפעל עריכה
+                  </Btn>
+                </div>
+              )}
             </div>
           ) : loading ? (
             <div className="flex flex-col items-center justify-center h-72 gap-4">

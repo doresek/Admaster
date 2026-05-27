@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getDecryptedMetaToken } from '@/lib/meta';
 
 const GRAPH = 'https://graph.facebook.com/v19.0';
 
 async function metaFetch(path: string, token: string, method = 'GET', body?: object) {
   const url = method === 'GET'
-    ? `${GRAPH}/${path}?access_token=${token}`
+    ? `${GRAPH}/${path}${path.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(token)}`
     : `${GRAPH}/${path}`;
 
   const res = await fetch(url, {
@@ -33,18 +34,11 @@ export async function GET(req: NextRequest) {
 
     if (!clientId) return NextResponse.json({ error: 'Missing clientId' }, { status: 400 });
 
-    // Get client token (RLS ensures it's the user's client)
-    const { data: client } = await supabase
-      .from('meta_clients')
-      .select('token')
-      .eq('id', clientId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+    const token = await getDecryptedMetaToken(supabase, clientId, user.id);
+    if (!token) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
 
     const fullPath = fields ? `${path}?fields=${fields}` : path;
-    const result = await metaFetch(fullPath, client.token);
+    const result = await metaFetch(fullPath, token);
 
     return NextResponse.json(result);
   } catch (err: any) {
@@ -63,16 +57,10 @@ export async function POST(req: NextRequest) {
 
     if (!clientId || !path) return NextResponse.json({ error: 'Missing clientId or path' }, { status: 400 });
 
-    const { data: client } = await supabase
-      .from('meta_clients')
-      .select('token')
-      .eq('id', clientId)
-      .eq('user_id', user.id)
-      .single();
+    const token = await getDecryptedMetaToken(supabase, clientId, user.id);
+    if (!token) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
 
-    if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
-
-    const result = await metaFetch(path, client.token, 'POST', body);
+    const result = await metaFetch(path, token, 'POST', body);
     return NextResponse.json(result);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

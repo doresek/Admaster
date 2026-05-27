@@ -151,9 +151,9 @@ const alertCls: Record<AlertType, string> = {
   red:   'bg-red-900/10 border-red-500/20 text-red-400',
 };
 
-export function Alert({ type='blue', children }: { type?: AlertType; children: ReactNode }) {
+export function Alert({ type='blue', children, className }: { type?: AlertType; children: ReactNode; className?: string }) {
   return (
-    <div className={clsx('px-3 py-2.5 rounded-lg border text-[12.5px] flex gap-2 items-start leading-relaxed mb-3', alertCls[type])}>
+    <div className={clsx('px-3 py-2.5 rounded-lg border text-[12.5px] flex gap-2 items-start leading-relaxed mb-3', alertCls[type], className)}>
       {children}
     </div>
   );
@@ -223,7 +223,7 @@ export function Tabs({ tabs, active, onChange }: { tabs: { id: string; label: st
 }
 
 // ─── COPY BUTTON ─────────────────────────────────────────────
-export function CopyBtn({ text, label = '📋 העתק' }: { text: string; label?: string }) {
+export function CopyBtn({ text, label = '📋 העתק', className }: { text: string; label?: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   function copy() {
     navigator.clipboard.writeText(text);
@@ -231,7 +231,7 @@ export function CopyBtn({ text, label = '📋 העתק' }: { text: string; label
     setTimeout(() => setCopied(false), 2000);
   }
   return (
-    <Btn variant="ghost" size="sm" onClick={copy}>
+    <Btn variant="ghost" size="sm" onClick={copy} className={className}>
       {copied ? '✓ הועתק!' : label}
     </Btn>
   );

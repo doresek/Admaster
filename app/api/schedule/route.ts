@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { getDecryptedMetaToken } from '@/lib/meta';
 
 const GRAPH = 'https://graph.facebook.com/v19.0';
 
@@ -35,10 +36,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
   }
 
-  // Get client
-  const { data: client } = await supabase
-    .from('meta_clients').select('token').eq('id', clientId).eq('user_id', user.id).single();
-  if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+  const token = await getDecryptedMetaToken(supabase, clientId, user.id);
+  if (!token) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
 
   const scheduledDate = new Date(scheduledAt);
   const now = new Date();
@@ -52,7 +51,7 @@ export async function POST(req: NextRequest) {
         message,
         published: false,
         scheduled_publish_time: publishTime,
-        access_token: client.token,
+        access_token: token,
       };
       if (imageUrl) body.link = imageUrl;
 
