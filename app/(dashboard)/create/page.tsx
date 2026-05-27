@@ -90,6 +90,44 @@ export default function CreatePage() {
             <div className="flex flex-wrap gap-1.5">
               {TONES.map(t => <Chip key={t} label={t} active={tone===t} onClick={()=>setTone(t)} />)}
             </div>
+
+            <div className="border-t border-[#1E2F42] pt-3 mt-3">
+              <CardLabel>🎛 Override (אופציונלי)</CardLabel>
+              <div className="text-[11px] text-[#2E4459] mb-2">
+                כברירת מחדל — ה-AI בוחר את ה-framework וה-hook. לחץ chip לכפיית בחירה.
+              </div>
+
+              <div className="text-[11px] text-[#6B8FA8] mb-1">Framework</div>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                <Chip label="— AI יבחר —" active={fwOverride===null} onClick={() => setFwOverride(null)} />
+                {FRAMEWORKS.map(f => (
+                  <Chip
+                    key={f.id}
+                    label={`${f.emoji} ${f.name_he.split('—')[0].trim()}`}
+                    active={fwOverride===f.id}
+                    onClick={() => setFwOverride(fwOverride === f.id ? null : f.id)}
+                  />
+                ))}
+              </div>
+              {fwOverride && (
+                <div className="text-[10px] text-[#6B8FA8] bg-[#162030] rounded-lg px-3 py-2 mb-3 leading-relaxed">
+                  <strong className="text-[#D9E8F5]">{FRAMEWORKS_BY_ID[fwOverride].name_en}:</strong> {FRAMEWORKS_BY_ID[fwOverride].description}
+                </div>
+              )}
+
+              <div className="text-[11px] text-[#6B8FA8] mb-1">Hook</div>
+              <div className="flex flex-wrap gap-1.5">
+                <Chip label="— AI יבחר —" active={hookOverride===null} onClick={() => setHookOverride(null)} />
+                {HOOKS.map(h => (
+                  <Chip
+                    key={h}
+                    label={h}
+                    active={hookOverride===h}
+                    onClick={() => setHookOverride(hookOverride === h ? null : h)}
+                  />
+                ))}
+              </div>
+            </div>
           </Card>
 
           <Card className="mb-3">
