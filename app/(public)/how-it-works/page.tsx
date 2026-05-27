@@ -29,12 +29,15 @@ const STEPS = [
 export default function HowItWorksPage() {
   return (
     <div className="px-4 py-16 max-w-5xl mx-auto">
-      <div className="text-center mb-16">
-        <div className="text-[11px] font-bold text-[#2E4459] uppercase tracking-widest mb-2">תהליך</div>
-        <h1 className="text-4xl md:text-5xl font-bold text-white mb-3" style={{ fontFamily: 'DM Serif Display,serif' }}>
-          איך זה עובד
-        </h1>
-        <p className="text-[#6B8FA8] max-w-xl mx-auto">3 שלבים מבריף לפרסום. כל התהליך — 19.3 שניות לבריף קצר.</p>
+      <div className="hero-mesh relative overflow-hidden -mx-4 px-4 py-12 mb-16">
+        <div className="relative z-10 max-w-3xl">
+          <div className="text-2xs font-bold tracking-kicker uppercase text-t3 mb-3">תהליך</div>
+          <h1 className="font-serif text-white text-4xl md:text-6xl leading-tight tracking-tight">
+            איך זה עובד
+          </h1>
+          <span className="rule-gold mt-5 block w-32" aria-hidden />
+          <p className="text-t2 max-w-2xl mt-6 text-lg leading-relaxed">3 שלבים מבריף לפרסום. כל התהליך — 19.3 שניות לבריף קצר.</p>
+        </div>
       </div>
 
       <div className="space-y-12">

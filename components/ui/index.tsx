@@ -211,11 +211,12 @@ export function CostBadge({ cost }: { cost: number }) {
 // ─── PAGE HEADER ─────────────────────────────────────────────
 export function PageHeader({ eyebrow, title, sub, right }: { eyebrow?: string; title: string; sub?: string; right?: ReactNode }) {
   return (
-    <div className="flex items-start justify-between mb-6">
-      <div>
-        {eyebrow && <div className="text-[11px] font-bold text-[#2E4459] uppercase tracking-widest mb-1">{eyebrow}</div>}
-        <h1 className="text-2xl font-bold text-[#D9E8F5] mb-1">{title}</h1>
-        {sub && <p className="text-[#6B8FA8] text-sm">{sub}</p>}
+    <div className="flex items-start justify-between gap-4 mb-7">
+      <div className="min-w-0">
+        {eyebrow && <div className="text-2xs font-bold tracking-kicker uppercase text-t3 mb-2">{eyebrow}</div>}
+        <h1 className="font-serif text-2xl md:text-3xl text-[#D9E8F5] leading-tight tracking-tight">{title}</h1>
+        <span className="rule-gold mt-3 block w-16" aria-hidden />
+        {sub && <p className="text-[#6B8FA8] text-sm mt-3 leading-relaxed">{sub}</p>}
       </div>
       {right && <div className="flex items-center gap-2 flex-shrink-0">{right}</div>}
     </div>

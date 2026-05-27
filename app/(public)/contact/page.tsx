@@ -31,12 +31,15 @@ export default function ContactPage() {
 
   return (
     <div className="px-4 py-16 max-w-2xl mx-auto">
-      <div className="text-center mb-10">
-        <div className="text-[11px] font-bold text-[#2E4459] uppercase tracking-widest mb-2">צור קשר</div>
-        <h1 className="text-4xl font-bold text-white mb-3" style={{ fontFamily: 'DM Serif Display,serif' }}>
-          מעוניין לדבר?
-        </h1>
-        <p className="text-[#6B8FA8]">מענה תוך 24 שעות בימי עסקים</p>
+      <div className="hero-mesh relative overflow-hidden -mx-4 px-4 py-10 mb-10">
+        <div className="relative z-10">
+          <div className="text-2xs font-bold tracking-kicker uppercase text-t3 mb-3">יצירת קשר</div>
+          <h1 className="font-serif text-white text-4xl md:text-5xl leading-tight tracking-tight">
+            מעוניין לדבר?
+          </h1>
+          <span className="rule-gold mt-5 block w-32" aria-hidden />
+          <p className="text-t2 mt-6 text-lg leading-relaxed">מענה תוך 24 שעות בימי עסקים</p>
+        </div>
       </div>
 
       <div className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-6">

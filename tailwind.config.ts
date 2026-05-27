@@ -26,7 +26,7 @@ const config: Config = {
         goldl:  '#D4AF55',
         t1:     '#D9E8F5',
         t2:     '#6B8FA8',
-        t3:     '#2E4459',
+        t3:     '#607C92',
       },
       fontFamily: {
         sans:  ['Noto Sans Hebrew', 'Plus Jakarta Sans', 'sans-serif'],

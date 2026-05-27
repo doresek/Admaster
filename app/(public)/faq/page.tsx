@@ -57,12 +57,15 @@ export default function FaqPage() {
   const [open, setOpen] = useState<number|null>(0);
   return (
     <div className="px-4 py-16 max-w-3xl mx-auto">
-      <div className="text-center mb-12">
-        <div className="text-[11px] font-bold text-[#2E4459] uppercase tracking-widest mb-2">FAQ</div>
-        <h1 className="text-4xl font-bold text-white mb-3" style={{ fontFamily: 'DM Serif Display,serif' }}>
-          שאלות נפוצות
-        </h1>
-        <p className="text-[#6B8FA8]">הכל מה שרציתם לדעת לפני שמתחילים</p>
+      <div className="hero-mesh relative overflow-hidden -mx-4 px-4 py-12 mb-12">
+        <div className="relative z-10 max-w-3xl">
+          <div className="text-2xs font-bold tracking-kicker uppercase text-t3 mb-3">FAQ</div>
+          <h1 className="font-serif text-white text-4xl md:text-5xl leading-tight tracking-tight">
+            שאלות נפוצות
+          </h1>
+          <span className="rule-gold mt-5 block w-32" aria-hidden />
+          <p className="text-t2 mt-6 text-lg leading-relaxed">הכל מה שרציתם לדעת לפני שמתחילים</p>
+        </div>
       </div>
 
       <div className="space-y-2">

@@ -43,12 +43,15 @@ const FEATURES_PER_PLAN: Record<keyof typeof PLAN_CONFIG, string[]> = {
 export default function PricingPage() {
   return (
     <div className="px-4 py-16 max-w-6xl mx-auto">
-      <div className="text-center mb-12">
-        <div className="text-[11px] font-bold text-[#2E4459] uppercase tracking-widest mb-2">תמחור</div>
-        <h1 className="text-4xl md:text-5xl font-bold text-white mb-3" style={{ fontFamily: 'DM Serif Display,serif' }}>
-          תמחור פשוט וברור
-        </h1>
-        <p className="text-[#6B8FA8]">בלי הפתעות. בלי עלויות נסתרות. תוכל לבטל בכל רגע.</p>
+      <div className="hero-mesh relative overflow-hidden -mx-4 px-4 py-12 mb-12">
+        <div className="relative z-10 max-w-3xl">
+          <div className="text-2xs font-bold tracking-kicker uppercase text-t3 mb-3">תמחור</div>
+          <h1 className="font-serif text-white text-4xl md:text-6xl leading-tight tracking-tight">
+            תמחור פשוט וברור
+          </h1>
+          <span className="rule-gold mt-5 block w-32" aria-hidden />
+          <p className="text-t2 max-w-2xl mt-6 text-lg leading-relaxed">בלי הפתעות. בלי עלויות נסתרות. תוכל לבטל בכל רגע.</p>
+        </div>
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-16">
@@ -59,8 +62,8 @@ export default function PricingPage() {
             <div key={id} className="bg-[#111A24] rounded-2xl p-6 border relative"
               style={{ borderColor: isPro ? p.color : '#1E2F42' }}>
               {isPro && (
-                <div className="absolute -top-3 right-1/2 translate-x-1/2 bg-[#7C3AED] text-white text-[10px] font-bold px-3 py-1 rounded-full">
-                  ⭐ הכי פופולרי
+                <div className="absolute -top-3 right-1/2 translate-x-1/2 bg-goldl text-bg text-2xs font-bold tracking-label px-3 py-1 rounded-full uppercase shadow-[0_4px_14px_rgba(212,175,85,0.35)]">
+                  הכי פופולרי
                 </div>
               )}
               <div className="font-bold text-lg mb-1" style={{ color: p.color }}>{p.name}</div>

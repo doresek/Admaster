@@ -78,14 +78,16 @@ export default async function DashboardPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <div className="text-[11px] font-bold text-[#2E4459] uppercase tracking-widest mb-1">Dashboard</div>
-          <h1 className="text-2xl font-bold text-[#D9E8F5] mb-1">שלום, {profile?.name} 👋</h1>
-          <p className="text-[#6B8FA8] text-sm">מרכז הבקרה שלך · {clients.length} לקוחות · {profile?.plan} plan</p>
+      <div className="flex items-start justify-between gap-4 mb-7">
+        <div className="min-w-0">
+          <div className="text-2xs font-bold tracking-kicker uppercase text-[#607C92] mb-2">Dashboard</div>
+          <h1 className="font-serif text-2xl md:text-3xl text-[#D9E8F5] leading-tight tracking-tight">שלום, {profile?.name}</h1>
+          <span className="block h-px w-16 bg-gradient-to-l from-[#D4AF55] to-transparent mt-3" aria-hidden />
+          <p className="text-[#6B8FA8] text-sm mt-3 leading-relaxed">מרכז הבקרה שלך · {clients.length} לקוחות · {profile?.plan}</p>
         </div>
-        <Link href="/credits" className="inline-flex items-center gap-1.5 bg-[#B8953A]/10 border border-[#B8953A]/25 text-[#D4AF55] text-sm font-bold px-3 py-1.5 rounded-lg hover:bg-[#B8953A]/20 transition-colors">
-          💎 {profile?.credits?.toLocaleString()} קרדיטים
+        <Link href="/credits" className="inline-flex items-center gap-1.5 bg-[#B8953A]/10 border border-[#B8953A]/25 text-[#D4AF55] text-sm font-bold px-3 py-1.5 rounded-lg hover:bg-[#B8953A]/20 transition-colors cursor-pointer">
+          <span aria-hidden>◆</span>
+          {profile?.credits?.toLocaleString()} קרדיטים
         </Link>
       </div>
 
