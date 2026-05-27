@@ -27,6 +27,7 @@ export type CreditAction =
   | 'analyze_weak'    // analyze a weak/failing ad
   | 'offer_stack'     // Hormozi-style offer stack builder
   | 'img_adapt'       // adapt existing image to different aspect ratio
+  | 'master_post'     // marketer-driven post generation (Master Studio)
   | 'recommend';      // AI agent recommendations
 
 export const CREDIT_COSTS: Record<CreditAction, number> = {
@@ -52,6 +53,7 @@ export const CREDIT_COSTS: Record<CreditAction, number> = {
   analyze_weak:  3,
   offer_stack:   6,
   img_adapt:     1,
+  master_post:   4,
   recommend:     0,
 };
 
