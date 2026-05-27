@@ -160,6 +160,62 @@ export default function CreatePage() {
         <div>
           {out ? (
             <>
+              {(out.avatar || out.marketer) && (
+                <Card className="mb-3" style={{ borderColor: '#2A3E66' }}>
+                  <button
+                    onClick={() => setRevealOpen(o => !o)}
+                    className="w-full flex items-center justify-between text-right"
+                  >
+                    <span className="text-[13px] font-semibold text-[#D9E8F5] flex items-center gap-2">
+                      🧠 Why this works
+                    </span>
+                    <span className="text-[#6B8FA8] text-xs">{revealOpen ? '▾' : '▸'}</span>
+                  </button>
+
+                  {revealOpen && (
+                    <div className="mt-3 space-y-3 text-[12px] leading-relaxed">
+                      {out.avatar && (
+                        <div>
+                          <div className="text-[11px] font-bold text-[#6B8FA8] uppercase tracking-wider mb-1">👤 אווטאר</div>
+                          <div className="space-y-0.5 text-[#D9E8F5]">
+                            {out.avatar.persona         && <div><span className="text-[#6B8FA8]">פרסונה:</span> {out.avatar.persona}</div>}
+                            {out.avatar.fears           && <div><span className="text-[#6B8FA8]">פחדים:</span> {out.avatar.fears}</div>}
+                            {out.avatar.desires         && <div><span className="text-[#6B8FA8]">רצונות:</span> {out.avatar.desires}</div>}
+                            {out.avatar.awareness_level && <div><span className="text-[#6B8FA8]">Awareness:</span> {out.avatar.awareness_level}</div>}
+                            {out.avatar.objections      && <div><span className="text-[#6B8FA8]">התנגדויות:</span> {out.avatar.objections}</div>}
+                          </div>
+                        </div>
+                      )}
+
+                      {out.marketer && (
+                        <div className="border-t border-[#1E2F42] pt-2">
+                          <div className="text-[11px] font-bold text-[#6B8FA8] uppercase tracking-wider mb-1">🎯 משווק נבחר</div>
+                          <div className="text-[#D9E8F5] flex items-center gap-2">
+                            <span className="text-lg">{out.marketer.emoji}</span>
+                            <span className="font-semibold">{out.marketer.name}</span>
+                          </div>
+                          {out.why && <div className="text-[#6B8FA8] mt-1">{out.why}</div>}
+                        </div>
+                      )}
+
+                      {out.principles.length > 0 && (
+                        <div className="border-t border-[#1E2F42] pt-2">
+                          <div className="text-[11px] font-bold text-[#6B8FA8] uppercase tracking-wider mb-1">📚 עקרונות שיושמו</div>
+                          <ul className="space-y-1 text-[#D9E8F5]">
+                            {out.principles.map((p, i) => (
+                              <li key={i}>
+                                <span className="font-semibold text-[#3D9FFF]">{p.principle}</span>
+                                {p.application && <span className="text-[#6B8FA8]"> → {p.application}</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              )}
+
               <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
               {tab === 'post' && (
