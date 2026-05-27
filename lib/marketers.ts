@@ -351,8 +351,10 @@ export const MARKETERS: Marketer[] = [
   },
 ];
 
-export const MARKETERS_BY_ID: Record<MarketerId, Marketer> =
-  MARKETERS.reduce((acc, m) => { acc[m.id] = m; return acc; }, {} as Record<MarketerId, Marketer>);
+export const MARKETERS_BY_ID = MARKETERS.reduce<Record<MarketerId, Marketer>>(
+  (acc, m) => { acc[m.id] = m; return acc; },
+  {} as Record<MarketerId, Marketer>,
+);
 
 /**
  * Compact one-marketer block for the system prompt. ~200 tokens each.
