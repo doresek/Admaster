@@ -4,7 +4,6 @@ import { Card, CardLabel, Chip, Textarea, Btn, OutputBox, Tabs, CopyBtn, CostBad
 import { useAI } from '@/lib/hooks/useAI';
 import { FRAMEWORKS, FRAMEWORKS_BY_ID, type FrameworkId } from '@/lib/frameworks';
 import { composeMasterPrompt, parseMasterResponse, isCriticalFailure, type MasterStudioOutput } from '@/lib/master-studio';
-import { MARKETERS_BY_ID } from '@/lib/marketers';
 
 const PLATFORMS = [
   { id: 'facebook',  l: 'Facebook',  i: '📘' },
