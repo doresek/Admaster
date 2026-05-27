@@ -2,46 +2,63 @@
 import { useState } from 'react';
 import { Card, CardLabel, Chip, Textarea, Btn, OutputBox, Tabs, CopyBtn, CostBadge, Alert, PageHeader } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
-import { FRAMEWORKS, FRAMEWORKS_BY_ID, composeSystemPrompt, type FrameworkId } from '@/lib/frameworks';
+import { FRAMEWORKS, FRAMEWORKS_BY_ID, type FrameworkId } from '@/lib/frameworks';
+import { composeMasterPrompt, parseMasterResponse, isCriticalFailure, type MasterStudioOutput } from '@/lib/master-studio';
+import { MARKETERS_BY_ID } from '@/lib/marketers';
 
-const PLATFORMS = [{ id:'facebook',l:'Facebook',i:'📘'},{id:'instagram',l:'Instagram',i:'📸'},{id:'whatsapp',l:'WhatsApp',i:'💬'},{id:'tiktok',l:'TikTok',i:'🎵'}];
-const TONES     = ['חם ואישי','מקצועי','חסידי','דחיפות','סיפור'];
-const TYPES     = ['הצגת מוצר','מבצע','בניית אמון','שאלה לקהל','טיפ מקצועי'];
-const HOOKS     = ['שאלה פרובוקטיבית','עובדה מפתיעה','סיפור אישי','הצעה חסרת תחרות','אזהרה'];
+const PLATFORMS = [
+  { id: 'facebook',  l: 'Facebook',  i: '📘' },
+  { id: 'instagram', l: 'Instagram', i: '📸' },
+  { id: 'whatsapp',  l: 'WhatsApp',  i: '💬' },
+  { id: 'tiktok',    l: 'TikTok',    i: '🎵' },
+];
+const TONES = ['חם ואישי','מקצועי','חסידי','דחיפות','סיפור'];
+const TYPES = ['הצגת מוצר','מבצע','בניית אמון','שאלה לקהל','טיפ מקצועי'];
+const HOOKS = ['שאלה פרובוקטיבית','עובדה מפתיעה','סיפור אישי','הצעה חסרת תחרות','אזהרה'];
 
-function xt(raw: string, t: string) {
-  const m = raw.match(new RegExp(`\\[${t}\\]([\\s\\S]*?)\\[\\/${t}\\]`));
-  return m ? m[1].trim() : '';
-}
+const MASTER_NOTES_MAX = 2000;
 
 export default function CreatePage() {
   const [plt,  setPlt]   = useState('facebook');
   const [tone, setTone]  = useState('חם ואישי');
   const [type, setType]  = useState('הצגת מוצר');
-  const [hook, setHook]  = useState('שאלה פרובוקטיבית');
-  const [fw,   setFw]    = useState<FrameworkId>('pas');
-  const [brief, setBrief] = useState('');
+
+  // Override (optional)
+  const [fwOverride,   setFwOverride]   = useState<FrameworkId | null>(null);
+  const [hookOverride, setHookOverride] = useState<string | null>(null);
+
+  const [brief,       setBrief]       = useState('');
+  const [masterNotes, setMasterNotes] = useState('');
+
   const [tab,  setTab]   = useState('post');
-  const [out,  setOut]   = useState<{ post:string; hashtags:string[]; img:string; tips:string; wa:string } | null>(null);
+  const [out,  setOut]   = useState<MasterStudioOutput | null>(null);
+  const [revealOpen, setRevealOpen] = useState(true);
 
   const { call, loading, error } = useAI();
   const pLabel = PLATFORMS.find(p => p.id === plt)?.l ?? plt;
-  const fwObj  = FRAMEWORKS_BY_ID[fw];
 
   async function generate() {
     if (!brief.trim()) return;
-    const system = composeSystemPrompt({ framework: fw, platform: pLabel, tone, type, hook });
-    const text = await call('post', system, `בריף: ${brief}`, 1200, plt);
-    if (!text) return;
-
-    setOut({
-      post:     xt(text, 'POST'),
-      hashtags: xt(text, 'HASHTAGS').split(/\s+/).filter(h => h.startsWith('#')),
-      img:      xt(text, 'IMAGE_PROMPT'),
-      tips:     xt(text, 'TIPS'),
-      wa:       xt(text, 'WHATSAPP'),
+    const system = composeMasterPrompt({
+      brief,
+      platform:    pLabel,
+      tone,
+      type,
+      framework:   fwOverride ?? undefined,
+      hook:        hookOverride ?? undefined,
+      masterNotes: masterNotes.slice(0, MASTER_NOTES_MAX),
     });
+    const text = await call('master_post', system, `בריף: ${brief}`, 2500, plt);
+    if (!text) return;
+    const parsed = parseMasterResponse(text);
+    if (isCriticalFailure(parsed)) {
+      // Show as soft error — the API already deducted credits.
+      // (Auto-refund is best implemented server-side in a follow-up.)
+      console.warn('[create] critical tags missing in response');
+    }
+    setOut(parsed);
     setTab('post');
+    setRevealOpen(true);
   }
 
   const TABS = [
@@ -55,23 +72,12 @@ export default function CreatePage() {
   return (
     <div>
       <PageHeader eyebrow="יצירה" title="צור פוסט" sub="מבריף קצר לפוסט מקצועי"
-        right={<CostBadge cost={3} />} />
+        right={<CostBadge cost={4} />} />
 
       <div className="grid grid-cols-2 gap-4">
         {/* Left — settings */}
         <div>
           <Card className="mb-3">
-            <CardLabel>Framework קופירייטינג</CardLabel>
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {FRAMEWORKS.map(f => (
-                <Chip key={f.id} label={`${f.emoji} ${f.name_he.split('—')[0].trim()}`} active={fw===f.id} onClick={()=>setFw(f.id)} />
-              ))}
-            </div>
-            <div className="text-[11px] text-[#6B8FA8] bg-[#162030] rounded-lg px-3 py-2 mb-4 leading-relaxed">
-              <strong className="text-[#D9E8F5]">{fwObj.name_en}:</strong> {fwObj.description}
-              <div className="mt-1 text-[10px] text-[#2E4459]">מבנה: {fwObj.structure.join(' → ')}</div>
-            </div>
-
             <CardLabel>פלטפורמה</CardLabel>
             <div className="flex flex-wrap gap-1.5 mb-4">
               {PLATFORMS.map(p => <Chip key={p.id} label={`${p.i} ${p.l}`} active={plt===p.id} onClick={()=>setPlt(p.id)} />)}
@@ -79,10 +85,6 @@ export default function CreatePage() {
             <CardLabel>סוג פוסט</CardLabel>
             <div className="flex flex-wrap gap-1.5 mb-4">
               {TYPES.map(t => <Chip key={t} label={t} active={type===t} onClick={()=>setType(t)} />)}
-            </div>
-            <CardLabel>Hook</CardLabel>
-            <div className="flex flex-wrap gap-1.5 mb-4">
-              {HOOKS.map(h => <Chip key={h} label={h} active={hook===h} onClick={()=>setHook(h)} />)}
             </div>
             <CardLabel>טון</CardLabel>
             <div className="flex flex-wrap gap-1.5">
@@ -95,6 +97,19 @@ export default function CreatePage() {
             <Textarea value={brief} onChange={setBrief}
               placeholder="תאר מה אתה רוצה לפרסם. לדוגמה: מבצע לחג שבועות — תפילין מהודרות 15% הנחה לבני מצווה..."
               rows={4} />
+          </Card>
+
+          <Card className="mb-3" style={{ borderColor: '#3D2F6B' }}>
+            <CardLabel>🔒 הערות מאסטר (עדיפות עליונה)</CardLabel>
+            <Textarea
+              value={masterNotes}
+              onChange={(v) => setMasterNotes(v.slice(0, MASTER_NOTES_MAX))}
+              placeholder="הוראות שמועדפות על הכל. למשל: לא להזכיר מחיר, להדגיש את הסבא, להימנע ממילת 'מבצע'..."
+              rows={3}
+            />
+            <div className="text-[10px] text-[#2E4459] mt-1 text-left" dir="ltr">
+              {masterNotes.length} / {MASTER_NOTES_MAX}
+            </div>
           </Card>
 
           <Btn variant="primary" full loading={loading} onClick={generate} disabled={!brief.trim()}>
@@ -121,8 +136,8 @@ export default function CreatePage() {
 
               {tab === 'wa' && (
                 <>
-                  <OutputBox text={out.wa} />
-                  <CopyBtn text={out.wa} className="mt-2" />
+                  <OutputBox text={out.whatsapp} />
+                  <CopyBtn text={out.whatsapp} className="mt-2" />
                 </>
               )}
 
@@ -130,10 +145,10 @@ export default function CreatePage() {
                 <>
                   <Card className="bg-[#162030]">
                     <CardLabel>Prompt לIdeogram / Midjourney</CardLabel>
-                    <div className="text-sm leading-relaxed" dir="ltr" style={{ textAlign: 'left' }}>{out.img}</div>
+                    <div className="text-sm leading-relaxed" dir="ltr" style={{ textAlign: 'left' }}>{out.image}</div>
                   </Card>
                   <div className="flex gap-2 mt-2">
-                    <CopyBtn text={out.img} label="📋 העתק prompt" />
+                    <CopyBtn text={out.image} label="📋 העתק prompt" />
                     <a href="https://ideogram.ai" target="_blank" rel="noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-[#2A4158] text-[#6B8FA8] rounded-lg hover:border-[#0A7AFF] hover:text-[#3D9FFF] transition-colors">
                       🎨 Ideogram →
