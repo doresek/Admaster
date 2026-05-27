@@ -54,8 +54,39 @@ export function Btn({ variant='primary', size='md', loading, children, full, cla
 // ─── CARD ────────────────────────────────────────────────────
 export function Card({ children, className, style }: { children: ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
-    <div className={clsx('bg-[#111A24] border border-[#1E2F42] rounded-xl p-4 transition-colors hover:border-[#2A4158]', className)} style={style}>
+    <div className={clsx('bg-[#111A24] border border-[#1E2F42] rounded-xl p-4 transition-all hover:border-[#2A4158] hover:-translate-y-0.5', className)} style={style}>
       {children}
+    </div>
+  );
+}
+
+// ─── SKELETON ────────────────────────────────────────────────
+export function Skeleton({ className }: { className?: string }) {
+  return <div className={clsx('animate-pulse bg-[#1E2F42]/40 rounded-lg', className)} aria-hidden="true" />;
+}
+
+// ─── EMPTY STATE ─────────────────────────────────────────────
+export function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+}: {
+  icon?: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+  title: string;
+  description?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center px-6 py-14 bg-[#111A24]/40 border border-dashed border-[#1E2F42] rounded-xl">
+      {Icon && (
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#0A7AFF]/10 text-[#3D9FFF] mb-4">
+          <Icon size={22} strokeWidth={1.6} />
+        </div>
+      )}
+      <div className="font-bold text-base text-[#D9E8F5] mb-1.5">{title}</div>
+      {description && <p className="text-sm text-[#6B8FA8] leading-relaxed max-w-sm mb-5">{description}</p>}
+      {action}
     </div>
   );
 }

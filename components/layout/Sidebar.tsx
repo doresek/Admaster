@@ -130,7 +130,11 @@ export default function Sidebar({ name, credits, plan }: SidebarProps) {
         {NAV.map((item, i) => {
           if ('sec' in item) {
             if (collapsed) return <div key={i} className="border-t border-[#1E2F42] my-2" />;
-            return <div key={i} className="text-[9px] font-bold text-[#2E4459] uppercase tracking-widest px-2 py-1.5 mt-1">{t.nav[item.sec]}</div>;
+            return (
+              <div key={i} className="mt-3 mb-1 px-2 pt-2.5 border-t border-[#1E2F42]/60 text-2xs font-bold tracking-kicker uppercase text-[#3D5266]">
+                {t.nav[item.sec]}
+              </div>
+            );
           }
           const active = isActive(item.href);
           const label = t.nav[item.labelKey];

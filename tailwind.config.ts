@@ -33,6 +33,28 @@ const config: Config = {
         serif: ['DM Serif Display', 'serif'],
         mono:  ['DM Mono', 'monospace'],
       },
+      fontSize: {
+        '3xs': ['9px',  '12px'],
+        '2xs': ['10px', '14px'],
+      },
+      letterSpacing: {
+        kicker: '0.2em',
+        label:  '0.15em',
+      },
+      keyframes: {
+        fadeUp: {
+          'from': { opacity: '0', transform: 'translateY(12px)' },
+          'to':   { opacity: '1', transform: 'translateY(0)' },
+        },
+        fadeIn: {
+          'from': { opacity: '0' },
+          'to':   { opacity: '1' },
+        },
+      },
+      animation: {
+        'fade-up':   'fadeUp 600ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'fade-in':   'fadeIn 400ms ease-out both',
+      },
     },
   },
   plugins: [],

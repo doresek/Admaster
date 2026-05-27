@@ -51,7 +51,7 @@ export default function PricingPage() {
         <p className="text-[#6B8FA8]">בלי הפתעות. בלי עלויות נסתרות. תוכל לבטל בכל רגע.</p>
       </div>
 
-      <div className="grid md:grid-cols-4 gap-3 mb-16">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-16">
         {(['free','starter','pro','agency'] as const).map(id => {
           const p = PLAN_CONFIG[id];
           const isPro = id === 'pro';
