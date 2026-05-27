@@ -85,7 +85,7 @@ export default function LabPage() {
                 <Chip key={m.id} label={`${m.emoji} ${m.label}`} active={mode===m.id} onClick={() => setMode(m.id)} />
               ))}
             </div>
-            <div className="text-[11px] text-[#6B8FA8] bg-[#162030] rounded-lg px-3 py-2 leading-relaxed">
+            <div className="text-[11px] text-[#6B8FA8] bg-[#1A2A42] rounded-lg px-3 py-2 leading-relaxed">
               {MODES.find(m => m.id === mode)?.desc}
             </div>
           </Card>
@@ -134,7 +134,7 @@ export default function LabPage() {
                 {history.map(h => {
                   const txt = typeof h.output === 'string' ? h.output : (h.output?.text || JSON.stringify(h.output));
                   return (
-                    <div key={h.id} className="flex items-center gap-2 bg-[#162030] rounded-lg p-2">
+                    <div key={h.id} className="flex items-center gap-2 bg-[#1A2A42] rounded-lg p-2">
                       <div className="flex-1 text-[11px] text-[#6B8FA8] truncate">{txt.substring(0, 80)}</div>
                       <Btn variant="ghost" size="xs" onClick={() => loadFromHistory(h, 'A')}>→ A</Btn>
                       {mode !== 'translate' && <Btn variant="ghost" size="xs" onClick={() => loadFromHistory(h, 'B')}>→ B</Btn>}
@@ -156,7 +156,7 @@ export default function LabPage() {
               </div>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+            <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
               <span className="text-5xl mb-3 opacity-30">🧪</span>
               <span className="text-sm">הזן תוכן ובחר מצב להפעיל את המעבדה</span>
             </div>

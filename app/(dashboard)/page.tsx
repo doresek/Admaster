@@ -107,7 +107,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* 30-day chart */}
-      <div className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4 mb-5">
+      <div className="bg-[#152138] border border-[#243752] rounded-xl p-4 mb-5">
         <div className="flex items-center justify-between mb-3">
           <div className="text-[11px] font-bold text-[#2E4459] uppercase tracking-widest">שימוש בקרדיטים — 30 ימים אחרונים</div>
           <div className="text-[10px] text-[#6B8FA8]">סה"כ: <span className="font-mono text-[#D9E8F5]">{usage.reduce((s, u) => s + u.used, 0)}⚡</span></div>
@@ -117,12 +117,12 @@ export default async function DashboardPage() {
             const pct = (u.used / maxUsed) * 100;
             return (
               <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 group relative">
-                <div className="w-full rounded-t" style={{ height: `${Math.max(2, pct)}%`, background: u.used > 0 ? 'linear-gradient(180deg,#3D9FFF,#0A7AFF)' : '#1D2D3E' }} />
+                <div className="w-full rounded-t" style={{ height: `${Math.max(2, pct)}%`, background: u.used > 0 ? 'linear-gradient(180deg,#3D9FFF,#0A7AFF)' : '#22334D' }} />
                 {(i % 5 === 0 || i === usage.length - 1) && (
                   <div className="text-[8px] text-[#2E4459] mt-0.5">{new Date(u.day).toLocaleDateString('he', { day:'numeric', month:'numeric' })}</div>
                 )}
                 {/* Tooltip */}
-                <div className="absolute bottom-full mb-1 hidden group-hover:block bg-[#070A0E] border border-[#2A4158] text-[10px] text-[#D9E8F5] px-2 py-1 rounded whitespace-nowrap z-10">
+                <div className="absolute bottom-full mb-1 hidden group-hover:block bg-[#0B1424] border border-[#324C6B] text-[10px] text-[#D9E8F5] px-2 py-1 rounded whitespace-nowrap z-10">
                   {u.used}⚡ · {new Date(u.day).toLocaleDateString('he')}
                 </div>
               </div>
@@ -140,7 +140,7 @@ export default async function DashboardPage() {
           { icon: '📋', title: 'בריף לקוח',     sub: 'אווטאר→מודעות', href: '/briefs', color: '#D97706' },
         ].map(a => (
           <Link key={a.href} href={a.href}
-            className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4 hover:border-[#2A4158] transition-all hover:-translate-y-0.5 hover:shadow-lg group">
+            className="bg-[#152138] border border-[#243752] rounded-xl p-4 hover:border-[#324C6B] transition-all hover:-translate-y-0.5 hover:shadow-lg group">
             <div className="text-2xl mb-2">{a.icon}</div>
             <div className="font-semibold text-sm text-[#D9E8F5]">{a.title}</div>
             <div className="text-[11px] text-[#6B8FA8]">{a.sub}</div>
@@ -169,7 +169,7 @@ export default async function DashboardPage() {
         )}
 
         {/* Series running */}
-        <div className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4">
+        <div className="bg-[#152138] border border-[#243752] rounded-xl p-4">
           <div className="text-[11px] font-bold text-[#2E4459] uppercase tracking-widest mb-3 flex items-center gap-1.5">
             <div className="w-0.5 h-3 bg-[#0A7AFF] rounded-full" />סדרות וקמפיינים
           </div>
@@ -194,7 +194,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* History */}
-        <div className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4 col-span-2">
+        <div className="bg-[#152138] border border-[#243752] rounded-xl p-4 col-span-2">
           <div className="flex items-center justify-between mb-3">
             <div className="text-[11px] font-bold text-[#2E4459] uppercase tracking-widest flex items-center gap-1.5">
               <div className="w-0.5 h-3 bg-[#0A7AFF] rounded-full" />פעולות אחרונות
@@ -204,7 +204,7 @@ export default async function DashboardPage() {
           {history.length === 0
             ? <div className="text-xs text-[#2E4459] text-center py-4">עוד לא בוצעו פעולות</div>
             : history.slice(0, 8).map((h, i) => (
-              <div key={i} className="flex items-center gap-2 py-1.5 border-b border-[#1E2F42] last:border-0">
+              <div key={i} className="flex items-center gap-2 py-1.5 border-b border-[#243752] last:border-0">
                 <span className="text-sm">{actionLabels[h.action]?.split(' ')[0] ?? '⚡'}</span>
                 <span className="flex-1 text-xs text-[#D9E8F5]">{actionLabels[h.action]?.slice(2) ?? h.action}</span>
                 <span className="text-[11px] text-red-400 font-medium">-{h.cost}⚡</span>

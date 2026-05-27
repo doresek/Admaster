@@ -35,7 +35,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const offsetSide = dir === 'rtl' ? 'mr' : 'ml';
 
   return (
-    <div className="flex min-h-screen bg-[#070A0E] text-[#D9E8F5]" dir={dir}>
+    <div className="flex min-h-screen bg-[#0B1424] text-[#D9E8F5]" dir={dir}>
       <Sidebar
         name={profile?.name ?? user.email?.split('@')[0] ?? ''}
         credits={profile?.credits ?? 0}
@@ -46,7 +46,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         style={{ [offsetSide === 'mr' ? 'marginRight' : 'marginLeft']: offsetSize }}
       >
         {/* Top bar with active-client switcher + credits + bell */}
-        <div className="sticky top-0 z-40 bg-[#070A0E]/85 backdrop-blur border-b border-[#1E2F42] px-8 py-2 flex items-center justify-end gap-3">
+        <div className="sticky top-0 z-40 bg-[#0B1424]/85 backdrop-blur border-b border-[#243752] px-8 py-2 flex items-center justify-end gap-3">
           <ClientSwitcher initialActive={activeClientId} />
           <CreditsBadge
             initialCredits={profile?.credits ?? 0}

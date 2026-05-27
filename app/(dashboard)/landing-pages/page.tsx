@@ -139,7 +139,7 @@ export default function LandingPagesPage() {
       {tab === 'list' && (
         <div>
           {pages.length === 0 ? (
-            <div className="text-center py-16 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+            <div className="text-center py-16 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
               <div className="text-4xl mb-3 opacity-30">📄</div>
               <div className="text-base font-semibold mb-2">עוד אין דפי נחיתה</div>
               <Btn variant="primary" onClick={() => setTab('create')}>+ צור דף ראשון</Btn>
@@ -150,7 +150,7 @@ export default function LandingPagesPage() {
                 const def = TEMPLATES_BY_ID[p.template] ?? TEMPLATES_BY_ID.squeeze;
                 const url = typeof window !== 'undefined' ? `${window.location.origin}/lp/${p.slug}` : `/lp/${p.slug}`;
                 return (
-                  <div key={p.id} className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4">
+                  <div key={p.id} className="bg-[#152138] border border-[#243752] rounded-xl p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
@@ -169,11 +169,11 @@ export default function LandingPagesPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 mb-3 text-[11px]">
-                      <div className="bg-[#162030] rounded px-2 py-1.5">
+                      <div className="bg-[#1A2A42] rounded px-2 py-1.5">
                         <div className="text-[10px] text-[#2E4459]">צפיות</div>
                         <div className="font-mono text-sm text-[#D9E8F5]">{p.views}</div>
                       </div>
-                      <div className="bg-[#162030] rounded px-2 py-1.5">
+                      <div className="bg-[#1A2A42] rounded px-2 py-1.5">
                         <div className="text-[10px] text-[#2E4459]">המרות</div>
                         <div className="font-mono text-sm text-[#34D399]">{p.conversions}</div>
                       </div>
@@ -209,7 +209,7 @@ export default function LandingPagesPage() {
                 {LANDING_TEMPLATES.map(t => (
                   <button key={t.id} onClick={() => setSelT(t.id)}
                     className={clsx('text-right p-3 rounded-lg border transition-all',
-                      selT === t.id ? 'border-[#0A7AFF] bg-[#0A7AFF]/10' : 'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]')}>
+                      selT === t.id ? 'border-[#0A7AFF] bg-[#0A7AFF]/10' : 'border-[#243752] bg-[#1A2A42] hover:border-[#324C6B]')}>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-lg">{t.emoji}</span>
                       <span className="font-semibold text-sm text-[#D9E8F5]">{t.name.split('—')[0].trim()}</span>
@@ -260,7 +260,7 @@ export default function LandingPagesPage() {
               )}
               {heroImage ? (
                 <div className="space-y-2">
-                  <div className="relative rounded-lg overflow-hidden border border-[#2A4158] aspect-video bg-[#162030]">
+                  <div className="relative rounded-lg overflow-hidden border border-[#324C6B] aspect-video bg-[#1A2A42]">
                     <img src={heroImage} alt="hero" className="w-full h-full object-contain" />
                     <button onClick={() => setHeroImage('')}
                             className="absolute top-2 left-2 w-7 h-7 rounded-full bg-black/70 text-white text-xs hover:bg-red-600">
@@ -288,7 +288,7 @@ export default function LandingPagesPage() {
                     'flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg py-8 px-4 cursor-pointer transition-colors',
                     uploading
                       ? 'border-[#0A7AFF] bg-[#0A7AFF]/5 cursor-wait'
-                      : 'border-[#2A4158] hover:border-[#3D9FFF] hover:bg-[#162030]'
+                      : 'border-[#324C6B] hover:border-[#3D9FFF] hover:bg-[#1A2A42]'
                   )}>
                     {uploading ? (
                       <>
@@ -329,7 +329,7 @@ export default function LandingPagesPage() {
             {newLink && (
               <Card className="mt-3" style={{borderColor: 'rgba(184,149,58,.3)'}}>
                 <CardLabel>✨ הדף נוצר!</CardLabel>
-                <div className="flex items-center justify-between bg-[#070A0E] border border-[#2A4158] rounded-lg px-3 py-2 mb-2">
+                <div className="flex items-center justify-between bg-[#0B1424] border border-[#324C6B] rounded-lg px-3 py-2 mb-2">
                   <span className="text-[11px] font-mono text-[#D4AF55] truncate flex-1" dir="ltr">{newLink.url}</span>
                   <CopyBtn text={newLink.url} label="📋" />
                 </div>
@@ -349,7 +349,7 @@ export default function LandingPagesPage() {
               <CardLabel>סקציות בדף</CardLabel>
               <div className="space-y-1.5">
                 {selDef.sections.map((s, i) => (
-                  <div key={i} className="flex items-center gap-2 bg-[#162030] rounded px-3 py-2">
+                  <div key={i} className="flex items-center gap-2 bg-[#1A2A42] rounded px-3 py-2">
                     <span className="text-[#3D9FFF] font-mono text-xs">{i+1}</span>
                     <span className="text-[12.5px] text-[#D9E8F5] capitalize">{s.replace('_',' ')}</span>
                   </div>
@@ -361,7 +361,7 @@ export default function LandingPagesPage() {
               </CardLabel>
               <div className="flex flex-wrap gap-1.5">
                 {selDef.defaultContent.form_fields.map(f => (
-                  <span key={f.name} className="text-[11px] bg-[#1D2D3E] text-[#6B8FA8] px-2 py-0.5 rounded-full">
+                  <span key={f.name} className="text-[11px] bg-[#22334D] text-[#6B8FA8] px-2 py-0.5 rounded-full">
                     {f.label} {f.required && '*'}
                   </span>
                 ))}

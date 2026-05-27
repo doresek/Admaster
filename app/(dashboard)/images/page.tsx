@@ -182,7 +182,7 @@ export default function ImagesPage() {
               {PROVIDERS.map(p => (
                 <button key={p.id} onClick={() => setProvider(p.id as 'gemini'|'ideogram')}
                   className={clsx('flex flex-col items-start gap-0.5 p-3 rounded-lg border text-right transition-all',
-                    provider===p.id ? 'border-[#0A7AFF] bg-[#0A7AFF]/12' : 'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]')}>
+                    provider===p.id ? 'border-[#0A7AFF] bg-[#0A7AFF]/12' : 'border-[#243752] bg-[#1A2A42] hover:border-[#324C6B]')}>
                   <div className="flex items-center gap-1.5 text-xs font-bold text-[#D9E8F5]">
                     <span>{p.emoji}</span><span>{p.label}</span>
                   </div>
@@ -196,7 +196,7 @@ export default function ImagesPage() {
               {STYLES.map(s => (
                 <button key={s.id} onClick={() => setStyle(s.id)}
                   className={clsx('flex flex-col items-center gap-1 p-3 rounded-lg border text-xs font-medium transition-all',
-                    style===s.id ? 'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]' : 'border-[#1E2F42] bg-[#162030] text-[#6B8FA8] hover:border-[#2A4158]')}>
+                    style===s.id ? 'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]' : 'border-[#243752] bg-[#1A2A42] text-[#6B8FA8] hover:border-[#324C6B]')}>
                   <span className="text-xl">{s.emoji}</span>{s.label}
                 </button>
               ))}
@@ -207,8 +207,8 @@ export default function ImagesPage() {
               {RATIOS.map(r => (
                 <button key={r.id} onClick={() => setRatio(r.id)}
                   className={clsx('flex flex-col items-center gap-2 p-2 rounded-lg border transition-all',
-                    ratio===r.id ? 'border-[#0A7AFF] bg-[#0A7AFF]/12' : 'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]')}>
-                  <div className="rounded" style={{ width: r.w/4, height: r.h/4, background: ratio===r.id ? '#0A7AFF' : '#2A4158' }} />
+                    ratio===r.id ? 'border-[#0A7AFF] bg-[#0A7AFF]/12' : 'border-[#243752] bg-[#1A2A42] hover:border-[#324C6B]')}>
+                  <div className="rounded" style={{ width: r.w/4, height: r.h/4, background: ratio===r.id ? '#0A7AFF' : '#324C6B' }} />
                   <div className="text-[10px] font-bold text-[#D9E8F5]">{r.label}</div>
                   <div className="text-[10px] text-[#2E4459]">{r.sub}</div>
                 </button>
@@ -270,7 +270,7 @@ export default function ImagesPage() {
         <div>
           {current ? (
             <div>
-              <div className="rounded-xl overflow-hidden border border-[#2A4158] mb-3">
+              <div className="rounded-xl overflow-hidden border border-[#324C6B] mb-3">
                 <img src={current} alt="Generated" className="w-full" />
               </div>
               <div className="flex flex-wrap gap-2">
@@ -310,7 +310,7 @@ export default function ImagesPage() {
                     }}
                     title={`התאם ל-${r.label} (1⚡)`}
                     className={clsx('py-1.5 text-[10px] font-bold rounded-lg border transition-all',
-                      ratio===r.id ? 'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]' : 'border-[#1E2F42] bg-[#162030] text-[#6B8FA8] hover:border-[#2A4158]')}>
+                      ratio===r.id ? 'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]' : 'border-[#243752] bg-[#1A2A42] text-[#6B8FA8] hover:border-[#324C6B]')}>
                     {r.label}
                   </button>
                 ))}
@@ -338,7 +338,7 @@ export default function ImagesPage() {
               <div className="text-xs text-[#2E4459]">זה לוקח ~10-20 שניות</div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+            <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
               <span className="text-5xl mb-3 opacity-30">🎨</span>
               <span className="text-sm">הזן תיאור ולחץ "צור תמונה"</span>
             </div>

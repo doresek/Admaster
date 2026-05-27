@@ -245,7 +245,7 @@ export default function WelcomePage() {
               <div
                 key={id}
                 className="bg-s1 rounded-xl p-5 border hover:-translate-y-0.5 transition-all"
-                style={{ borderColor: isPro ? p.color : '#1E2F42' }}
+                style={{ borderColor: isPro ? p.color : '#243752' }}
               >
                 <div className="font-bold text-lg" style={{ color: p.color }}>{p.name}</div>
                 <div className="font-mono text-3xl text-white mt-2 tabular-nums">
@@ -268,7 +268,7 @@ export default function WelcomePage() {
 
       {/* FINAL CTA — confident, single action */}
       <section className="px-6 py-24 max-w-4xl mx-auto text-center">
-        <div className="relative bg-gradient-to-br from-blue/12 to-goldl/06 border border-b1 rounded-3xl p-12 md:p-16 overflow-hidden">
+        <div className="relative bg-gradient-to-br from-blue/[0.12] to-goldl/[0.06] border border-b1 rounded-3xl p-12 md:p-16 overflow-hidden">
           <span className="rule-gold mb-6 mx-auto block w-16" aria-hidden />
           <h2 className="font-serif text-3xl md:text-5xl text-white mb-7 leading-tight">
             {locale === 'en' ? 'Ready to start?' : locale === 'ar' ? 'هل أنت مستعد للبدء؟' : 'מוכן להתחיל?'}

@@ -26,7 +26,7 @@ export function CreditsBadge({ initialCredits, initialPlan }: Props) {
     <Link
       href="/credits"
       title={`${credits.toLocaleString()} קרדיטים · תוכנית ${cfg.name}`}
-      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#111A24] border border-[#1E2F42] hover:border-[#2A4158] transition-colors group"
+      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#152138] border border-[#243752] hover:border-[#324C6B] transition-colors group"
     >
       <span className={low ? 'text-[#D97706]' : 'text-[#3D9FFF]'}>⚡</span>
       <span className="font-mono text-sm font-semibold text-[#D9E8F5] tabular-nums">

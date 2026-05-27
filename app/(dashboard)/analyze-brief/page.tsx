@@ -71,10 +71,10 @@ export default function AnalyzeBriefPage() {
               <div className="text-xs text-[#2E4459] py-2">אין בריפים שמורים — הדבק בריף ידנית למטה</div>
             ) : (
               <select value={selId} onChange={e => { setSelId(e.target.value); setPasted(''); }}
-                className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-[#D9E8F5] outline-none focus:border-[#0A7AFF]" dir="rtl">
+                className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-sm text-[#D9E8F5] outline-none focus:border-[#0A7AFF]" dir="rtl">
                 <option value="">— בחר —</option>
                 {briefs.map(b => (
-                  <option key={b.id} value={b.id} className="bg-[#162030]">
+                  <option key={b.id} value={b.id} className="bg-[#1A2A42]">
                     {b.values?.biz_name || b.code} · {new Date(b.submitted_at).toLocaleDateString('he')}
                   </option>
                 ))}
@@ -145,7 +145,7 @@ export default function AnalyzeBriefPage() {
               </Card>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+            <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
               <span className="text-5xl mb-3 opacity-30">🧠</span>
               <span className="text-sm">בחר בריף ולחץ "נתח"</span>
             </div>

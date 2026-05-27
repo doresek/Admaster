@@ -52,7 +52,7 @@ export default function AgencyPage() {
             <div className="mb-3">
               <label className="block text-xs font-medium text-[#6B8FA8] mb-1.5">טקסט footer</label>
               <textarea value={settings.footer_text} onChange={e=>u('footer_text',e.target.value)} rows={2}
-                className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-[#D9E8F5] outline-none focus:border-[#0A7AFF] resize-y"
+                className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-sm text-[#D9E8F5] outline-none focus:border-[#0A7AFF] resize-y"
                 placeholder="כל הזכויות שמורות © SocialPro" dir="rtl" />
             </div>
           </Card>
@@ -65,7 +65,7 @@ export default function AgencyPage() {
                 <div className="flex items-center gap-2">
                   <input type="color" value={settings.primary_color} onChange={e=>u('primary_color',e.target.value)} className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent" />
                   <input type="text" value={settings.primary_color} onChange={e=>u('primary_color',e.target.value)}
-                    className="flex-1 bg-[#162030] border border-[#1E2F42] rounded-lg px-2 py-2 text-sm text-[#D9E8F5] outline-none font-mono" dir="ltr" />
+                    className="flex-1 bg-[#1A2A42] border border-[#243752] rounded-lg px-2 py-2 text-sm text-[#D9E8F5] outline-none font-mono" dir="ltr" />
                 </div>
               </div>
               <div>
@@ -73,7 +73,7 @@ export default function AgencyPage() {
                 <div className="flex items-center gap-2">
                   <input type="color" value={settings.secondary_color} onChange={e=>u('secondary_color',e.target.value)} className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent" />
                   <input type="text" value={settings.secondary_color} onChange={e=>u('secondary_color',e.target.value)}
-                    className="flex-1 bg-[#162030] border border-[#1E2F42] rounded-lg px-2 py-2 text-sm text-[#D9E8F5] outline-none font-mono" dir="ltr" />
+                    className="flex-1 bg-[#1A2A42] border border-[#243752] rounded-lg px-2 py-2 text-sm text-[#D9E8F5] outline-none font-mono" dir="ltr" />
                 </div>
               </div>
             </div>
@@ -89,9 +89,9 @@ export default function AgencyPage() {
         {/* Preview */}
         <div>
           <div className="text-xs font-bold text-[#2E4459] uppercase tracking-wider mb-3">תצוגה מקדימה</div>
-          <div className="bg-[#0C1118] rounded-xl overflow-hidden border border-[#2A4158]">
+          <div className="bg-[#0F1A2E] rounded-xl overflow-hidden border border-[#324C6B]">
             {/* Mock sidebar preview */}
-            <div className="bg-[#070A0E] p-4 border-b border-[#1E2F42]">
+            <div className="bg-[#0B1424] p-4 border-b border-[#243752]">
               <div className="text-lg font-bold" style={{ color: settings.secondary_color }}>
                 {settings.agency_name || 'שם הסוכנות'}
               </div>
@@ -101,12 +101,12 @@ export default function AgencyPage() {
               {[1,2,3].map(i=>(
                 <div key={i} className="flex items-center gap-2 py-2 rounded-lg px-2 mb-1" style={{ background: i===1?`${settings.primary_color}15`:'' }}>
                   <div className="w-3 h-3 rounded-full opacity-50" style={{ background: settings.primary_color }} />
-                  <div className="h-2 rounded-full bg-[#1E2F42] flex-1" style={{ background: i===1?`${settings.primary_color}40`:'' }} />
+                  <div className="h-2 rounded-full bg-[#243752] flex-1" style={{ background: i===1?`${settings.primary_color}40`:'' }} />
                 </div>
               ))}
             </div>
-            <div className="p-3 border-t border-[#1E2F42]">
-              <div className="h-1.5 rounded-full overflow-hidden bg-[#1D2D3E]">
+            <div className="p-3 border-t border-[#243752]">
+              <div className="h-1.5 rounded-full overflow-hidden bg-[#22334D]">
                 <div className="h-full rounded-full w-2/3" style={{ background: settings.primary_color }} />
               </div>
               {settings.footer_text && <div className="text-[10px] text-[#2E4459] mt-2">{settings.footer_text}</div>}
@@ -119,13 +119,13 @@ export default function AgencyPage() {
               { plan:'Pro', price:'₪199', features:['לוגו מותאם','צבעים מותאמים','5 לקוחות Meta','5 חברי צוות'] },
               { plan:'Agency', price:'₪499', features:['דומיין מותאם','לוגו + צבעים','לקוחות ללא הגבלה','20 חברי צוות','דוחות White-Label'] },
             ].map(p=>(
-              <div key={p.plan} className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4 mb-3">
+              <div key={p.plan} className="bg-[#152138] border border-[#243752] rounded-xl p-4 mb-3">
                 <div className="flex items-center justify-between mb-2">
                   <div className="font-bold" style={{ color: settings.primary_color }}>{p.plan}</div>
                   <div className="font-mono font-bold">{p.price}/חודש</div>
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {p.features.map(f=><span key={f} className="text-[10px] bg-[#1D2D3E] text-[#6B8FA8] px-2 py-0.5 rounded">✓ {f}</span>)}
+                  {p.features.map(f=><span key={f} className="text-[10px] bg-[#22334D] text-[#6B8FA8] px-2 py-0.5 rounded">✓ {f}</span>)}
                 </div>
               </div>
             ))}

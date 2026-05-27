@@ -49,7 +49,7 @@ export default function BlogPage() {
 
       <div className="space-y-3">
         {POSTS.map(p => (
-          <article key={p.slug} className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-5 hover:border-[#2A4158] transition-all">
+          <article key={p.slug} className="bg-[#152138] border border-[#243752] rounded-xl p-5 hover:border-[#324C6B] transition-all">
             <Link href={`/blog/${p.slug}`} className="block">
               <h2 className="text-xl font-bold text-white mb-2 hover:text-[#3D9FFF] transition-colors">{p.title}</h2>
               <p className="text-[13.5px] text-[#6B8FA8] leading-relaxed mb-3">{p.excerpt}</p>

@@ -36,7 +36,7 @@ const SECTIONS = [
 
 export default function BriefFormPageWrapper() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#070A0E]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#0B1424]" />}>
       <BriefFormPage />
     </Suspense>
   );
@@ -83,9 +83,9 @@ function BriefFormPage() {
   }
 
   if (!code) return (
-    <div className="min-h-screen bg-[#070A0E] flex items-center justify-center p-4" dir="rtl"
+    <div className="min-h-screen bg-[#0B1424] flex items-center justify-center p-4" dir="rtl"
       style={{ fontFamily: "'Noto Sans Hebrew', sans-serif" }}>
-      <div className="bg-[#0C1118] border border-[#2A4158] rounded-2xl p-8 w-full max-w-sm text-center">
+      <div className="bg-[#0F1A2E] border border-[#324C6B] rounded-2xl p-8 w-full max-w-sm text-center">
         <div className="text-4xl mb-4">🔗</div>
         <div className="text-white font-bold text-xl mb-2">הזן קוד בריף</div>
         <div className="text-[#6B8FA8] text-sm mb-6">הזן את הקוד שקיבלת מהסוכן שלך</div>
@@ -95,7 +95,7 @@ function BriefFormPage() {
   );
 
   if (done) return (
-    <div className="min-h-screen bg-[#070A0E] flex items-center justify-center p-4" dir="rtl"
+    <div className="min-h-screen bg-[#0B1424] flex items-center justify-center p-4" dir="rtl"
       style={{ fontFamily: "'Noto Sans Hebrew', sans-serif" }}>
       <div className="text-center text-white p-8">
         <div className="text-6xl mb-5">✅</div>
@@ -106,11 +106,11 @@ function BriefFormPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#070A0E] py-8 px-4" dir="rtl"
+    <div className="min-h-screen bg-[#0B1424] py-8 px-4" dir="rtl"
       style={{ fontFamily: "'Noto Sans Hebrew', sans-serif" }}>
       <div className="max-w-xl mx-auto">
         {/* Hero */}
-        <div className="bg-gradient-to-br from-[#0C1118] to-[#1D2D3E] rounded-2xl p-8 text-center mb-6 border border-[#2A4158]">
+        <div className="bg-gradient-to-br from-[#0F1A2E] to-[#22334D] rounded-2xl p-8 text-center mb-6 border border-[#324C6B]">
           <div className="text-[#D4AF55] text-sm mb-3" style={{ fontStyle: 'italic' }}>{agencyName || 'AdMaster Pro'}</div>
           <div className="text-white font-bold text-2xl mb-2">שאלון בריף לקוח</div>
           <div className="text-[#6B8FA8] text-sm leading-relaxed">מלא את השאלות כדי שנוכל לבנות עבורך אסטרטגיה שיווקית מדויקת</div>
@@ -118,14 +118,14 @@ function BriefFormPage() {
 
         {/* Progress */}
         <div className="flex items-center gap-3 mb-5">
-          <div className="flex-1 h-1.5 rounded-full bg-[#1D2D3E] overflow-hidden">
+          <div className="flex-1 h-1.5 rounded-full bg-[#22334D] overflow-hidden">
             <div className="h-full bg-gradient-to-r from-[#0A7AFF] to-[#3D9FFF] rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
           </div>
           <span className="text-xs text-[#6B8FA8] whitespace-nowrap">שלב {step+1}/{SECTIONS.length}</span>
         </div>
 
         {/* Section */}
-        <div className="bg-[#0C1118] border border-[#1E2F42] rounded-xl p-6 mb-4">
+        <div className="bg-[#0F1A2E] border border-[#243752] rounded-xl p-6 mb-4">
           <div className="flex items-center gap-2 mb-5">
             <div className="w-7 h-7 rounded-full bg-[#0A7AFF] text-white text-xs font-bold flex items-center justify-center">{step+1}</div>
             <div className="font-bold text-white">{cur.sec}</div>
@@ -136,18 +136,18 @@ function BriefFormPage() {
               <label className="block text-xs font-medium text-[#6B8FA8] mb-1.5">{q.l}</label>
               {q.t === 'ta' ? (
                 <textarea value={vals[q.id]||''} onChange={e=>uv(q.id,e.target.value)} placeholder={q.ph} rows={3}
-                  className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF] placeholder-[#2E4459] resize-y"
+                  className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF] placeholder-[#2E4459] resize-y"
                   dir="rtl" />
               ) : q.t === 'sel' ? (
                 <select value={vals[q.id]||''} onChange={e=>uv(q.id,e.target.value)}
-                  className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]"
+                  className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]"
                   dir="rtl">
                   <option value="">בחר...</option>
-                  {'opts' in q && q.opts?.map((o: string) => <option key={o} value={o} className="bg-[#162030]">{o}</option>)}
+                  {'opts' in q && q.opts?.map((o: string) => <option key={o} value={o} className="bg-[#1A2A42]">{o}</option>)}
                 </select>
               ) : (
                 <input type="text" value={vals[q.id]||''} onChange={e=>uv(q.id,e.target.value)} placeholder={q.ph}
-                  className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF] placeholder-[#2E4459]"
+                  className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF] placeholder-[#2E4459]"
                   dir="rtl" />
               )}
             </div>
@@ -159,7 +159,7 @@ function BriefFormPage() {
         <div className="flex gap-3">
           {step > 0 && (
             <button onClick={() => setStep(s=>s-1)}
-              className="px-4 py-2.5 rounded-lg border border-[#1E2F42] bg-[#162030] text-[#6B8FA8] text-sm font-medium hover:border-[#2A4158] hover:text-white transition-colors">
+              className="px-4 py-2.5 rounded-lg border border-[#243752] bg-[#1A2A42] text-[#6B8FA8] text-sm font-medium hover:border-[#324C6B] hover:text-white transition-colors">
               ← חזור
             </button>
           )}
@@ -187,7 +187,7 @@ function CodeEntry() {
     <div>
       <input type="text" value={code} onChange={e => setCode(e.target.value.toUpperCase())}
         placeholder="לדוגמה: AB3X7K"
-        className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-center font-mono text-lg text-white outline-none focus:border-[#0A7AFF] mb-3"
+        className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-center font-mono text-lg text-white outline-none focus:border-[#0A7AFF] mb-3"
         dir="ltr" maxLength={8} />
       <button
         onClick={() => { if (code.trim()) window.location.href = `/brief?code=${code.trim()}`; }}

@@ -10,12 +10,12 @@
 * { box-sizing: border-box; }
 
 body {
-  background: #070A0E;
+  background: #0B1424;
   color: #D9E8F5;
   /* Editorial grain — subtle inline-SVG noise overlay for atmospheric depth.
      Hand-tuned base64; pure CSS, ~480 bytes, no external request. */
   background-image:
-    url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.85  0 0 0 0 0.91  0 0 0 0 0.96  0 0 0 0.04 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.85  0 0 0 0 0.91  0 0 0 0 0.96  0 0 0 0.05 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
   background-attachment: fixed;
   background-size: 200px 200px;
 }
@@ -78,6 +78,6 @@ select { text-align: right; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: #0C1118; }
-::-webkit-scrollbar-thumb { background: #1D2D3E; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #2A4158; }
+::-webkit-scrollbar-track { background: #0F1A2E; }
+::-webkit-scrollbar-thumb { background: #22334D; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #324C6B; }

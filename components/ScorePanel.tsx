@@ -31,7 +31,7 @@ function HistogramBar({ label, fraction }: { label: string; fraction: number }) 
   return (
     <div className="flex items-center gap-2 text-[11px]">
       <span className="w-12 text-right text-[#6B8FA8]">{label}</span>
-      <div className="flex-1 h-2 bg-[#162030] rounded overflow-hidden">
+      <div className="flex-1 h-2 bg-[#1A2A42] rounded overflow-hidden">
         <div className="h-full bg-[#0A7AFF]" style={{ width: `${pct}%` }} />
       </div>
       <span className="w-8 text-[#6B8FA8] tabular-nums">{pct}%</span>
@@ -44,7 +44,7 @@ export function ScorePanel({ result, onClose }: Props) {
                   : result.band === 'mid'  ? 'text-amber-300'
                   : 'text-red-300';
   return (
-    <div className="bg-[#0E1620] border border-[#1E2F42] rounded-xl p-4 shadow-2xl max-w-md w-full" dir="rtl">
+    <div className="bg-[#0E1620] border border-[#243752] rounded-xl p-4 shadow-2xl max-w-md w-full" dir="rtl">
       <div className="flex items-start justify-between mb-3">
         <div>
           <div className={clsx('text-4xl font-black leading-none', bandColor)}>{result.score}<span className="text-base opacity-50">/100</span></div>
@@ -73,7 +73,7 @@ export function ScorePanel({ result, onClose }: Props) {
           <div className="text-[10px] uppercase tracking-widest text-[#2E4459] font-bold mt-4 mb-2">רגשות מובילים</div>
           <div className="flex flex-wrap gap-1.5">
             {result.emotions.map(e => (
-              <span key={e} className="px-2 py-0.5 rounded-full bg-[#162030] border border-[#1E2F42] text-[11px] text-[#D9E8F5]">
+              <span key={e} className="px-2 py-0.5 rounded-full bg-[#1A2A42] border border-[#243752] text-[11px] text-[#D9E8F5]">
                 {EMOTION_LABELS_HE[e] ?? e}
               </span>
             ))}

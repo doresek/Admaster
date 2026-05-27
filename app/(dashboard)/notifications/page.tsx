@@ -68,7 +68,7 @@ export default function NotificationsPage() {
       />
 
       {filtered.length === 0 ? (
-        <div className="text-center py-20 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+        <div className="text-center py-20 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
           <div className="text-5xl mb-3 opacity-30">🔔</div>
           <div className="text-base font-semibold">{filter==='unread' ? 'כל ההתראות נקראו' : 'אין התראות'}</div>
         </div>
@@ -77,7 +77,7 @@ export default function NotificationsPage() {
           {filtered.map(n => {
             const inner = (
               <div className={clsx('flex items-start gap-3 p-4 border rounded-xl transition-all',
-                !n.read ? 'bg-[#0A7AFF]/5 border-[#0A7AFF]/30 hover:bg-[#0A7AFF]/10' : 'bg-[#111A24] border-[#1E2F42] hover:border-[#2A4158]')}>
+                !n.read ? 'bg-[#0A7AFF]/5 border-[#0A7AFF]/30 hover:bg-[#0A7AFF]/10' : 'bg-[#152138] border-[#243752] hover:border-[#324C6B]')}>
                 <span className="text-2xl flex-shrink-0">{TYPE_ICON[n.type] ?? '🔔'}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">

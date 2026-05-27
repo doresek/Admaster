@@ -70,14 +70,14 @@ export default function FaqPage() {
 
       <div className="space-y-2">
         {FAQS.map((f, i) => (
-          <div key={i} className="bg-[#111A24] border border-[#1E2F42] rounded-xl overflow-hidden">
+          <div key={i} className="bg-[#152138] border border-[#243752] rounded-xl overflow-hidden">
             <button onClick={() => setOpen(open === i ? null : i)}
-              className="w-full flex items-center justify-between gap-3 px-5 py-4 text-right hover:bg-[#162030] transition-colors">
+              className="w-full flex items-center justify-between gap-3 px-5 py-4 text-right hover:bg-[#1A2A42] transition-colors">
               <span className="font-semibold text-[#D9E8F5] text-[14.5px]">{f.q}</span>
               <span className={`text-[#3D9FFF] text-lg transition-transform ${open === i ? 'rotate-180' : ''}`}>▾</span>
             </button>
             {open === i && (
-              <div className="px-5 pb-4 text-[13.5px] text-[#6B8FA8] leading-relaxed border-t border-[#1E2F42] pt-3">
+              <div className="px-5 pb-4 text-[13.5px] text-[#6B8FA8] leading-relaxed border-t border-[#243752] pt-3">
                 {f.a}
               </div>
             )}

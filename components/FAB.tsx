@@ -40,15 +40,15 @@ export function FAB() {
     <div ref={ref} className="fixed bottom-6 start-6 z-50">
       {/* Menu */}
       {open && (
-        <div className="absolute bottom-full mb-3 start-0 bg-[#111A24] border border-[#1E2F42] rounded-2xl shadow-2xl overflow-hidden w-[260px] animate-[fadeUp_.2s_ease]">
-          <div className="px-4 py-3 border-b border-[#1E2F42] bg-gradient-to-r from-[#0A7AFF]/15 to-[#6D28D9]/10">
+        <div className="absolute bottom-full mb-3 start-0 bg-[#152138] border border-[#243752] rounded-2xl shadow-2xl overflow-hidden w-[260px] animate-[fadeUp_.2s_ease]">
+          <div className="px-4 py-3 border-b border-[#243752] bg-gradient-to-r from-[#0A7AFF]/15 to-[#6D28D9]/10">
             <div className="font-bold text-sm text-[#D9E8F5]">⚡ פעולות מהירות</div>
             <div className="text-[10px] text-[#6B8FA8] mt-0.5">בחר פעולה ליצירה מיידית</div>
           </div>
           <div className="max-h-[60vh] overflow-y-auto">
             {ACTIONS.map(a => (
               <Link key={a.href} href={a.href} onClick={() => setOpen(false)}
-                className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#162030] transition-colors border-b border-[#1E2F42] last:border-0">
+                className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#1A2A42] transition-colors border-b border-[#243752] last:border-0">
                 <span className="text-lg flex-shrink-0">{a.emoji}</span>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-[#D9E8F5] font-medium">{a.label}</div>
@@ -57,7 +57,7 @@ export function FAB() {
                   <span className="text-[9px] font-bold bg-[#0A7AFF] text-white px-1.5 py-0.5 rounded-full">{a.badge}</span>
                 )}
                 {a.cost !== undefined && !a.badge && (
-                  <span className="text-[10px] bg-[#1D2D3E] text-[#6B8FA8] px-1.5 py-0.5 rounded-full font-mono">{a.cost}⚡</span>
+                  <span className="text-[10px] bg-[#22334D] text-[#6B8FA8] px-1.5 py-0.5 rounded-full font-mono">{a.cost}⚡</span>
                 )}
                 {!a.cost && !a.badge && (
                   <span className="text-[10px] bg-[#059669]/15 text-[#34D399] px-1.5 py-0.5 rounded-full font-bold">חינם</span>

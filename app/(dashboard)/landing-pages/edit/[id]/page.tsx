@@ -174,7 +174,7 @@ export default function LandingEditorPage() {
           <Card>
             <CardLabel>שם הדף + סלאג</CardLabel>
             <Input label="שם" value={page.title} onChange={t => setPage({ ...page, title: t })} />
-            <div className="flex items-center gap-2 bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2 text-xs">
+            <div className="flex items-center gap-2 bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2 text-xs">
               <span className="text-[#6B8FA8]">URL:</span>
               <Link href={`/lp/${page.slug}`} target="_blank" className="text-[#3D9FFF] font-mono truncate" dir="ltr">/lp/{page.slug}</Link>
             </div>
@@ -224,7 +224,7 @@ export default function LandingEditorPage() {
                     next[i] = e.target.value;
                     updateContent('bullets', next);
                   }}
-                    className="flex-1 bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2 text-sm text-[#D9E8F5]" dir="rtl" />
+                    className="flex-1 bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2 text-sm text-[#D9E8F5]" dir="rtl" />
                   <button onClick={() => updateContent('bullets', c.bullets!.filter((_, j) => j !== i))}
                     className="text-[#2E4459] hover:text-red-400 text-sm">✕</button>
                 </div>
@@ -243,11 +243,11 @@ export default function LandingEditorPage() {
                 </Btn>
               </div>
               {c.faq.map((f, i) => (
-                <div key={i} className="bg-[#162030] rounded-lg p-3 mb-2">
+                <div key={i} className="bg-[#1A2A42] rounded-lg p-3 mb-2">
                   <input value={f.q} onChange={e => {
                     const next = [...(c.faq || [])]; next[i] = { ...next[i], q: e.target.value };
                     updateContent('faq', next);
-                  }} className="w-full bg-transparent border-b border-[#1E2F42] text-sm text-[#D9E8F5] font-semibold mb-2 py-1" dir="rtl" />
+                  }} className="w-full bg-transparent border-b border-[#243752] text-sm text-[#D9E8F5] font-semibold mb-2 py-1" dir="rtl" />
                   <textarea value={f.a} onChange={e => {
                     const next = [...(c.faq || [])]; next[i] = { ...next[i], a: e.target.value };
                     updateContent('faq', next);
@@ -270,21 +270,21 @@ export default function LandingEditorPage() {
                 </Btn>
               </div>
               {c.testimonials.map((t, i) => (
-                <div key={i} className="bg-[#162030] rounded-lg p-3 mb-2">
+                <div key={i} className="bg-[#1A2A42] rounded-lg p-3 mb-2">
                   <div className="flex gap-2 mb-2">
                     <input value={t.name} onChange={e => {
                       const next = [...(c.testimonials || [])]; next[i] = { ...next[i], name: e.target.value };
                       updateContent('testimonials', next);
-                    }} placeholder="שם" className="flex-1 bg-[#0A0E14] border border-[#1E2F42] rounded px-2 py-1 text-xs" dir="rtl" />
+                    }} placeholder="שם" className="flex-1 bg-[#0A0E14] border border-[#243752] rounded px-2 py-1 text-xs" dir="rtl" />
                     <input value={t.role || ''} onChange={e => {
                       const next = [...(c.testimonials || [])]; next[i] = { ...next[i], role: e.target.value };
                       updateContent('testimonials', next);
-                    }} placeholder="תפקיד" className="flex-1 bg-[#0A0E14] border border-[#1E2F42] rounded px-2 py-1 text-xs" dir="rtl" />
+                    }} placeholder="תפקיד" className="flex-1 bg-[#0A0E14] border border-[#243752] rounded px-2 py-1 text-xs" dir="rtl" />
                   </div>
                   <textarea value={t.quote} onChange={e => {
                     const next = [...(c.testimonials || [])]; next[i] = { ...next[i], quote: e.target.value };
                     updateContent('testimonials', next);
-                  }} rows={2} placeholder="ציטוט" className="w-full bg-[#0A0E14] border border-[#1E2F42] rounded px-2 py-1 text-xs" dir="rtl" />
+                  }} rows={2} placeholder="ציטוט" className="w-full bg-[#0A0E14] border border-[#243752] rounded px-2 py-1 text-xs" dir="rtl" />
                   <button onClick={() => updateContent('testimonials', c.testimonials!.filter((_, j) => j !== i))}
                     className="text-[10px] text-[#2E4459] hover:text-red-400 mt-1">✕ מחק</button>
                 </div>
@@ -320,7 +320,7 @@ export default function LandingEditorPage() {
             <Btn variant={view==='desktop'?'primary':'ghost'} size="xs" onClick={() => setView('desktop')}>💻 שולחני</Btn>
             <Btn variant={view==='mobile'?'primary':'ghost'} size="xs" onClick={() => setView('mobile')}>📱 נייד</Btn>
           </div>
-          <div className="bg-[#0A0E14] border border-[#1E2F42] rounded-2xl p-3 shadow-2xl"
+          <div className="bg-[#0A0E14] border border-[#243752] rounded-2xl p-3 shadow-2xl"
                style={{
                  width:  view === 'mobile' ? 400 : 720,
                  height: view === 'mobile' ? 800 : 580,
@@ -345,7 +345,7 @@ export default function LandingEditorPage() {
       {/* 3 Variants modal */}
       {variantsOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#111A24] border border-[#1E2F42] rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-5">
+          <div className="bg-[#152138] border border-[#243752] rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <div className="font-bold text-lg text-[#D9E8F5]">🎲 שלוש חלופות עיצוב</div>
@@ -377,7 +377,7 @@ export default function LandingEditorPage() {
                           {d.hero} · {d.fonts}
                         </div>
                       </div>
-                      <div className="p-3 bg-[#111A24]">
+                      <div className="p-3 bg-[#152138]">
                         <div className="font-bold text-sm text-[#D9E8F5] mb-1">{v.label}</div>
                         <div className="text-[11px] text-[#6B8FA8] mb-2 line-clamp-2">{v.summary}</div>
                         <div className="flex gap-1 mb-2">
@@ -401,7 +401,7 @@ export default function LandingEditorPage() {
       {/* AI Refine modal */}
       {refineModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#111A24] border border-[#1E2F42] rounded-2xl max-w-lg w-full p-5">
+          <div className="bg-[#152138] border border-[#243752] rounded-2xl max-w-lg w-full p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="font-bold text-base text-[#D9E8F5]">🪄 שפר עם AI · section: {refineModal.section}</div>
               <button onClick={() => setRefineModal(null)} className="text-[#2E4459] hover:text-white">✕</button>

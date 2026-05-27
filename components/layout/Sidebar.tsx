@@ -95,8 +95,8 @@ export default function Sidebar({ name, credits, plan }: SidebarProps) {
   const widthClass = collapsed ? 'w-[64px]' : 'w-[230px]';
 
   return (
-    <aside className={clsx('shrink-0 bg-[#0C1118] border-[#1E2F42] fixed top-0 bottom-0 flex flex-col z-50 overflow-y-auto transition-all duration-200', widthClass, sideClass)}>
-      <div className="px-4 py-4 border-b border-[#1E2F42] flex items-center justify-between">
+    <aside className={clsx('shrink-0 bg-[#0F1A2E] border-[#243752] fixed top-0 bottom-0 flex flex-col z-50 overflow-y-auto transition-all duration-200', widthClass, sideClass)}>
+      <div className="px-4 py-4 border-b border-[#243752] flex items-center justify-between">
         {!collapsed && (
           <div>
             <div className="text-[18px] font-bold text-white" style={{ fontFamily:'DM Serif Display,serif' }}>
@@ -107,13 +107,13 @@ export default function Sidebar({ name, credits, plan }: SidebarProps) {
         )}
         <button onClick={() => setCollapsed(!collapsed)}
           title={collapsed ? 'הרחב' : 'מזער'}
-          className="text-[#6B8FA8] hover:text-[#D9E8F5] text-base p-1 rounded hover:bg-[#162030] transition-colors flex-shrink-0">
+          className="text-[#6B8FA8] hover:text-[#D9E8F5] text-base p-1 rounded hover:bg-[#1A2A42] transition-colors flex-shrink-0">
           {collapsed ? (locale === 'en' ? '→' : '←') : (locale === 'en' ? '←' : '→')}
         </button>
       </div>
 
       {/* Quick external links (always visible icons; collapsed-aware) */}
-      <div className={clsx('px-2 py-2 border-b border-[#1E2F42] flex gap-1', collapsed ? 'flex-col' : 'flex-row')}>
+      <div className={clsx('px-2 py-2 border-b border-[#243752] flex gap-1', collapsed ? 'flex-col' : 'flex-row')}>
         <a href="https://chat.whatsapp.com/" target="_blank" rel="noreferrer"
           title="קהילת WhatsApp"
           className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-[#059669]/8 border border-[#059669]/20 text-[#34D399] hover:bg-[#059669]/15 transition-colors text-[11px] font-bold">
@@ -129,9 +129,9 @@ export default function Sidebar({ name, credits, plan }: SidebarProps) {
       <nav className="flex-1 p-1.5">
         {NAV.map((item, i) => {
           if ('sec' in item) {
-            if (collapsed) return <div key={i} className="border-t border-[#1E2F42] my-2" />;
+            if (collapsed) return <div key={i} className="border-t border-[#243752] my-2" />;
             return (
-              <div key={i} className="mt-3 mb-1 px-2 pt-2.5 border-t border-[#1E2F42]/60 text-2xs font-bold tracking-kicker uppercase text-[#3D5266]">
+              <div key={i} className="mt-3 mb-1 px-2 pt-2.5 border-t border-[#243752]/60 text-2xs font-bold tracking-kicker uppercase text-[#3D5266]">
                 {t.nav[item.sec]}
               </div>
             );
@@ -144,7 +144,7 @@ export default function Sidebar({ name, credits, plan }: SidebarProps) {
               title={collapsed ? label : undefined}
               className={clsx(
                 'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[12.5px] font-medium transition-all mb-0.5',
-                active ? 'bg-[#0A7AFF]/12 text-[#3D9FFF] border border-[#0A7AFF]/18' : 'text-[#6B8FA8] hover:bg-[#162030] hover:text-[#D9E8F5] border border-transparent'
+                active ? 'bg-[#0A7AFF]/12 text-[#3D9FFF] border border-[#0A7AFF]/18' : 'text-[#6B8FA8] hover:bg-[#1A2A42] hover:text-[#D9E8F5] border border-transparent'
               )}>
               <span className={clsx('text-[13px] flex-shrink-0', collapsed ? 'mx-auto' : 'w-4 text-center')}>{item.icon}</span>
               {!collapsed && <span className="flex-1 truncate">{label}</span>}
@@ -157,29 +157,29 @@ export default function Sidebar({ name, credits, plan }: SidebarProps) {
                 </span>
               )}
               {!collapsed && 'cost' in item && item.cost !== undefined && !item.badge && !active && (
-                <span className="text-[9px] bg-[#1D2D3E] text-[#6B8FA8] px-1.5 py-0.5 rounded-full flex-shrink-0">{item.cost}⚡</span>
+                <span className="text-[9px] bg-[#22334D] text-[#6B8FA8] px-1.5 py-0.5 rounded-full flex-shrink-0">{item.cost}⚡</span>
               )}
             </Link>
           );
         })}
       </nav>
 
-      <div className="p-2.5 border-t border-[#1E2F42]">
+      <div className="p-2.5 border-t border-[#243752]">
         {/* Language switcher */}
         <div className="relative mb-2">
           <button onClick={() => setLangOpen(o => !o)}
             title={collapsed ? t.common.language : undefined}
-            className="w-full flex items-center justify-between bg-[#162030] border border-[#1E2F42] rounded-lg px-2.5 py-1.5 text-[11px] text-[#6B8FA8] hover:border-[#2A4158] transition-colors">
+            className="w-full flex items-center justify-between bg-[#1A2A42] border border-[#243752] rounded-lg px-2.5 py-1.5 text-[11px] text-[#6B8FA8] hover:border-[#324C6B] transition-colors">
             <span className="flex items-center gap-1">🌐 {!collapsed && <>{LOCALES.find(l => l.id === locale)?.emoji} {LOCALES.find(l => l.id === locale)?.name}</>}</span>
             {!collapsed && <span className="text-[8px]">▾</span>}
           </button>
           {langOpen && (
-            <div className="absolute bottom-full mb-1 left-0 right-0 bg-[#111A24] border border-[#1E2F42] rounded-lg overflow-hidden shadow-xl z-50 min-w-[120px]">
+            <div className="absolute bottom-full mb-1 left-0 right-0 bg-[#152138] border border-[#243752] rounded-lg overflow-hidden shadow-xl z-50 min-w-[120px]">
               {LOCALES.map(l => (
                 <button key={l.id}
                   onClick={() => { setLocale(l.id); setLangOpen(false); }}
                   className={clsx('w-full flex items-center gap-2 px-3 py-1.5 text-[11.5px] transition-colors',
-                    l.id === locale ? 'bg-[#0A7AFF]/12 text-[#3D9FFF]' : 'text-[#6B8FA8] hover:bg-[#162030] hover:text-[#D9E8F5]')}>
+                    l.id === locale ? 'bg-[#0A7AFF]/12 text-[#3D9FFF]' : 'text-[#6B8FA8] hover:bg-[#1A2A42] hover:text-[#D9E8F5]')}>
                   <span>{l.emoji}</span>{l.name}
                 </button>
               ))}
@@ -193,7 +193,7 @@ export default function Sidebar({ name, credits, plan }: SidebarProps) {
           </Link>
         )}
         {!collapsed ? (
-          <div className="bg-[#111A24] border border-[#1E2F42] rounded-lg p-2.5">
+          <div className="bg-[#152138] border border-[#243752] rounded-lg p-2.5">
             <div className="flex justify-between items-center mb-1.5">
               <div>
                 <div className="font-mono text-sm font-medium text-[#D9E8F5]">{credits.toLocaleString()}</div>
@@ -204,14 +204,14 @@ export default function Sidebar({ name, credits, plan }: SidebarProps) {
                 {planConfig.name}
               </div>
             </div>
-            <div className="h-1 rounded-full bg-[#1D2D3E] overflow-hidden">
+            <div className="h-1 rounded-full bg-[#22334D] overflow-hidden">
               <div className="h-full rounded-full transition-all duration-500"
                 style={{ width:`${pct}%`, background:pct<20?'#DC2626':'linear-gradient(90deg,#0A7AFF,#3D9FFF)' }}/>
             </div>
           </div>
         ) : (
           <Link href="/credits" title={`${credits} ${t.common.credits}`}
-            className="block text-center bg-[#111A24] border border-[#1E2F42] rounded-lg p-1.5">
+            className="block text-center bg-[#152138] border border-[#243752] rounded-lg p-1.5">
             <div className="font-mono text-[10px] text-[#D9E8F5]">{credits >= 1000 ? `${Math.floor(credits/1000)}k` : credits}</div>
             <div className="text-[8px] text-[#2E4459]">⚡</div>
           </Link>

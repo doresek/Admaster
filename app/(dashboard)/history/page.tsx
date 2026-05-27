@@ -149,7 +149,7 @@ export default function HistoryPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 pt-2 border-t border-[#1E2F42]">
+        <div className="flex items-center gap-2 pt-2 border-t border-[#243752]">
           <Chip label={favOnly ? '⭐ מועדפים בלבד' : '☆ הצג גם לא-מועדפים'} active={favOnly} onClick={() => setFavOnly(v => !v)} />
         </div>
       </Card>
@@ -161,7 +161,7 @@ export default function HistoryPage() {
       )}
 
       {!loading && filtered.length === 0 && (
-        <div className="text-center py-16 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+        <div className="text-center py-16 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
           <div className="text-4xl mb-3 opacity-30">🕒</div>
           <div className="text-sm">אין פריטים שתואמים את הסינון</div>
         </div>
@@ -173,7 +173,7 @@ export default function HistoryPage() {
           const client = clients.find(c => c.id === item.client_id);
           const preview = item.output?.text || item.output?.post || item.output?.body || JSON.stringify(item.output ?? {}).substring(0, 200);
           return (
-            <div key={item.id} className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4">
+            <div key={item.id} className="bg-[#152138] border border-[#243752] rounded-xl p-4">
               <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <span className="text-lg">{meta.emoji}</span>

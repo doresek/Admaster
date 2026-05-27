@@ -85,7 +85,7 @@ export default function QuickCampaignPage() {
             <div className="flex items-start gap-2"><span className="text-[#3D9FFF]">①</span><span>גרסת <strong>PAS</strong> — בעיה, החרפה, פתרון</span></div>
             <div className="flex items-start gap-2"><span className="text-[#3D9FFF]">②</span><span>גרסת <strong>AIDA</strong> — תשומת לב, עניין, רצון, פעולה</span></div>
             <div className="flex items-start gap-2"><span className="text-[#3D9FFF]">③</span><span>גרסת <strong>BAB</strong> — לפני, אחרי, גשר</span></div>
-            <div className="border-t border-[#1E2F42] my-2 pt-2 text-[#6B8FA8]">
+            <div className="border-t border-[#243752] my-2 pt-2 text-[#6B8FA8]">
               לכל גרסה: פוסט מלא + hashtags + גרסת WhatsApp + image prompt
               {withImg && <div className="mt-1 text-[#34D399]">+ תמונה AI שנוצרה ב-Ideogram</div>}
             </div>
@@ -105,8 +105,8 @@ export default function QuickCampaignPage() {
           <div className="text-xs font-bold text-[#34D399] uppercase tracking-wider mb-3">✨ {variants.length} גרסאות נוצרו</div>
           <div className="grid md:grid-cols-3 gap-3">
             {variants.map((v, i) => (
-              <div key={i} className="bg-[#111A24] border border-[#1E2F42] rounded-xl overflow-hidden flex flex-col">
-                <div className="bg-gradient-to-r from-[#0A7AFF]/15 to-[#6D28D9]/10 px-4 py-2.5 border-b border-[#1E2F42]">
+              <div key={i} className="bg-[#152138] border border-[#243752] rounded-xl overflow-hidden flex flex-col">
+                <div className="bg-gradient-to-r from-[#0A7AFF]/15 to-[#6D28D9]/10 px-4 py-2.5 border-b border-[#243752]">
                   <div className="flex items-center justify-between">
                     <div className="text-[10px] font-bold text-[#2E4459] uppercase">גרסה {i+1}</div>
                     <div className="text-xs font-bold text-[#3D9FFF]">{v.framework.toUpperCase()}</div>
@@ -114,7 +114,7 @@ export default function QuickCampaignPage() {
                 </div>
 
                 {v.image_url && (
-                  <img src={v.image_url} alt={`Variant ${i+1}`} className="w-full aspect-square object-cover border-b border-[#1E2F42]" />
+                  <img src={v.image_url} alt={`Variant ${i+1}`} className="w-full aspect-square object-cover border-b border-[#243752]" />
                 )}
 
                 <div className="p-4 flex-1 flex flex-col gap-3">

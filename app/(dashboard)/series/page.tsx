@@ -169,7 +169,7 @@ BODY: <גוף ההודעה — לפי המגבלות של הערוץ>
               <div className="grid grid-cols-2 gap-2">
                 {GOALS.map(g => (
                   <button key={g.id} onClick={() => setGoal(g.id)}
-                    className={`text-right p-3 rounded-lg border transition-all ${goal===g.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]'}`}>
+                    className={`text-right p-3 rounded-lg border transition-all ${goal===g.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#243752] bg-[#1A2A42] hover:border-[#324C6B]'}`}>
                     <div className="font-medium text-sm text-[#D9E8F5]">{g.label}</div>
                     <div className="text-[11px] text-[#6B8FA8] mt-0.5">{g.sub}</div>
                   </button>
@@ -233,7 +233,7 @@ BODY: <גוף ההודעה — לפי המגבלות של הערוץ>
                   {scheduled.map((m, i) => {
                     const cInfo = CHANNELS.find(c => c.id === m.channel);
                     return (
-                      <div key={i} className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-3">
+                      <div key={i} className="bg-[#152138] border border-[#243752] rounded-xl p-3">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <div className="w-7 h-7 rounded-full bg-[#0A7AFF]/15 text-[#3D9FFF] text-[11px] font-bold flex items-center justify-center">
@@ -252,7 +252,7 @@ BODY: <גוף ההודעה — לפי המגבלות של הערוץ>
                 </div>
               </>
             ) : (
-              <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+              <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
                 <span className="text-5xl mb-3 opacity-30">🗓</span>
                 <span className="text-sm">מלא פרטים ולחץ "בנה תוכנית"</span>
               </div>
@@ -264,13 +264,13 @@ BODY: <גוף ההודעה — לפי המגבלות של הערוץ>
       {tab === 'list' && (
         <div>
           {series.length === 0 ? (
-            <div className="text-center py-16 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+            <div className="text-center py-16 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
               <div className="text-4xl mb-3 opacity-30">📭</div>
               <div className="text-sm">אין קמפיינים שמורים</div>
             </div>
           ) : (
             series.map(s => (
-              <div key={s.id} className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4 mb-2 flex items-center justify-between">
+              <div key={s.id} className="bg-[#152138] border border-[#243752] rounded-xl p-4 mb-2 flex items-center justify-between">
                 <div>
                   <div className="font-semibold text-sm text-[#D9E8F5]">{s.name}</div>
                   <div className="text-[11px] text-[#6B8FA8] mt-0.5">

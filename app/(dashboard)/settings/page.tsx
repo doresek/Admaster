@@ -124,16 +124,16 @@ export default function SettingsPage() {
             <Input label="שם מלא" value={name} onChange={setName} />
             <div className="mb-3">
               <label className="block text-xs font-medium text-[#6B8FA8] mb-1.5">אימייל</label>
-              <div className="flex items-center justify-between bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5">
+              <div className="flex items-center justify-between bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5">
                 <span className="text-sm text-[#D9E8F5]" dir="ltr">{profile.email}</span>
                 <span className="text-[10px] text-[#2E4459]">לא ניתן לשנות</span>
               </div>
             </div>
-            <div className="flex items-center justify-between bg-[#162030] rounded-lg px-3 py-2 mb-3">
+            <div className="flex items-center justify-between bg-[#1A2A42] rounded-lg px-3 py-2 mb-3">
               <span className="text-xs text-[#6B8FA8]">תוכנית</span>
               <span className="text-xs font-bold text-[#D4AF55]">{profile.plan}</span>
             </div>
-            <div className="flex items-center justify-between bg-[#162030] rounded-lg px-3 py-2 mb-3">
+            <div className="flex items-center justify-between bg-[#1A2A42] rounded-lg px-3 py-2 mb-3">
               <span className="text-xs text-[#6B8FA8]">יתרת קרדיטים</span>
               <span className="font-mono text-sm text-[#3D9FFF]">⚡ {profile.credits.toLocaleString()}</span>
             </div>
@@ -163,15 +163,15 @@ export default function SettingsPage() {
               { k: 'notif_billing',     l: '💳 אירועי חיוב' },
               { k: 'notif_support',     l: '🎫 תגובות מתמיכה' },
             ].map(opt => (
-              <label key={opt.k} className="flex items-center justify-between bg-[#162030] rounded-lg px-4 py-3 cursor-pointer hover:bg-[#1D2D3E] transition-colors">
+              <label key={opt.k} className="flex items-center justify-between bg-[#1A2A42] rounded-lg px-4 py-3 cursor-pointer hover:bg-[#22334D] transition-colors">
                 <span className="text-sm">{opt.l}</span>
                 <input type="checkbox" checked={(s as any)[opt.k]} onChange={e => setS({ ...s, [opt.k]: e.target.checked } as Settings)} className="w-4 h-4" />
               </label>
             ))}
           </div>
-          <div className="border-t border-[#1E2F42] mt-4 pt-4">
+          <div className="border-t border-[#243752] mt-4 pt-4">
             <CardLabel>הגדרות נוספות</CardLabel>
-            <label className="flex items-center justify-between bg-[#162030] rounded-lg px-4 py-3 cursor-pointer">
+            <label className="flex items-center justify-between bg-[#1A2A42] rounded-lg px-4 py-3 cursor-pointer">
               <span className="text-sm">📧 שלח כל התראה גם לאימייל</span>
               <input type="checkbox" checked={s.notif_email} onChange={e => setS({ ...s, notif_email: e.target.checked })} className="w-4 h-4" />
             </label>

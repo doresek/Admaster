@@ -121,7 +121,7 @@ export default function CreatePage() {
               {TONES.map(t => <Chip key={t} label={t} active={tone===t} onClick={()=>setTone(t)} />)}
             </div>
 
-            <div className="border-t border-[#1E2F42] pt-3 mt-3">
+            <div className="border-t border-[#243752] pt-3 mt-3">
               <CardLabel>🎛 Override (אופציונלי)</CardLabel>
               <div className="text-[11px] text-[#2E4459] mb-2">
                 כברירת מחדל — ה-AI בוחר את ה-framework וה-hook. לחץ chip לכפיית בחירה.
@@ -140,7 +140,7 @@ export default function CreatePage() {
                 ))}
               </div>
               {fwOverride && (
-                <div className="text-[10px] text-[#6B8FA8] bg-[#162030] rounded-lg px-3 py-2 mb-3 leading-relaxed">
+                <div className="text-[10px] text-[#6B8FA8] bg-[#1A2A42] rounded-lg px-3 py-2 mb-3 leading-relaxed">
                   <strong className="text-[#D9E8F5]">{FRAMEWORKS_BY_ID[fwOverride].name_en}:</strong> {FRAMEWORKS_BY_ID[fwOverride].description}
                 </div>
               )}
@@ -218,7 +218,7 @@ export default function CreatePage() {
                       )}
 
                       {out.marketer && (
-                        <div className="border-t border-[#1E2F42] pt-2">
+                        <div className="border-t border-[#243752] pt-2">
                           <div className="text-[11px] font-bold text-[#6B8FA8] uppercase tracking-wider mb-1">🎯 משווק נבחר</div>
                           <div className="text-[#D9E8F5] flex items-center gap-2">
                             <span className="text-lg">{out.marketer.emoji}</span>
@@ -229,7 +229,7 @@ export default function CreatePage() {
                       )}
 
                       {out.principles.length > 0 && (
-                        <div className="border-t border-[#1E2F42] pt-2">
+                        <div className="border-t border-[#243752] pt-2">
                           <div className="text-[11px] font-bold text-[#6B8FA8] uppercase tracking-wider mb-1">📚 עקרונות שיושמו</div>
                           <ul className="space-y-1 text-[#D9E8F5]">
                             {out.principles.map((p, i) => (
@@ -293,7 +293,7 @@ export default function CreatePage() {
 
               {tab === 'img' && (
                 <>
-                  <Card className="bg-[#162030]">
+                  <Card className="bg-[#1A2A42]">
                     <CardLabel>Prompt לתמונה</CardLabel>
                     <div className="text-sm leading-relaxed" dir="ltr" style={{ textAlign: 'left' }}>{out.image}</div>
                   </Card>
@@ -321,7 +321,7 @@ export default function CreatePage() {
               {tab === 'tips' && <OutputBox text={out.tips} className="text-sm" />}
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+            <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
               <span className="text-4xl mb-3 opacity-30">✨</span>
               <span className="text-sm">מלא בריף ולחץ "צור פוסט"</span>
             </div>

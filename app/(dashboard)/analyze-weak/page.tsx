@@ -105,7 +105,7 @@ export default function AnalyzeWeakPage() {
               </Card>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-80 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+            <div className="flex flex-col items-center justify-center h-80 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
               <span className="text-5xl mb-3 opacity-30">🩺</span>
               <span className="text-sm">הדבק מודעה חלשה ולחץ "נתח"</span>
             </div>

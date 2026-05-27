@@ -54,15 +54,15 @@ export default function CampaignPage() {
       <PageHeader eyebrow="Meta Ads" title="בנה קמפיין" sub="יצירת קמפיין ב-5 שלבים" right={<CostBadge cost={15} />} />
 
       {/* Step bar */}
-      <div className="flex items-center gap-2 mb-6 pb-5 border-b border-[#1E2F42]">
+      <div className="flex items-center gap-2 mb-6 pb-5 border-b border-[#243752]">
         {STEPS.map((s,i)=>(
           <div key={s} className="flex items-center gap-2 flex-1">
             <div onClick={()=>i+1<step&&setStep(i+1)}
-              className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${i+1<step?'bg-[#059669] text-white cursor-pointer':i+1===step?'bg-[#0A7AFF] text-white':'bg-[#1D2D3E] text-[#2E4459]'}`}>
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${i+1<step?'bg-[#059669] text-white cursor-pointer':i+1===step?'bg-[#0A7AFF] text-white':'bg-[#22334D] text-[#2E4459]'}`}>
               {i+1<step?'✓':i+1}
             </div>
             <span className={`text-xs font-medium whitespace-nowrap ${i+1===step?'text-[#3D9FFF]':'text-[#2E4459]'}`}>{s}</span>
-            {i<STEPS.length-1&&<div className={`flex-1 h-px ${i+1<step?'bg-[#0A7AFF]':'bg-[#1E2F42]'}`}/>}
+            {i<STEPS.length-1&&<div className={`flex-1 h-px ${i+1<step?'bg-[#0A7AFF]':'bg-[#243752]'}`}/>}
           </div>
         ))}
       </div>
@@ -70,9 +70,9 @@ export default function CampaignPage() {
       {step===1&&<div>
         <div className="text-xs font-bold text-[#2E4459] uppercase tracking-wider mb-3">בחר לקוח</div>
         {clients.map(c=><div key={c.id} onClick={()=>setSelC(c)}
-          className={`flex items-center gap-3 p-3 rounded-lg border mb-2 cursor-pointer transition-all ${selC?.id===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]'}`}>
+          className={`flex items-center gap-3 p-3 rounded-lg border mb-2 cursor-pointer transition-all ${selC?.id===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#243752] bg-[#1A2A42] hover:border-[#324C6B]'}`}>
           <span>{c.emoji}</span><div><div className="font-medium text-sm">{c.name}</div><div className="text-[11px] text-[#6B8FA8]">{c.ad_accounts.length} חשבונות</div></div>
-          <div className={`w-4 h-4 rounded-full border ml-auto ${selC?.id===c.id?'border-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[#3D9FFF] text-[10px]':'border-[#2A4158]'}`}>{selC?.id===c.id?'✓':''}</div>
+          <div className={`w-4 h-4 rounded-full border ml-auto ${selC?.id===c.id?'border-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[#3D9FFF] text-[10px]':'border-[#324C6B]'}`}>{selC?.id===c.id?'✓':''}</div>
         </div>)}
         {selC&&!selC.selected_ad_account_id&&<Alert type="amber">⚠️ בחר חשבון מודעות ב"לקוחות" תחילה</Alert>}
         <Btn variant="primary" className="mt-3" onClick={()=>setStep(2)} disabled={!selC?.selected_ad_account_id}>הבא →</Btn>
@@ -82,9 +82,9 @@ export default function CampaignPage() {
         <div className="text-xs font-bold text-[#2E4459] uppercase tracking-wider mb-3">מטרת קמפיין</div>
         <div className="grid grid-cols-2 gap-2 mb-4">
           {OBJECTIVES.map(o=><div key={o.id} onClick={()=>uc('objective',o.id)}
-            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${c.objective===o.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]'}`}>
+            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${c.objective===o.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#243752] bg-[#1A2A42] hover:border-[#324C6B]'}`}>
             <span className="text-xl">{o.i}</span><span className="font-medium text-sm">{o.l}</span>
-            <div className={`w-4 h-4 rounded-full border ml-auto ${c.objective===o.id?'border-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[#3D9FFF] text-[10px]':'border-[#2A4158]'}`}>{c.objective===o.id?'✓':''}</div>
+            <div className={`w-4 h-4 rounded-full border ml-auto ${c.objective===o.id?'border-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[#3D9FFF] text-[10px]':'border-[#324C6B]'}`}>{c.objective===o.id?'✓':''}</div>
           </div>)}
         </div>
         <div className="flex gap-2"><Btn variant="ghost" onClick={()=>setStep(1)}>← חזור</Btn><Btn variant="primary" onClick={()=>setStep(3)} disabled={!c.objective}>הבא →</Btn></div>
@@ -93,7 +93,7 @@ export default function CampaignPage() {
       {step===3&&<div>
         <div className="flex gap-2 mb-3">
           {[['DAILY','יומי'],['LIFETIME','כולל']].map(([id,l])=><button key={id} onClick={()=>uc('budgetType',id)}
-            className={`px-3 py-1.5 rounded-full text-xs border transition-all ${c.budgetType===id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#1E2F42] bg-[#162030] text-[#6B8FA8]'}`}>{l}</button>)}
+            className={`px-3 py-1.5 rounded-full text-xs border transition-all ${c.budgetType===id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#243752] bg-[#1A2A42] text-[#6B8FA8]'}`}>{l}</button>)}
         </div>
         <Input label={`תקציב ${c.budgetType==='DAILY'?'יומי':'כולל'} (₪)`} value={c.budget.toString()} onChange={v=>uc('budget',parseInt(v)||50)} />
         <div className="grid grid-cols-2 gap-3">
@@ -109,10 +109,10 @@ export default function CampaignPage() {
         <Input label="כותרת (עד 40 תווים)" value={c.headline} onChange={v=>uc('headline',v)} />
         <div className="mb-3"><label className="block text-xs font-medium text-[#6B8FA8] mb-1.5">טקסט ראשי (עד 125)</label>
           <textarea value={c.adText} onChange={e=>uc('adText',e.target.value)} rows={3} maxLength={125}
-            className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]" dir="rtl" /></div>
+            className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]" dir="rtl" /></div>
         <div className="mb-4"><label className="block text-xs font-medium text-[#6B8FA8] mb-1.5">CTA</label>
-          <select value={c.cta} onChange={e=>uc('cta',e.target.value)} className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]" dir="rtl">
-            {[['LEARN_MORE','למד עוד'],['CONTACT_US','צור קשר'],['SHOP_NOW','קנה'],['SEND_MESSAGE','שלח הודעה']].map(([v,l])=><option key={v} value={v} className="bg-[#162030]">{l}</option>)}
+          <select value={c.cta} onChange={e=>uc('cta',e.target.value)} className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]" dir="rtl">
+            {[['LEARN_MORE','למד עוד'],['CONTACT_US','צור קשר'],['SHOP_NOW','קנה'],['SEND_MESSAGE','שלח הודעה']].map(([v,l])=><option key={v} value={v} className="bg-[#1A2A42]">{l}</option>)}
           </select></div>
         {err&&<Alert type="red">{err}</Alert>}
         <div className="flex gap-2"><Btn variant="ghost" onClick={()=>setStep(3)}>← חזור</Btn><Btn variant="primary" loading={loading} onClick={create}>🚀 צור קמפיין ב-Meta</Btn></div>

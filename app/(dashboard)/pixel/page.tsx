@@ -55,7 +55,7 @@ export default function PixelPage() {
             <CardLabel>צור Pixel חדש</CardLabel>
             <div className="flex flex-wrap gap-2 mb-3">
               {clients.map(c=><button key={c.id} onClick={()=>{setSelC(c.id);loadPixels(c.id);}}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-all ${selC===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#1E2F42] bg-[#162030] text-[#6B8FA8]'}`}>
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-all ${selC===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#243752] bg-[#1A2A42] text-[#6B8FA8]'}`}>
                 <span>{c.emoji}</span>{c.name}
               </button>)}
             </div>
@@ -75,7 +75,7 @@ export default function PixelPage() {
               ['InitiateCheckout','התחל צ\'קאאוט',''],
               ['ViewContent','צפייה בתוכן','דף מוצר'],
             ].map(([e,l,s])=>(
-              <div key={e} className="flex items-center justify-between py-2 border-b border-[#1E2F42] last:border-0">
+              <div key={e} className="flex items-center justify-between py-2 border-b border-[#243752] last:border-0">
                 <div><div className="text-xs font-mono text-[#3D9FFF]">{e}</div><div className="text-[10px] text-[#6B8FA8]">{l}{s?` — ${s}`:''}</div></div>
                 <code className="text-[10px] text-[#2E4459]">fbq('track','{e}')</code>
               </div>
@@ -95,7 +95,7 @@ export default function PixelPage() {
               </div>
               {px.pixel_code && (
                 <>
-                  <div className="bg-[#070A0E] rounded-lg p-3 mb-2 font-mono text-[11px] text-[#6B8FA8] max-h-32 overflow-y-auto whitespace-pre-wrap" dir="ltr">
+                  <div className="bg-[#0B1424] rounded-lg p-3 mb-2 font-mono text-[11px] text-[#6B8FA8] max-h-32 overflow-y-auto whitespace-pre-wrap" dir="ltr">
                     {px.pixel_code.substring(0,300)}...
                   </div>
                   <div className="flex gap-2">
@@ -109,7 +109,7 @@ export default function PixelPage() {
               )}
             </Card>
           ))}
-          {pixels.length===0&&<div className="flex flex-col items-center justify-center h-48 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]"><span className="text-4xl mb-3 opacity-30">📊</span><span className="text-sm">צור Pixel ראשון</span></div>}
+          {pixels.length===0&&<div className="flex flex-col items-center justify-center h-48 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]"><span className="text-4xl mb-3 opacity-30">📊</span><span className="text-sm">צור Pixel ראשון</span></div>}
         </div>
       </div>
     </div>

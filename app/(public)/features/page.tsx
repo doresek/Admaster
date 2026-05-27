@@ -105,7 +105,7 @@ export default function FeaturesPage() {
             </div>
             <div className="grid md:grid-cols-2 gap-3">
               {c.items.map(it => (
-                <div key={it.t} className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4 hover:border-[#2A4158] transition-all">
+                <div key={it.t} className="bg-[#152138] border border-[#243752] rounded-xl p-4 hover:border-[#324C6B] transition-all">
                   <div className="flex items-start gap-3">
                     <span className="text-2xl">{it.i}</span>
                     <div>

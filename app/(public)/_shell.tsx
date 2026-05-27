@@ -25,8 +25,8 @@ export default function PublicShell({ children }: Props) {
   ];
 
   return (
-    <div className="min-h-screen bg-[#070A0E] text-[#D9E8F5]" dir={dir}>
-      <header className="sticky top-0 z-50 bg-[#070A0E]/85 backdrop-blur border-b border-[#1E2F42]">
+    <div className="min-h-screen bg-[#0B1424] text-[#D9E8F5]" dir={dir}>
+      <header className="sticky top-0 z-50 bg-[#0B1424]/85 backdrop-blur border-b border-[#243752]">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link href="/welcome" className="text-lg font-bold text-white" style={{ fontFamily: 'DM Serif Display,serif' }}>
             Ad<em className="text-[#D4AF55] not-italic">Master</em> Pro
@@ -40,16 +40,16 @@ export default function PublicShell({ children }: Props) {
             {/* Language switcher */}
             <div className="relative">
               <button onClick={() => setLangOpen(o => !o)}
-                className="px-2.5 py-1.5 text-[12px] text-[#6B8FA8] hover:text-white border border-[#1E2F42] hover:border-[#2A4158] rounded-lg transition-colors">
+                className="px-2.5 py-1.5 text-[12px] text-[#6B8FA8] hover:text-white border border-[#243752] hover:border-[#324C6B] rounded-lg transition-colors">
                 {LOCALES.find(l => l.id === locale)?.emoji} <span className="hidden sm:inline">{LOCALES.find(l => l.id === locale)?.name}</span>
               </button>
               {langOpen && (
-                <div className="absolute top-full mt-1 right-0 bg-[#111A24] border border-[#1E2F42] rounded-lg overflow-hidden shadow-xl z-50 min-w-[140px]">
+                <div className="absolute top-full mt-1 right-0 bg-[#152138] border border-[#243752] rounded-lg overflow-hidden shadow-xl z-50 min-w-[140px]">
                   {LOCALES.map(l => (
                     <button key={l.id}
                       onClick={() => { setLocale(l.id); setLangOpen(false); }}
                       className={clsx('w-full flex items-center gap-2 px-3 py-2 text-[12.5px] transition-colors text-start',
-                        l.id === locale ? 'bg-[#0A7AFF]/12 text-[#3D9FFF]' : 'text-[#6B8FA8] hover:bg-[#162030] hover:text-[#D9E8F5]')}>
+                        l.id === locale ? 'bg-[#0A7AFF]/12 text-[#3D9FFF]' : 'text-[#6B8FA8] hover:bg-[#1A2A42] hover:text-[#D9E8F5]')}>
                       <span>{l.emoji}</span>{l.name}
                     </button>
                   ))}
@@ -64,7 +64,7 @@ export default function PublicShell({ children }: Props) {
 
       <main>{children}</main>
 
-      <footer className="border-t border-[#1E2F42] mt-20">
+      <footer className="border-t border-[#243752] mt-20">
         <div className="max-w-6xl mx-auto px-4 py-10 grid md:grid-cols-4 gap-8 text-sm">
           <div>
             <div className="text-base font-bold text-white mb-2" style={{ fontFamily: 'DM Serif Display,serif' }}>
@@ -95,7 +95,7 @@ export default function PublicShell({ children }: Props) {
             </ul>
           </div>
         </div>
-        <div className="border-t border-[#1E2F42] py-4 text-center text-[11px] text-[#2E4459]">
+        <div className="border-t border-[#243752] py-4 text-center text-[11px] text-[#2E4459]">
           © {new Date().getFullYear()} AdMaster Pro
         </div>
       </footer>

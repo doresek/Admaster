@@ -87,7 +87,7 @@ export default function OfferStackPage() {
               <Card className="mb-3" style={{ borderColor: 'rgba(184,149,58,.4)' }}>
                 <CardLabel>⭐ Value Stack</CardLabel>
                 <div className="space-y-2">
-                  <div className="flex justify-between items-start py-2 border-b border-[#1E2F42]">
+                  <div className="flex justify-between items-start py-2 border-b border-[#243752]">
                     <div className="flex-1">
                       <div className="font-bold text-sm text-[#D9E8F5]">🎯 {out.main_offer.name}</div>
                       <div className="text-[11px] text-[#6B8FA8]">ההצעה הראשית</div>
@@ -95,7 +95,7 @@ export default function OfferStackPage() {
                     <div className="font-mono text-sm text-[#D4AF55]">₪{out.main_offer.value.toLocaleString()}</div>
                   </div>
                   {out.bonuses.map((b, i) => (
-                    <div key={i} className="flex justify-between items-start py-2 border-b border-[#1E2F42] last:border-0">
+                    <div key={i} className="flex justify-between items-start py-2 border-b border-[#243752] last:border-0">
                       <div className="flex-1">
                         <div className="font-semibold text-sm text-[#D9E8F5]">🎁 {b.name}</div>
                         <div className="text-[11px] text-[#6B8FA8] mt-0.5">{b.why_it_matters}</div>
@@ -150,7 +150,7 @@ export default function OfferStackPage() {
               )}
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-80 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+            <div className="flex flex-col items-center justify-center h-80 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
               <span className="text-5xl mb-3 opacity-30">💎</span>
               <span className="text-sm">מלא פרטים ולחץ "בנה הצעה"</span>
             </div>

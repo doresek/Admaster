@@ -70,18 +70,18 @@ export function NotificationBell() {
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen(o => !o)}
-        className="relative w-9 h-9 rounded-lg bg-[#162030] border border-[#1E2F42] hover:border-[#2A4158] flex items-center justify-center text-[15px] transition-colors">
+        className="relative w-9 h-9 rounded-lg bg-[#1A2A42] border border-[#243752] hover:border-[#324C6B] flex items-center justify-center text-[15px] transition-colors">
         🔔
         {unread > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-[#DC2626] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 border-2 border-[#070A0E]">
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-[#DC2626] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 border-2 border-[#0B1424]">
             {display}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute top-full mt-2 end-0 w-[360px] bg-[#111A24] border border-[#1E2F42] rounded-xl shadow-2xl z-50 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[#1E2F42]">
+        <div className="absolute top-full mt-2 end-0 w-[360px] bg-[#152138] border border-[#243752] rounded-xl shadow-2xl z-50 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[#243752]">
             <div className="font-bold text-sm text-[#D9E8F5]">התראות {unread > 0 && <span className="text-[#3D9FFF]">({unread})</span>}</div>
             {unread > 0 && (
               <button onClick={markAll} className="text-[11px] text-[#3D9FFF] hover:underline">סמן הכל כנקרא</button>
@@ -94,7 +94,7 @@ export function NotificationBell() {
             ) : items.map(n => (
               <Link key={n.id} href={n.href ?? '#'}
                 onClick={() => { if (!n.read) markOne(n.id); if (!n.href) return false; setOpen(false); }}
-                className={clsx('flex items-start gap-3 px-4 py-3 border-b border-[#1E2F42] last:border-0 hover:bg-[#162030] transition-colors',
+                className={clsx('flex items-start gap-3 px-4 py-3 border-b border-[#243752] last:border-0 hover:bg-[#1A2A42] transition-colors',
                   !n.read && 'bg-[#0A7AFF]/5')}>
                 <span className="text-base flex-shrink-0">{TYPE_ICON[n.type] ?? '🔔'}</span>
                 <div className="flex-1 min-w-0">
@@ -110,7 +110,7 @@ export function NotificationBell() {
           </div>
 
           {items.length > 0 && (
-            <div className="px-4 py-2 border-t border-[#1E2F42] text-center">
+            <div className="px-4 py-2 border-t border-[#243752] text-center">
               <Link href="/notifications" onClick={() => setOpen(false)} className="text-[11px] text-[#3D9FFF] hover:underline">
                 כל ההתראות →
               </Link>

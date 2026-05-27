@@ -49,7 +49,7 @@ export default function HowItWorksPage() {
               </div>
               <div className="text-3xl">{s.i}</div>
             </div>
-            <div className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-6">
+            <div className="bg-[#152138] border border-[#243752] rounded-xl p-6">
               <h2 className="text-2xl font-bold text-white mb-2">{s.t}</h2>
               <p className="text-[#6B8FA8] mb-4 leading-relaxed">{s.d}</p>
               <ul className="grid sm:grid-cols-2 gap-2">

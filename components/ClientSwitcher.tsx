@@ -61,7 +61,7 @@ export function ClientSwitcher({ initialActive }: { initialActive: string | null
           'flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors',
           active
             ? 'bg-[#0A7AFF]/10 border-[#0A7AFF]/30 text-[#3D9FFF] hover:bg-[#0A7AFF]/15'
-            : 'bg-[#162030] border-[#1E2F42] text-[#6B8FA8] hover:border-[#2A4158]'
+            : 'bg-[#1A2A42] border-[#243752] text-[#6B8FA8] hover:border-[#324C6B]'
         )}
         title={active ? `לקוח פעיל: ${activeClient?.name}` : 'בחר לקוח פעיל'}
       >
@@ -73,8 +73,8 @@ export function ClientSwitcher({ initialActive }: { initialActive: string | null
       </button>
 
       {open && (
-        <div className="absolute top-full mt-2 end-0 w-[280px] bg-[#111A24] border border-[#1E2F42] rounded-xl shadow-2xl z-50 overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#1E2F42] bg-gradient-to-r from-[#0A7AFF]/10 to-[#6D28D9]/5">
+        <div className="absolute top-full mt-2 end-0 w-[280px] bg-[#152138] border border-[#243752] rounded-xl shadow-2xl z-50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#243752] bg-gradient-to-r from-[#0A7AFF]/10 to-[#6D28D9]/5">
             <div className="font-bold text-sm text-[#D9E8F5]">לקוח פעיל</div>
             <div className="text-[11px] text-[#6B8FA8] mt-0.5">
               כל יצירת תוכן תשתמש בבריף ובBrand DNA של הלקוח הנבחר
@@ -84,10 +84,10 @@ export function ClientSwitcher({ initialActive }: { initialActive: string | null
           <button
             onClick={() => pick(null)}
             className={clsx(
-              'w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-start border-b border-[#1E2F42]',
+              'w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-start border-b border-[#243752]',
               !active
                 ? 'bg-[#0A7AFF]/12 text-[#3D9FFF] font-bold'
-                : 'text-[#6B8FA8] hover:bg-[#162030] hover:text-[#D9E8F5]'
+                : 'text-[#6B8FA8] hover:bg-[#1A2A42] hover:text-[#D9E8F5]'
             )}
           >
             <span>—</span>
@@ -109,7 +109,7 @@ export function ClientSwitcher({ initialActive }: { initialActive: string | null
                   'w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-start',
                   c.id === active
                     ? 'bg-[#0A7AFF]/12 text-[#3D9FFF] font-bold'
-                    : 'text-[#D9E8F5] hover:bg-[#162030]'
+                    : 'text-[#D9E8F5] hover:bg-[#1A2A42]'
                 )}
               >
                 <span className="text-lg flex-shrink-0">{c.emoji}</span>
@@ -122,7 +122,7 @@ export function ClientSwitcher({ initialActive }: { initialActive: string | null
             ))}
           </div>
 
-          <div className="px-4 py-2 border-t border-[#1E2F42] text-center">
+          <div className="px-4 py-2 border-t border-[#243752] text-center">
             <a href="/clients" className="text-[11px] text-[#6B8FA8] hover:text-[#3D9FFF]">ניהול לקוחות →</a>
           </div>
         </div>

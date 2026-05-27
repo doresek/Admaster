@@ -59,8 +59,8 @@ export default function PricingPage() {
           const p = PLAN_CONFIG[id];
           const isPro = id === 'pro';
           return (
-            <div key={id} className="bg-[#111A24] rounded-2xl p-6 border relative"
-              style={{ borderColor: isPro ? p.color : '#1E2F42' }}>
+            <div key={id} className="bg-[#152138] rounded-2xl p-6 border relative"
+              style={{ borderColor: isPro ? p.color : '#243752' }}>
               {isPro && (
                 <div className="absolute -top-3 right-1/2 translate-x-1/2 bg-goldl text-bg text-2xs font-bold tracking-label px-3 py-1 rounded-full uppercase shadow-[0_4px_14px_rgba(212,175,85,0.35)]">
                   הכי פופולרי
@@ -91,7 +91,7 @@ export default function PricingPage() {
       </div>
 
       {/* Credit costs table */}
-      <div className="bg-[#111A24] border border-[#1E2F42] rounded-2xl p-6 mb-16">
+      <div className="bg-[#152138] border border-[#243752] rounded-2xl p-6 mb-16">
         <h2 className="font-bold text-xl text-white mb-4">עלות פעולות (בקרדיטים)</h2>
         <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 text-sm">
           {Object.entries(CREDIT_COSTS).map(([action, cost]) => {
@@ -104,7 +104,7 @@ export default function PricingPage() {
               approval:'✅ אישור לקוח', img_edit:'🪄 עריכת תמונה',
             };
             return (
-              <div key={action} className="flex items-center justify-between py-1.5 border-b border-[#1E2F42] last:border-0">
+              <div key={action} className="flex items-center justify-between py-1.5 border-b border-[#243752] last:border-0">
                 <span className="text-[#D9E8F5]">{labelMap[action] ?? action}</span>
                 <span className={cost === 0 ? 'text-[#34D399] font-bold' : 'font-mono text-[#D4AF55]'}>
                   {cost === 0 ? 'חינם' : `${cost}⚡`}

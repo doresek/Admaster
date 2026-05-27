@@ -88,24 +88,24 @@ export default function SchedulePage() {
           {clients.map(c => (
             <button key={c.id} onClick={() => setSelC(c)}
               className={clsx('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-all',
-                selC?.id===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#1E2F42] bg-[#162030] text-[#6B8FA8]')}>
+                selC?.id===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#243752] bg-[#1A2A42] text-[#6B8FA8]')}>
               <span>{c.emoji}</span>{c.name}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-3">
           <button onClick={() => { if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1); }}
-            className="w-8 h-8 rounded-lg bg-[#162030] border border-[#1E2F42] text-[#6B8FA8] hover:text-white flex items-center justify-center">←</button>
+            className="w-8 h-8 rounded-lg bg-[#1A2A42] border border-[#243752] text-[#6B8FA8] hover:text-white flex items-center justify-center">←</button>
           <div className="font-bold text-sm w-32 text-center">{MONTHS_HE[month]} {year}</div>
           <button onClick={() => { if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1); }}
-            className="w-8 h-8 rounded-lg bg-[#162030] border border-[#1E2F42] text-[#6B8FA8] hover:text-white flex items-center justify-center">→</button>
+            className="w-8 h-8 rounded-lg bg-[#1A2A42] border border-[#243752] text-[#6B8FA8] hover:text-white flex items-center justify-center">→</button>
         </div>
       </div>
 
       {/* Calendar */}
-      <div className="bg-[#111A24] border border-[#1E2F42] rounded-xl overflow-hidden mb-4">
+      <div className="bg-[#152138] border border-[#243752] rounded-xl overflow-hidden mb-4">
         {/* Header */}
-        <div className="grid grid-cols-7 border-b border-[#1E2F42]">
+        <div className="grid grid-cols-7 border-b border-[#243752]">
           {DAYS_HE.map(d => (
             <div key={d} className="text-center text-xs font-bold text-[#2E4459] py-2">{d}</div>
           ))}
@@ -118,8 +118,8 @@ export default function SchedulePage() {
             const isSelected = day === selDay;
             return (
               <div key={i} onClick={() => { if(day){setSelDay(day);setShowForm(true);} }}
-                className={clsx('min-h-[90px] border-b border-r border-[#1E2F42] last:border-r-0 p-1.5 transition-all',
-                  day ? 'cursor-pointer hover:bg-[#162030]' : 'bg-[#0C1118]',
+                className={clsx('min-h-[90px] border-b border-r border-[#243752] last:border-r-0 p-1.5 transition-all',
+                  day ? 'cursor-pointer hover:bg-[#1A2A42]' : 'bg-[#0F1A2E]',
                   isSelected && 'bg-[#0A7AFF]/08',
                 )}>
                 {day && (
@@ -155,7 +155,7 @@ export default function SchedulePage() {
           {(postsByDay[selDay] ?? []).length > 0 && (
             <div className="mb-3">
               {(postsByDay[selDay]).map(p => (
-                <div key={p.id} className="flex items-start gap-2 p-2 bg-[#162030] rounded-lg mb-2">
+                <div key={p.id} className="flex items-start gap-2 p-2 bg-[#1A2A42] rounded-lg mb-2">
                   <div className="flex-1">
                     <div className="text-xs text-[#D9E8F5] mb-1">{p.message.substring(0,80)}</div>
                     <div className="text-[10px]" style={{ color: STATUS_COLORS[p.status] }}>● {p.status} · {new Date(p.scheduled_at).toLocaleTimeString('he',{hour:'2-digit',minute:'2-digit'})}</div>
@@ -171,12 +171,12 @@ export default function SchedulePage() {
             <div>
               <label className="block text-xs font-medium text-[#6B8FA8] mb-1.5">שעת פרסום</label>
               <input type="time" value={form.time} onChange={e=>setForm(p=>({...p,time:e.target.value}))}
-                className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-[#D9E8F5] outline-none focus:border-[#0A7AFF]" dir="ltr" />
+                className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-sm text-[#D9E8F5] outline-none focus:border-[#0A7AFF]" dir="ltr" />
             </div>
             <div>
               <label className="block text-xs font-medium text-[#6B8FA8] mb-1.5">URL תמונה (אופציונלי)</label>
               <input type="text" value={form.imageUrl} onChange={e=>setForm(p=>({...p,imageUrl:e.target.value}))}
-                placeholder="https://..." className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-[#D9E8F5] outline-none focus:border-[#0A7AFF]" dir="ltr" />
+                placeholder="https://..." className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-sm text-[#D9E8F5] outline-none focus:border-[#0A7AFF]" dir="ltr" />
             </div>
           </div>
           {error && <Alert type="red">{error}</Alert>}
@@ -195,7 +195,7 @@ export default function SchedulePage() {
           { l:'נכשלו',     v: posts.filter(p=>p.status==='failed').length,      c:'#DC2626' },
           { l:'סה"כ חודש', v: posts.length,                                     c:'#6B8FA8' },
         ].map(s => (
-          <div key={s.l} className="bg-[#111A24] border border-[#1E2F42] rounded-lg p-3 text-center">
+          <div key={s.l} className="bg-[#152138] border border-[#243752] rounded-lg p-3 text-center">
             <div className="font-mono text-xl font-medium" style={{ color: s.c }}>{s.v}</div>
             <div className="text-[11px] text-[#6B8FA8] mt-0.5">{s.l}</div>
           </div>

@@ -115,14 +115,14 @@ export default function RefinePage() {
       />
 
       {/* Iteration counter */}
-      <div className="flex items-center justify-between mb-4 bg-[#111A24] border border-[#1E2F42] rounded-xl px-4 py-3">
+      <div className="flex items-center justify-between mb-4 bg-[#152138] border border-[#243752] rounded-xl px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="text-[10px] font-bold text-[#2E4459] uppercase tracking-widest">איטרציה</div>
           <div className="font-mono text-lg font-medium text-[#D9E8F5]">{iterCount}</div>
           <div className="text-xs text-[#6B8FA8]">/ {FREE_ITERATIONS} חופשיות</div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-32 h-1.5 bg-[#1D2D3E] rounded-full overflow-hidden">
+          <div className="w-32 h-1.5 bg-[#22334D] rounded-full overflow-hidden">
             <div className="h-full transition-all" style={{
               width: `${Math.min(100, (iterCount / FREE_ITERATIONS) * 100)}%`,
               background: iterCount >= FREE_ITERATIONS ? '#D97706' : 'linear-gradient(90deg,#0A7AFF,#3D9FFF)',
@@ -220,7 +220,7 @@ export default function RefinePage() {
                   <CardLabel>היסטוריית איטרציות</CardLabel>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {history.slice(0, -1).map((h, i) => (
-                      <div key={i} className="bg-[#162030] rounded-lg p-2.5">
+                      <div key={i} className="bg-[#1A2A42] rounded-lg p-2.5">
                         <div className="text-[10px] font-bold text-[#2E4459] mb-1">איטרציה {i+1} · "{h.feedback}"</div>
                         <div className="text-[11.5px] text-[#6B8FA8] line-clamp-3 whitespace-pre-wrap">{h.refined}</div>
                       </div>
@@ -230,7 +230,7 @@ export default function RefinePage() {
               )}
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+            <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
               <span className="text-5xl mb-3 opacity-30">🔁</span>
               <span className="text-sm">הזן טקסט מקור ופידבק להתחיל</span>
             </div>

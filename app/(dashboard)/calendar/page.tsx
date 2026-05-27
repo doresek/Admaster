@@ -53,7 +53,7 @@ export default function CalendarPage() {
           const soon = days > 0 && days <= 45;
           return (
             <div key={h.name} onClick={() => !past && gen(h)}
-              className={`rounded-xl border p-3.5 transition-all ${past?'opacity-40 cursor-default':'cursor-pointer hover:-translate-y-0.5'} ${soon?'border-[#D97706]/35 bg-[#D97706]/08':sel?.name===h.name?'border-[#0A7AFF]':'border-[#1E2F42] bg-[#111A24] hover:border-[#2A4158]'}`}>
+              className={`rounded-xl border p-3.5 transition-all ${past?'opacity-40 cursor-default':'cursor-pointer hover:-translate-y-0.5'} ${soon?'border-[#D97706]/35 bg-[#D97706]/08':sel?.name===h.name?'border-[#0A7AFF]':'border-[#243752] bg-[#152138] hover:border-[#324C6B]'}`}>
               <div className="text-2xl mb-2">{h.emoji}</div>
               <div className="font-bold text-sm">{h.name}</div>
               <div className="text-[11px] mt-1" style={{color:soon?'#D97706':'#2E4459'}}>
