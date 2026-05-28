@@ -1,6 +1,7 @@
 // ════════════════════════════════════════════
 // Landing Page templates — 6 high-converting structures
 // ════════════════════════════════════════════
+import type { DesignSpec } from './landing-design';
 
 export type LandingTemplate =
   | 'squeeze'
@@ -29,6 +30,10 @@ export interface LandingContent {
     secondary: string;
     bg:        'light' | 'dark';
   };
+  /** AI-written design spec (colors, fonts, hero variant, etc). Optional for back-compat. */
+  design?: DesignSpec;
+  /** Optional URL of a hero image / logo to display */
+  hero_image?: string;
   // Optional structured story / pain / dream blocks
   story?: { title: string; body: string }[];
   // For local-service: trust signals

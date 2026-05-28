@@ -3,6 +3,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { FRAMEWORKS_BY_ID, type FrameworkId } from '@/lib/frameworks';
 import { deductCredits, refundCredits, extractErrorMessage } from '@/lib/credits';
+import { buildAiContext } from '@/lib/ai-context';
+import { readActiveClientCookie } from '@/lib/active-client';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -41,6 +43,10 @@ export async function POST(req: NextRequest) {
   const deduct = await deductCredits(supabase, user.id, 'campaign');
   if (!deduct.ok) return NextResponse.json({ error: deduct.error, credits: deduct.credits ?? 0 }, { status: deduct.status });
 
+  const activeClientId = readActiveClientCookie(req.headers.get('cookie') ?? '');
+  const ctx = await buildAiContext(supabase, { userId: user.id, clientId: activeClientId });
+  const contextPrefix = ctx.combined ? `${ctx.combined}\n\n═══ TASK ═══\n` : '';
+
   try {
 
     const frameworks: FrameworkId[] = ['pas', 'aida', 'bab']; // 3 variants
@@ -52,7 +58,7 @@ export async function POST(req: NextRequest) {
       return `[VARIANT ${i+1}: ${fw.name_en}]\n${fw.prompt}`;
     }).join('\n\n');
 
-    const system = `אתה מומחה קופירייטינג ל-${platform}. צור 3 גרסאות מודעה ${lang}, כל גרסה לפי framework שונה.
+    const system = `${contextPrefix}אתה מומחה קופירייטינג ל-${platform}. צור 3 גרסאות מודעה ${lang}, כל גרסה לפי framework שונה.
 
 ${sysParts}
 

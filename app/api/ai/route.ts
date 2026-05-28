@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server';
 import { type CreditAction } from '@/types';
 import { deductCredits, refundCredits, extractErrorMessage } from '@/lib/credits';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { buildAiContext } from '@/lib/ai-context';
+import { readActiveClientCookie } from '@/lib/active-client';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -22,16 +24,29 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { action, system, prompt, maxTokens = 1200 } = body as {
+  const { action, system, prompt, maxTokens = 1200, client_id, brief_id } = body as {
     action: CreditAction;
     system: string;
     prompt: string;
     maxTokens?: number;
+    client_id?: string | null;
+    brief_id?:  string | null;
   };
 
   if (!action || !system || !prompt) {
     return NextResponse.json({ error: 'Missing fields: action, system, prompt' }, { status: 400 });
   }
+
+  // Auto-inject Brand DNA + active client + brief context
+  const activeClientId = client_id ?? readActiveClientCookie(req.headers.get('cookie') ?? '');
+  const ctx = await buildAiContext(supabase, {
+    userId:   user.id,
+    clientId: activeClientId,
+    briefId:  brief_id ?? null,
+  });
+  const enhancedSystem = ctx.combined
+    ? `${ctx.combined}\n\n═══ TASK ═══\n${system}`
+    : system;
 
   // 1. Deduct credits
   const deduct = await deductCredits(supabase, user.id, action);
@@ -46,7 +61,7 @@ export async function POST(req: NextRequest) {
     const message = await anthropic.messages.create({
       model,
       max_tokens: maxTokens,
-      system,
+      system: enhancedSystem,
       messages:   [{ role: 'user', content: prompt }],
     });
     text = message.content.find(b => b.type === 'text')?.text ?? '';

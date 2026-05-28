@@ -28,6 +28,7 @@ export type CreditAction =
   | 'offer_stack'     // Hormozi-style offer stack builder
   | 'img_adapt'       // adapt existing image to different aspect ratio
   | 'master_post'     // marketer-driven post generation (Master Studio)
+  | 'lp_variants'     // generate 3 alternative landing-page designs
   | 'recommend'       // AI agent recommendations
   // ── Performance Score (Phase 1) ──────────────
   | 'score'        // predictive performance score on a single copy
@@ -57,6 +58,7 @@ export const CREDIT_COSTS: Record<CreditAction, number> = {
   offer_stack:   6,
   img_adapt:     1,
   master_post:   4,
+  lp_variants:   3,
   recommend:     0,
   // ── Performance Score (Phase 1) ──────────────
   score:         1,

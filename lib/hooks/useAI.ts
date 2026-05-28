@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { CREDIT_COSTS, type CreditAction } from '@/types';
 import { LOCALE_COOKIE, parseLocale, type Locale } from '@/lib/i18n';
+import { readActiveClientFromDocument } from '@/lib/active-client';
 
 function currentLocale(): Locale {
   if (typeof document === 'undefined') return 'he';
@@ -34,10 +35,11 @@ export function useAI({ onCreditsUpdated, onError }: UseAIOptions = {}) {
                        : locale === 'ar' ? '\n\nأجب بالعربية.'
                        : '';
       const systemWithLocale = system + langSuffix;
+      const activeClientId = readActiveClientFromDocument();
       const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, system: systemWithLocale, prompt, maxTokens, platform, locale }),
+        body: JSON.stringify({ action, system: systemWithLocale, prompt, maxTokens, platform, locale, client_id: activeClientId }),
       });
 
       const data = await res.json();

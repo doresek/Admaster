@@ -29,6 +29,11 @@ Thumbs.db
 # Local exploration artifacts (screenshots, html, session data)
 .exploration/
 scripts/.pw-data/
+.playwright-mcp/
+
+# Root-level screenshot dumps from local testing
+/*.png
+/*.jpg
 
 # Logs
 npm-debug.log*

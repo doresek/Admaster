@@ -23,13 +23,37 @@ export default function LandingPagesPage() {
   const [tab,       setTab]        = useState<'list' | 'create'>('list');
   const [pages,     setPages]      = useState<LP[]>([]);
   const [selT,      setSelT]       = useState<LandingTemplate>('squeeze');
-  const [mode,      setMode]       = useState<'template' | 'ai'>('template');
   const [title,     setTitle]      = useState('');
   const [brief,     setBrief]      = useState('');
   const [creating,  setCreating]   = useState(false);
   const [error,     setError]      = useState('');
   const [newLink,   setNewLink]    = useState<{ url: string; id: string } | null>(null);
+  // Image upload state
+  const [heroImage, setHeroImage] = useState<string>('');       // URL once uploaded
+  const [imageKind, setImageKind] = useState<'product' | 'portrait' | 'logo' | 'lifestyle' | 'other'>('product');
+  const [uploading, setUploading] = useState(false);
+  // Auto-bg image
+  const [autoBg,    setAutoBg]    = useState(true);   // generate background image with AI if no upload
+  // Focus questions
+  const [audience,  setAudience]  = useState('');
+  const [emotion,   setEmotion]   = useState('');
   const supabase = createClient();
+
+  async function uploadImage(file: File) {
+    setUploading(true); setError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/landing/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'שגיאה בהעלאה');
+      setHeroImage(data.url);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function load() {
     const res = await fetch('/api/landing');
@@ -40,22 +64,26 @@ export default function LandingPagesPage() {
   useEffect(() => { load(); }, []);
 
   async function create() {
-    if (!title.trim()) return;
+    if (!title.trim() || !brief.trim()) return;
     setCreating(true); setError(''); setNewLink(null);
 
     try {
-      let content: LandingContent | undefined;
-      if (mode === 'ai') {
-        if (!brief.trim()) { setError('הזן בריף ליצירת AI'); setCreating(false); return; }
-        const genRes  = await fetch('/api/landing/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ template: selT, brief }),
-        });
-        const genData = await genRes.json();
-        if (!genRes.ok) throw new Error(genData.error || 'שגיאה ביצירה');
-        content = genData.content;
-      }
+      // ALWAYS run AI — template-only mode caused mismatched defaults (bakery → marketing agency content).
+      const genRes  = await fetch('/api/landing/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          template: selT,
+          brief,
+          ...(heroImage ? { hero_image: heroImage, image_kind: imageKind } : {}),
+          ...(audience.trim() ? { target_audience: audience.trim() } : {}),
+          ...(emotion.trim()  ? { target_emotion:  emotion.trim()  } : {}),
+          auto_bg: !heroImage && autoBg,  // generate bg image only if no upload AND opted in
+        }),
+      });
+      const genData = await genRes.json();
+      if (!genRes.ok) throw new Error(genData.error || 'שגיאה ביצירה');
+      const content = genData.content;
 
       const res  = await fetch('/api/landing', {
         method: 'POST',
@@ -68,7 +96,7 @@ export default function LandingPagesPage() {
       const url = `${window.location.origin}/lp/${data.slug}`;
       setNewLink({ url, id: data.id });
       setPages(p => [data, ...p]);
-      setTitle(''); setBrief('');
+      setTitle(''); setBrief(''); setHeroImage(''); setAudience(''); setEmotion('');
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -103,7 +131,7 @@ export default function LandingPagesPage() {
         eyebrow="Landing Pages"
         title="דפי נחיתה"
         sub="6 templates מוכנים + יצירה מ-AI"
-        right={mode === 'ai' ? <CostBadge cost={5} /> : <span className="text-[11px] text-[#34D399] font-bold bg-[#059669]/15 border border-[#059669]/30 px-2 py-0.5 rounded-full">⚡ template חינם</span>}
+        right={<CostBadge cost={5} />}
       />
 
       <Tabs tabs={[{id:'list',label:`📚 שלי (${pages.length})`},{id:'create',label:'+ דף חדש'}]} active={tab} onChange={t => setTab(t as any)} />
@@ -151,12 +179,16 @@ export default function LandingPagesPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <Btn variant={p.status === 'published' ? 'ghost' : 'primary'} size="sm" onClick={() => publish(p.id, p.status)}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Link href={`/landing-pages/edit/${p.id}`}
+                        className="text-[11px] font-bold px-3 py-1.5 bg-[#0A7AFF] text-white rounded-lg hover:bg-[#3D9FFF] transition-colors">
+                        ✏️ ערוך
+                      </Link>
+                      <Btn variant={p.status === 'published' ? 'ghost' : 'green'} size="sm" onClick={() => publish(p.id, p.status)}>
                         {p.status === 'published' ? '⏸ הסר פרסום' : '🚀 פרסם'}
                       </Btn>
                       {p.status === 'published' && (
-                        <Link href={url} target="_blank" className="text-[11px] text-[#3D9FFF] hover:underline">פתח דף ↗</Link>
+                        <Link href={url} target="_blank" className="text-[11px] text-[#3D9FFF] hover:underline">פתח ↗</Link>
                       )}
                       <div className="ms-auto"><CopyBtn text={url} label="🔗" /></div>
                     </div>
@@ -189,21 +221,108 @@ export default function LandingPagesPage() {
             </Card>
 
             <Card className="mb-3">
-              <CardLabel>שיטת יצירה</CardLabel>
-              <div className="flex gap-2 mb-3">
-                <Chip label="📋 מטמפלייט (חינם)" active={mode==='template'} onClick={() => setMode('template')} />
-                <Chip label="🪄 צור עם AI" active={mode==='ai'} onClick={() => setMode('ai')} />
-              </div>
+              <CardLabel>פרטי הדף</CardLabel>
               <Input label="שם הדף" value={title} onChange={setTitle} placeholder="לדוגמה: השקת קורס Q3" />
-              {mode === 'ai' && (
-                <Textarea label="בריף ל-AI" value={brief} onChange={setBrief}
-                  placeholder="תאר את המוצר/השירות/הקהל ואת ההצעה. ה-AI יבנה כותרות, bullets, FAQ ו-CTA מתאימים."
-                  rows={4} />
+              <Textarea label={<>בריף לעסק <span className="text-red-400">*</span></> as any} value={brief} onChange={setBrief}
+                placeholder="תאר במדויק: התחום (מאפייה / יוגה / עורך דין / מסעדה...), הקהל, ההצעה, מה מייחד. ככל שתפרט — כך ה-AI יבנה דף ספציפי לעסק."
+                rows={5} />
+              <div className="text-[10px] text-[#34D399] bg-[#059669]/10 border border-[#059669]/20 rounded px-3 py-2">
+                ✨ כל דף נבנה מ-AI עם שילוב של 2 design skills (ui-ux-pro-max + frontend-design). הצבעים, הטיפוגרפיה והעיצוב נבחרים אוטומטית לפי תחום העסק.
+              </div>
+            </Card>
+
+            {/* Focus questions — optional but improve quality dramatically */}
+            <Card className="mb-3">
+              <CardLabel>🎯 התאמה אישית מעמיקה (אופציונלי)</CardLabel>
+              <Input
+                label="מי הלקוח הסופי? (גיל, מגדר, אופי, מצב)"
+                value={audience} onChange={setAudience}
+                placeholder="לדוגמה: זוגות אורתודוקסים 25-35 שמתחתנים בקיץ, יוקרתיים, אוהבי קינוחים"
+              />
+              <Input
+                label="איזו תחושה לעורר ברגע שהלקוח נכנס?"
+                value={emotion} onChange={setEmotion}
+                placeholder="לדוגמה: רעב, נוסטלגיה לסבתא, יוקרה ביתית, חוויה רוחנית"
+              />
+              <div className="text-[10px] text-[#6B8FA8] mt-1">
+                ככל שתמלא — ה-AI יבחר palette ו-tone שיתאימו רגשית לקהל.
+              </div>
+            </Card>
+
+            {/* Hero image upload */}
+            <Card className="mb-3">
+              <CardLabel>תמונה ראשית</CardLabel>
+              {!heroImage && (
+                <label className="flex items-center gap-2 bg-[#D4AF55]/10 border border-[#D4AF55]/30 rounded-lg px-3 py-2 mb-3 cursor-pointer hover:bg-[#D4AF55]/15">
+                  <input type="checkbox" checked={autoBg} onChange={e => setAutoBg(e.target.checked)} className="w-4 h-4" />
+                  <span className="text-sm text-[#D4AF55] font-semibold">🎨 ייצר תמונת רקע אוטומטית עם AI (Ideogram)</span>
+                </label>
+              )}
+              {heroImage ? (
+                <div className="space-y-2">
+                  <div className="relative rounded-lg overflow-hidden border border-[#2A4158] aspect-video bg-[#162030]">
+                    <img src={heroImage} alt="hero" className="w-full h-full object-contain" />
+                    <button onClick={() => setHeroImage('')}
+                            className="absolute top-2 left-2 w-7 h-7 rounded-full bg-black/70 text-white text-xs hover:bg-red-600">
+                      ✕
+                    </button>
+                  </div>
+                  <div className="text-[10px] font-bold text-[#2E4459] uppercase mt-3 mb-1.5">סוג התמונה (עוזר ל-AI לעצב סביבה)</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { id: 'product',   label: '📦 מוצר'           },
+                      { id: 'portrait',  label: '👤 דמות/Presenter' },
+                      { id: 'logo',      label: '🏷 לוגו'           },
+                      { id: 'lifestyle', label: '🌅 Lifestyle'      },
+                      { id: 'other',     label: '🖼 אחר'            },
+                    ].map(k => (
+                      <Chip key={k.id} label={k.label}
+                            active={imageKind === k.id}
+                            onClick={() => setImageKind(k.id as any)} />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label htmlFor="lp-image-upload" className={clsx(
+                    'flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg py-8 px-4 cursor-pointer transition-colors',
+                    uploading
+                      ? 'border-[#0A7AFF] bg-[#0A7AFF]/5 cursor-wait'
+                      : 'border-[#2A4158] hover:border-[#3D9FFF] hover:bg-[#162030]'
+                  )}>
+                    {uploading ? (
+                      <>
+                        <div className="w-6 h-6 border-2 border-[#3D9FFF]/30 border-t-[#3D9FFF] rounded-full animate-spin" />
+                        <span className="text-xs text-[#6B8FA8]">מעלה...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-3xl opacity-50">📤</span>
+                        <span className="text-sm text-[#D9E8F5] font-medium">העלה תמונה</span>
+                        <span className="text-[10px] text-[#2E4459]">PNG, JPG, WEBP — עד 5MB</span>
+                      </>
+                    )}
+                  </label>
+                  <input
+                    id="lp-image-upload"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="hidden"
+                    onChange={e => {
+                      const f = e.target.files?.[0];
+                      if (f) uploadImage(f);
+                    }}
+                    disabled={uploading}
+                  />
+                  <div className="text-[10px] text-[#2E4459] mt-2 text-center">
+                    🪄 ללא תמונה? ה-AI ישתמש ב-emoji + gradient mesh
+                  </div>
+                </div>
               )}
             </Card>
 
-            <Btn variant="primary" full loading={creating} onClick={create} disabled={!title.trim() || (mode==='ai' && !brief.trim())}>
-              {mode === 'ai' ? '🪄 צור דף עם AI' : '📋 צור מטמפלייט'}
+            <Btn variant="primary" full loading={creating} onClick={create} disabled={!title.trim() || !brief.trim()}>
+              🪄 צור דף עם AI (5⚡)
             </Btn>
             {error && <Alert type="red">❌ {error}</Alert>}
 

@@ -3,6 +3,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { type CreditAction } from '@/types';
 import { deductCredits, refundCredits, extractErrorMessage } from '@/lib/credits';
+import { buildAiContext } from '@/lib/ai-context';
+import { readActiveClientCookie } from '@/lib/active-client';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -34,6 +36,11 @@ export async function POST(req: NextRequest) {
   const deduct = await deductCredits(supabase, user.id, action);
   if (!deduct.ok) return NextResponse.json({ error: deduct.error, credits: deduct.credits ?? 0 }, { status: deduct.status });
 
+  // Brand DNA + active client + brief auto-context
+  const activeClientId = readActiveClientCookie(req.headers.get('cookie') ?? '');
+  const ctx = await buildAiContext(supabase, { userId: user.id, clientId: activeClientId });
+  const contextPrefix = ctx.combined ? `${ctx.combined}\n\n═══ TASK ═══\n` : '';
+
   try {
 
     const lang = locale === 'he' ? 'בעברית' : locale === 'ar' ? 'بالعربية' : 'in English';
@@ -42,7 +49,7 @@ export async function POST(req: NextRequest) {
     // ─── BRIEF ANALYZER ────────────────────────────────────────
     if (tool === 'analyze_brief') {
       const briefValues = input?.values ?? input;
-      const system = `אתה אסטרטג שיווק בכיר. תפקידך לנתח בריף לקוח ולזהות חוזקות, פערים, שאלות חשובות שלא נשאלו, וצעדים קונקרטיים לחיזוק. כתוב ${lang}.
+      const system = `${contextPrefix}אתה אסטרטג שיווק בכיר. תפקידך לנתח בריף לקוח ולזהות חוזקות, פערים, שאלות חשובות שלא נשאלו, וצעדים קונקרטיים לחיזוק. כתוב ${lang}.
 
 החזר בפורמט הזה בלבד:
 [SCORE]ציון שלמות מ-0 עד 100 (רק מספר)[/SCORE]
@@ -96,7 +103,7 @@ export async function POST(req: NextRequest) {
       if (!ad_text?.trim()) return NextResponse.json({ error: 'Missing ad_text' }, { status: 400 });
 
       const metricsStr = Object.entries(metrics).filter(([, v]) => v).map(([k, v]) => `${k}=${v}`).join(', ');
-      const system = `אתה מומחה performance marketing. קיבלת מודעה עם ביצועים חלשים. נתח למה היא נכשלה ובנה גרסה משופרת. כתוב ${lang}.
+      const system = `${contextPrefix}אתה מומחה performance marketing. קיבלת מודעה עם ביצועים חלשים. נתח למה היא נכשלה ובנה גרסה משופרת. כתוב ${lang}.
 
 החזר בפורמט הזה בלבד:
 [DIAGNOSIS]משפט אחד שמסכם את הסיבה המרכזית לכישלון[/DIAGNOSIS]
@@ -140,7 +147,7 @@ export async function POST(req: NextRequest) {
       const { product, audience, outcome, current_price, client_id, brief_id } = input;
       if (!product?.trim()) return NextResponse.json({ error: 'Missing product' }, { status: 400 });
 
-      const system = `אתה Alex Hormozi. תפקידך לבנות "Value Stack" — הצעה שלא ניתן לסרב לה. הגדל את הערך הנתפס עד שהמחיר ייראה בלתי-נמנע. כתוב ${lang}.
+      const system = `${contextPrefix}אתה Alex Hormozi. תפקידך לבנות "Value Stack" — הצעה שלא ניתן לסרב לה. הגדל את הערך הנתפס עד שהמחיר ייראה בלתי-נמנע. כתוב ${lang}.
 
 החזר בפורמט הזה בלבד:
 [MAIN]
