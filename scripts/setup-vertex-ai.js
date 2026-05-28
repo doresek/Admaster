@@ -57,15 +57,34 @@ async function patchEnv(jsonString) {
     acceptDownloads: true,
     viewport: { width: 1400, height: 900 },
   });
+  // Default timeout 5 minutes — gives the user time to do login + 2SV.
+  ctx.setDefaultTimeout(5 * 60_000);
   const page = ctx.pages()[0] || await ctx.newPage();
 
   try {
-    // ─── STEP 0: Login ────────────────────────────────────────
+    // ─── STEP 0: Login (auto-detect, no terminal input needed) ──
     log('STEP 1/5 — Login to Google');
     await page.goto('https://console.cloud.google.com/', { waitUntil: 'domcontentloaded' });
-    info('בדפדפן שנפתח: התחבר עם החשבון שלך ועבור את 2SV אם צריך.');
-    info('כשתראה את Google Cloud Console (הדאשבורד), חזור הנה.');
-    await ask('כשאתה רואה את הדאשבורד של Google Cloud, הקש Enter');
+    info('═══════════════════════════════════════════');
+    info('בדפדפן שנפתח עכשיו: התחבר עם החשבון שלך.');
+    info('הסקריפט יזהה אוטומטית כשתגיע לדאשבורד.');
+    info('אין צורך לחזור לטרמינל.');
+    info('═══════════════════════════════════════════');
+    // Wait for the user to complete login + reach the actual console.
+    // Poll URL — more reliable than waitForFunction across navigations.
+    const loginDeadline = Date.now() + 5 * 60_000;
+    while (Date.now() < loginDeadline) {
+      const u = page.url();
+      if (u.startsWith('https://console.cloud.google.com/') && !u.includes('/signin') && !u.includes('accounts.google.com')) {
+        // Also make sure the page is not just a redirect — wait for some real content
+        const hasContent = await page.locator('[role="navigation"], [aria-label="Cloud Console"], h1, .gcp-app').count();
+        if (hasContent > 0) break;
+      }
+      await page.waitForTimeout(1500);
+    }
+    if (Date.now() >= loginDeadline) throw new Error('Login timeout — לא זוהתה כניסה לדאשבורד תוך 5 דקות');
+    ok('זוהה login מוצלח — ממשיך אוטומטית');
+    await page.waitForTimeout(2000);
 
     // ─── STEP 1: Enable Vertex AI API ─────────────────────────
     log('STEP 2/5 — Enable Vertex AI API');
