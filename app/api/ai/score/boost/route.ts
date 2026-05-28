@@ -75,11 +75,13 @@ export async function POST(req: NextRequest) {
     scoreText = message.content.find(b => b.type === 'text')?.text ?? '';
     usage = { input_tokens: message.usage.input_tokens, output_tokens: message.usage.output_tokens };
   } catch (err: any) {
-    return NextResponse.json({ error: extractErrorMessage(err), rewritten }, { status: 502 });
+    await refundCredits(supabase, user.id, 'score_boost', deduct.cost);
+    return NextResponse.json({ error: extractErrorMessage(err), rewritten, refunded: deduct.cost }, { status: 502 });
   }
   const parsed = parseScoreResponse(scoreText);
   if (!parsed.ok) {
-    return NextResponse.json({ error: 'parse_failed', rewritten }, { status: 502 });
+    await refundCredits(supabase, user.id, 'score_boost', deduct.cost);
+    return NextResponse.json({ error: 'parse_failed', rewritten, refunded: deduct.cost }, { status: 502 });
   }
 
   const channelRules = prior.channel.startsWith('google') ? matchGooglePolicy(rewritten)
