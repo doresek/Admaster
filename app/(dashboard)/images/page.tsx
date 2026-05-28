@@ -1,8 +1,14 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardLabel, Textarea, Btn, Alert, PageHeader, Chip, CostBadge } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
 import { clsx } from 'clsx';
+
+const PROVIDERS = [
+  { id:'gemini',   label:'Gemini Nano Banana', sub:'Google · מומלץ', emoji:'🍌' },
+  { id:'ideogram', label:'Ideogram V2',         sub:'טקסט מדויק',     emoji:'🎨' },
+];
 
 const STYLES = [
   { id:'REALISTIC',    label:'ריאליסטי',    emoji:'📷' },
@@ -18,11 +24,31 @@ const RATIOS = [
   { id:'ASPECT_4_5',  label:'4:5',    sub:'Instagram', w:56, h:70 },
 ];
 
+const PROMPT_FROM_AD_SYSTEM = `אתה Art Director לקמפיינים שיווקיים. קבלת טקסט של מודעה/פוסט שיווקי.
+תפקידך: לזקק את המסר העיקרי, להבין למי הוא מדבר, ולכתוב prompt לכלי יצירת תמונות AI שיניב תמונה שיווקית שמגדילה את ה-CTR של המודעה.
+
+עקרונות:
+1. אל תתרגם מילולית — בנה סצנה ויזואלית שמדברת לרגש.
+2. בחר subject ברור (אדם / מוצר / סיטואציה) שיתאים לקהל.
+3. כלול: composition, lighting, mood, colors, camera angle, style.
+4. סגנון: מודרני, מקצועי, מתאים ל-Meta/Instagram.
+5. ללא טקסט בתמונה אלא אם המודעה דורשת זאת מפורשות.
+
+החזר רק את ה-prompt באנגלית, ללא הסבר, ללא הקדמה.`;
+
+const PROMPT_ENHANCE_SYSTEM = `אתה מומחה בכתיבת prompts לכלי יצירת תמונות AI (Gemini, Ideogram, Midjourney).
+קח את הבריף הקצר בעברית והרחב אותו ל-prompt מפורט באנגלית שמפיק תמונה שיווקית מקצועית.
+כלול: composition, lighting, mood, colors, camera angle, style, atmosphere.
+החזר רק את ה-prompt, ללא הסבר.`;
+
 export default function ImagesPage() {
   const [prompt,    setPrompt]   = useState('');
+  const [adCopy,    setAdCopy]   = useState('');
+  const [provider,  setProvider] = useState<'gemini'|'ideogram'>('gemini');
   const [style,     setStyle]    = useState('REALISTIC');
   const [ratio,     setRatio]    = useState('ASPECT_1_1');
   const [loading,   setLoading]  = useState(false);
+  const [stage,     setStage]    = useState('');
   const [images,    setImages]   = useState<any[]>([]);
   const [current,   setCurrent]  = useState<string|null>(null);
   const [currentId, setCurrentId] = useState<string|null>(null);
@@ -31,59 +57,90 @@ export default function ImagesPage() {
   // edit modal
   const [editOpen,  setEditOpen]  = useState(false);
   const [editPrompt, setEditPrompt] = useState('');
+  // build-from-ad section
+  const [adOpen, setAdOpen] = useState(false);
   const { call }    = useAI();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     fetch('/api/images').then(r=>r.json()).then(d=>setHistory(Array.isArray(d)?d:[]));
   }, []);
 
+  // Prefill prompt from ?prompt=... (e.g. when arriving from /create).
+  useEffect(() => {
+    const incoming = searchParams?.get('prompt');
+    if (!incoming) return;
+    setPrompt(incoming);
+    // Clear the query param so reloads don't keep re-injecting it.
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('prompt');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [searchParams]);
+
   async function enhancePrompt() {
     if (!prompt.trim()) return;
-    setLoading(true);
-    const enhanced = await call('post',
-      `אתה מומחה בכתיבת prompts לכלי יצירת תמונות AI כמו Ideogram ו-Midjourney.
-קח את הבריף בעברית וכתוב prompt מפורט באנגלית שיפיק תמונה מקצועית לשיווק.
-כלול: composition, lighting, mood, colors, style.
-החזר רק את הprompt, ללא הסבר.`,
-      `בריף: ${prompt}`, 300);
+    setLoading(true); setStage('משפר prompt עם Claude…');
+    const enhanced = await call('post', PROMPT_ENHANCE_SYSTEM, `בריף: ${prompt}`, 400);
     if (enhanced) setPrompt(enhanced);
-    setLoading(false);
+    setLoading(false); setStage('');
   }
 
-  async function generate() {
-    if (!prompt.trim() || loading) return;
-    setLoading(true); setError(''); setCurrent(null); setCurrentId(null);
-
+  /** Take ad copy → derive image prompt via Claude → generate image automatically. */
+  async function buildFromAd() {
+    if (!adCopy.trim() || loading) return;
+    setLoading(true); setError(''); setStage('מנתח את המודעה ובונה prompt…');
     try {
-      const res  = await fetch('/api/images', {
+      const generated = await call('post', PROMPT_FROM_AD_SYSTEM, `מודעה:\n${adCopy}`, 500);
+      if (!generated) throw new Error('Claude לא החזיר prompt');
+      setPrompt(generated);
+      setStage('מייצר תמונה לפי ה-prompt…');
+      await generateInternal(generated);
+    } catch (e: any) {
+      setError(e.message); setLoading(false); setStage('');
+    }
+  }
+
+  async function generateInternal(promptText: string) {
+    setCurrent(null); setCurrentId(null);
+    try {
+      const res = await fetch('/api/images', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Idempotency-Key': crypto.randomUUID(),
         },
-        body: JSON.stringify({ prompt, style, aspectRatio: ratio }),
+        body: JSON.stringify({ prompt: promptText, style, aspectRatio: ratio, provider }),
       });
       const data = await res.json();
-
       if (!res.ok) {
         const msg = data.refunded
           ? `${data.error} — ${data.refunded}⚡ הוחזרו לחשבונך`
           : data.error || 'שגיאה בייצור תמונה';
         throw new Error(msg);
       }
-
       setCurrent(data.url);
-      if (data.warning) setError(`⚠️ ${data.warning}`);
-      setImages(p => [{ url: data.url, prompt, style, ratio, createdAt: new Date().toISOString() }, ...p]);
-      setHistory(p => [{ image_url: data.url, prompt, created_at: new Date().toISOString() }, ...p.slice(0,19)]);
+      if (data.notice) setError(`ℹ️ ${data.notice}`);
+      else if (data.warning) setError(`⚠️ ${data.warning}`);
+      setImages(p => [{ url: data.url, prompt: promptText, style, ratio, createdAt: new Date().toISOString() }, ...p]);
+      setHistory(p => [{ image_url: data.url, prompt: promptText, created_at: new Date().toISOString() }, ...p.slice(0,19)]);
     } catch (e: any) {
       setError(e.message);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false); setStage('');
+    }
+  }
+
+  async function generate() {
+    if (!prompt.trim() || loading) return;
+    setLoading(true); setError(''); setStage('מייצר תמונה…');
+    await generateInternal(prompt);
   }
 
   async function runEdit() {
     if (!current || !editPrompt.trim() || loading) return;
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setStage('מבצע עריכה…');
     try {
       const res = await fetch('/api/images', {
         method: 'POST',
@@ -92,12 +149,8 @@ export default function ImagesPage() {
           'Idempotency-Key': crypto.randomUUID(),
         },
         body: JSON.stringify({
-          mode:            'edit',
-          parentImageId:   currentId,
-          parentImageUrl:  current,
-          editPrompt,
-          aspectRatio:     ratio,
-          style,
+          mode: 'edit', parentImageId: currentId, parentImageUrl: current,
+          editPrompt, aspectRatio: ratio, style, provider,
         }),
       });
       const data = await res.json();
@@ -112,20 +165,32 @@ export default function ImagesPage() {
       setEditOpen(false); setEditPrompt('');
     } catch (e: any) {
       setError(e.message);
-    } finally { setLoading(false); }
+    } finally { setLoading(false); setStage(''); }
   }
-
-  const curRatio = RATIOS.find(r => r.id === ratio);
 
   return (
     <div>
-      <PageHeader eyebrow="AI Images" title="מחולל תמונות" sub="Ideogram · DALL-E 3 · עיצובים לפוסטים ומודעות"
+      <PageHeader eyebrow="AI Images" title="מחולל תמונות" sub="Gemini Nano Banana · Ideogram · עיצובים לפוסטים ומודעות"
         right={<CostBadge cost={3} />} />
 
       <div className="grid grid-cols-2 gap-4">
         {/* Left — controls */}
         <div>
           <Card className="mb-3">
+            <CardLabel>מחולל</CardLabel>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {PROVIDERS.map(p => (
+                <button key={p.id} onClick={() => setProvider(p.id as 'gemini'|'ideogram')}
+                  className={clsx('flex flex-col items-start gap-0.5 p-3 rounded-lg border text-right transition-all',
+                    provider===p.id ? 'border-[#0A7AFF] bg-[#0A7AFF]/12' : 'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]')}>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#D9E8F5]">
+                    <span>{p.emoji}</span><span>{p.label}</span>
+                  </div>
+                  <div className="text-[10px] text-[#6B8FA8]">{p.sub}</div>
+                </button>
+              ))}
+            </div>
+
             <CardLabel>סגנון</CardLabel>
             <div className="grid grid-cols-4 gap-2 mb-4">
               {STYLES.map(s => (
@@ -151,6 +216,27 @@ export default function ImagesPage() {
             </div>
           </Card>
 
+          {/* Build-from-ad */}
+          <Card className="mb-3">
+            <button onClick={() => setAdOpen(o => !o)} className="w-full flex items-center justify-between text-right">
+              <CardLabel>🎯 צור תמונה מהמודעה שלך</CardLabel>
+              <span className="text-[#6B8FA8] text-sm">{adOpen ? '▾' : '▸'}</span>
+            </button>
+            {adOpen && (
+              <div className="mt-2">
+                <div className="text-[10px] text-[#6B8FA8] mb-2">
+                  הדבק טקסט של מודעה/פוסט. ה-AI יזקק את הרעיון ויבנה prompt חכם לתמונה שתעלה את ה-CTR.
+                </div>
+                <Textarea value={adCopy} onChange={setAdCopy}
+                  placeholder="לדוגמה: 'מאפיית בוטיק כשרה ירושלמית — עוגת מייפל מיוחדת לשבת, הזמן עכשיו עד 10 בבוקר ביום שישי...'"
+                  rows={5} />
+                <Btn variant="primary" full loading={loading} onClick={buildFromAd} disabled={!adCopy.trim()}>
+                  🤖 הבן ובנה תמונה
+                </Btn>
+              </div>
+            )}
+          </Card>
+
           <Card className="mb-3">
             <CardLabel>תיאור / Prompt</CardLabel>
             <Textarea value={prompt} onChange={setPrompt}
@@ -168,7 +254,12 @@ export default function ImagesPage() {
           </Btn>
           {error && <Alert type="red" className="mt-3">❌ {error}</Alert>}
 
-          {error?.includes('API key') && (
+          {error?.includes('GOOGLE_AI_API_KEY') && (
+            <Alert type="amber" className="mt-2">
+              💡 הוסף <code>GOOGLE_AI_API_KEY</code> ל-.env.local — <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="font-bold underline">aistudio.google.com</a>
+            </Alert>
+          )}
+          {error?.includes('IDEOGRAM_API_KEY') && (
             <Alert type="amber" className="mt-2">
               💡 הוסף <code>IDEOGRAM_API_KEY</code> ל-.env.local — <a href="https://ideogram.ai" target="_blank" rel="noreferrer" className="font-bold underline">ideogram.ai</a>
             </Alert>
@@ -197,14 +288,17 @@ export default function ImagesPage() {
                   <button key={r.id}
                     onClick={async () => {
                       if (r.id === ratio) return;
-                      setLoading(true); setError('');
+                      setLoading(true); setError(''); setStage('מתאים יחס…');
                       try {
                         const res = await fetch('/api/images', {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Idempotency-Key': crypto.randomUUID(),
+                          },
                           body: JSON.stringify({
                             mode: 'adapt', parentImageId: currentId, parentImageUrl: current,
-                            aspectRatio: r.id, style,
+                            aspectRatio: r.id, style, provider,
                           }),
                         });
                         const data = await res.json();
@@ -212,7 +306,7 @@ export default function ImagesPage() {
                         setCurrent(data.url); setRatio(r.id);
                         setHistory(p => [{ image_url: data.url, prompt: `[adapt ${r.label}]`, created_at: new Date().toISOString() }, ...p.slice(0,19)]);
                       } catch (e: any) { setError(e.message); }
-                      finally { setLoading(false); }
+                      finally { setLoading(false); setStage(''); }
                     }}
                     title={`התאם ל-${r.label} (1⚡)`}
                     className={clsx('py-1.5 text-[10px] font-bold rounded-lg border transition-all',
@@ -240,7 +334,7 @@ export default function ImagesPage() {
           ) : loading ? (
             <div className="flex flex-col items-center justify-center h-72 gap-4">
               <div className="w-12 h-12 border-2 border-[#0A7AFF]/20 border-t-[#0A7AFF] rounded-full animate-spin" />
-              <div className="text-sm text-[#6B8FA8]">מייצר תמונה...</div>
+              <div className="text-sm text-[#6B8FA8]">{stage || 'מייצר תמונה...'}</div>
               <div className="text-xs text-[#2E4459]">זה לוקח ~10-20 שניות</div>
             </div>
           ) : (

@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { Card, CardLabel, Chip, Textarea, Btn, OutputBox, Tabs, CopyBtn, CostBadge, Alert, PageHeader } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
 import { FRAMEWORKS, FRAMEWORKS_BY_ID, type FrameworkId } from '@/lib/frameworks';
@@ -237,15 +238,17 @@ export default function CreatePage() {
               {tab === 'img' && (
                 <>
                   <Card className="bg-[#162030]">
-                    <CardLabel>Prompt לIdeogram / Midjourney</CardLabel>
+                    <CardLabel>Prompt לתמונה</CardLabel>
                     <div className="text-sm leading-relaxed" dir="ltr" style={{ textAlign: 'left' }}>{out.image}</div>
                   </Card>
                   <div className="flex gap-2 mt-2">
+                    <Link
+                      href={`/images?prompt=${encodeURIComponent(out.image.slice(0, 2000))}`}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold rounded-lg bg-[#0A7AFF] hover:bg-[#3D9FFF] text-white shadow-[0_4px_14px_rgba(10,122,255,0.3)] transition-colors"
+                    >
+                      🎨 פתח במחולל התמונות (3⚡)
+                    </Link>
                     <CopyBtn text={out.image} label="📋 העתק prompt" />
-                    <a href="https://ideogram.ai" target="_blank" rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-[#2A4158] text-[#6B8FA8] rounded-lg hover:border-[#0A7AFF] hover:text-[#3D9FFF] transition-colors">
-                      🎨 Ideogram →
-                    </a>
                   </div>
                 </>
               )}
