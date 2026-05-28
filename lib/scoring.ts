@@ -90,3 +90,68 @@ All histogram fractions must sum to ~1.0 (±0.05). emotions/extracts arrays may 
 
   return { system, user };
 }
+
+// ════════════════════════════════════════════
+// Response parser
+// ════════════════════════════════════════════
+
+export type ParseOk  = { ok: true;  value: ScoreResult };
+export type ParseErr = { ok: false; error: string };
+
+function deriveBand(score: number): ScoreBand {
+  if (score < 40) return 'low';
+  if (score < 70) return 'mid';
+  return 'high';
+}
+
+function stripFence(raw: string): string {
+  return raw.trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
+}
+
+export function parseScoreResponse(raw: string): ParseOk | ParseErr {
+  let obj: any;
+  try {
+    obj = JSON.parse(stripFence(raw));
+  } catch {
+    return { ok: false, error: 'invalid_json' };
+  }
+  if (typeof obj !== 'object' || obj === null) return { ok: false, error: 'not_object' };
+
+  const score = Number(obj.score);
+  if (!Number.isInteger(score) || score < 0 || score > 100) {
+    return { ok: false, error: 'score_out_of_range' };
+  }
+
+  const value: ScoreResult = {
+    score,
+    band: deriveBand(score),
+    demographics: {
+      age:    obj.demographics?.age    ?? { '18-24':0,'25-34':0,'35-44':0,'45-54':0,'55+':0 },
+      gender: obj.demographics?.gender ?? { m: 0.5, f: 0.5 },
+    },
+    emotions:      Array.isArray(obj.emotions) ? obj.emotions.slice(0, 5).map(String) : [],
+    extracts: {
+      offerings: Array.isArray(obj.extracts?.offerings) ? obj.extracts.offerings.map(String) : [],
+      features:  Array.isArray(obj.extracts?.features)  ? obj.extracts.features.map(String)  : [],
+      pains:     Array.isArray(obj.extracts?.pains)     ? obj.extracts.pains.map(String)     : [],
+      benefits:  Array.isArray(obj.extracts?.benefits)  ? obj.extracts.benefits.map(String)  : [],
+      ctas:      Array.isArray(obj.extracts?.ctas)      ? obj.extracts.ctas.map(String)      : [],
+    },
+    policy_flags: Array.isArray(obj.policy_flags)
+      ? obj.policy_flags.filter((f: any) => f && typeof f === 'object' && typeof f.issue === 'string')
+                        .map((f: any) => ({
+                          type:     String(f.type ?? 'meta_ad_policy'),
+                          severity: (['info','warn','block'].includes(f.severity) ? f.severity : 'info') as 'info'|'warn'|'block',
+                          issue:    String(f.issue),
+                        }))
+      : [],
+    predicted_hook: ['question','callout','contrarian','stat','story','curiosity','urgency','social_proof','other'].includes(obj.predicted_hook)
+      ? obj.predicted_hook
+      : 'other',
+  };
+
+  return { ok: true, value };
+}
