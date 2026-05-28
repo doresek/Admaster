@@ -1,8 +1,12 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardLabel, Textarea, Btn, OutputBox, CopyBtn, CostBadge, Alert, PageHeader, Chip } from '@/components/ui';
+import { Card, CardLabel, Textarea, Btn, OutputBox, CopyBtn, CostBadge, Alert, PageHeader, Chip, Spinner } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
+import { ScoreBadge } from '@/components/ScoreBadge';
+import { ScorePanel } from '@/components/ScorePanel';
+import { BoostButton } from '@/components/BoostButton';
+import type { ScoreResult } from '@/lib/scoring';
 
 const QUICK_FEEDBACK = [
   'קצר יותר',
@@ -30,9 +34,28 @@ export default function RefinePage() {
   const [iterCount, setIterCount]  = useState(0);
   const [history,   setHistory]    = useState<{ feedback: string; refined: string }[]>([]);
   const { call, loading, error }   = useAI();
+  const [score, setScore]             = useState<(ScoreResult & { score_id: string; iteration: number; max: number }) | null>(null);
+  const [showPanel, setShowPanel]     = useState(false);
+  const [scoreLoading, setScoreLoading] = useState(false);
 
   const supabase = createClient();
   const isFree = iterCount < FREE_ITERATIONS;
+
+  async function fetchScore(copy: string) {
+    if (!copy) return;
+    setScoreLoading(true);
+    setScore(null);
+    try {
+      const r = await fetch('/api/ai/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ copy, channel: 'meta_feed', locale: 'he', source: { kind: 'refine' } }),
+      });
+      const data = await r.json();
+      if (data.ok) setScore({ ...data, iteration: 0, max: 2 });
+    } catch (e) { console.error('[refine] score failed', e); }
+    finally { setScoreLoading(false); }
+  }
 
   async function refine() {
     const baseText = current || original;
@@ -55,6 +78,7 @@ export default function RefinePage() {
 
     setHistory(p => [...p, { feedback, refined }]);
     setCurrent(refined);
+    fetchScore(refined);
     setDiff(newDiff);
     setIterCount(c => c + 1);
     setFeedback('');
@@ -156,6 +180,32 @@ export default function RefinePage() {
                 </div>
                 <div className="text-[13px] leading-relaxed whitespace-pre-wrap text-[#D9E8F5]">{current}</div>
                 <div className="mt-3"><CopyBtn text={current} /></div>
+                {(score || scoreLoading) && (
+                  <div className="flex items-center gap-3 mt-3" dir="rtl">
+                    {scoreLoading && <Spinner size={14} />}
+                    {score && (
+                      <>
+                        <ScoreBadge score={score.score} band={score.band} onClick={() => setShowPanel(v => !v)} />
+                        {score.band !== 'high' && (
+                          <BoostButton
+                            priorScoreId={score.score_id}
+                            iteration={score.iteration}
+                            max={score.max}
+                            onBoosted={(b) => {
+                              setCurrent(b.copy);
+                              setScore(prev => prev ? { ...prev, ...b } : prev);
+                            }}
+                          />
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+                {showPanel && score && (
+                  <div className="mt-3 max-w-md">
+                    <ScorePanel result={score} onClose={() => setShowPanel(false)} />
+                  </div>
+                )}
               </Card>
 
               {diff && (
