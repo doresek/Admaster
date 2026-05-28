@@ -1,10 +1,14 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { Card, CardLabel, Chip, Textarea, Btn, OutputBox, Tabs, CopyBtn, CostBadge, Alert, PageHeader } from '@/components/ui';
+import { Card, CardLabel, Chip, Textarea, Btn, OutputBox, Tabs, CopyBtn, CostBadge, Alert, PageHeader, Spinner } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
 import { FRAMEWORKS, FRAMEWORKS_BY_ID, type FrameworkId } from '@/lib/frameworks';
 import { composeMasterPrompt, parseMasterResponse, isCriticalFailure, type MasterStudioOutput } from '@/lib/master-studio';
+import { ScoreBadge } from '@/components/ScoreBadge';
+import { ScorePanel } from '@/components/ScorePanel';
+import { BoostButton } from '@/components/BoostButton';
+import type { ScoreResult } from '@/lib/scoring';
 
 const PLATFORMS = [
   { id: 'facebook',  l: 'Facebook',  i: '📘' },
@@ -34,8 +38,33 @@ export default function CreatePage() {
   const [out,  setOut]   = useState<MasterStudioOutput | null>(null);
   const [revealOpen, setRevealOpen] = useState(true);
 
+  const [score, setScore]               = useState<(ScoreResult & { score_id: string; iteration: number; max: number }) | null>(null);
+  const [showPanel, setShowPanel]       = useState(false);
+  const [scoreLoading, setScoreLoading] = useState(false);
+
   const { call, loading, error } = useAI();
   const pLabel = PLATFORMS.find(p => p.id === plt)?.l ?? plt;
+
+  async function fetchScore(copy: string, sourceId?: string) {
+    if (!copy) return;
+    setScoreLoading(true);
+    setScore(null);
+    try {
+      const r = await fetch('/api/ai/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          copy,
+          channel: 'meta_feed',
+          locale:  'he',
+          source:  { kind: 'master_post', id: sourceId },
+        }),
+      });
+      const data = await r.json();
+      if (data.ok) setScore({ ...data, iteration: 0, max: 2 });
+    } catch (e) { console.error('[create] score failed', e); }
+    finally { setScoreLoading(false); }
+  }
 
   async function generate() {
     if (!brief.trim()) return;
@@ -57,6 +86,7 @@ export default function CreatePage() {
       console.warn('[create] critical tags missing in response');
     }
     setOut(parsed);
+    if (parsed?.post) fetchScore(parsed.post);
     setTab('post');
     setRevealOpen(true);
   }
@@ -225,6 +255,32 @@ export default function CreatePage() {
                     <CopyBtn text={out.post + '\n\n' + out.hashtags.join(' ')} />
                     <Btn variant="ghost" size="sm" onClick={generate} disabled={loading}>🔄 שוב</Btn>
                   </div>
+                  {(score || scoreLoading) && (
+                    <div className="flex items-center gap-3 mt-3" dir="rtl">
+                      {scoreLoading && <Spinner size={14} />}
+                      {score && (
+                        <>
+                          <ScoreBadge score={score.score} band={score.band} onClick={() => setShowPanel(v => !v)} />
+                          {score.band !== 'high' && (
+                            <BoostButton
+                              priorScoreId={score.score_id}
+                              iteration={score.iteration}
+                              max={score.max}
+                              onBoosted={(b) => {
+                                setOut(prev => prev ? { ...prev, post: b.copy } : prev);
+                                setScore(prev => prev ? { ...prev, score: b.score, band: b.band, score_id: b.score_id, iteration: b.iteration, max: b.max } : prev);
+                              }}
+                            />
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {showPanel && score && (
+                    <div className="mt-3 max-w-md">
+                      <ScorePanel result={score} onClose={() => setShowPanel(false)} />
+                    </div>
+                  )}
                 </>
               )}
 
