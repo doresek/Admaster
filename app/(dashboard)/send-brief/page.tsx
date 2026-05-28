@@ -39,7 +39,7 @@ export default function SendBriefPage() {
       {newCode && (
         <Card className="mb-4" style={{ borderColor: 'rgba(184,149,58,.3)' }}>
           <CardLabel>🎉 קישור נוצר — הועתק ללוח!</CardLabel>
-          <div className="flex items-center justify-between bg-[#070A0E] border border-[#2A4158] rounded-lg px-5 py-4 mb-3">
+          <div className="flex items-center justify-between bg-[#0B1424] border border-[#324C6B] rounded-lg px-5 py-4 mb-3">
             <span className="font-mono text-3xl text-[#D4AF55] tracking-widest">{newCode}</span>
             <CopyBtn text={newCode} label="📋 העתק קוד" />
           </div>
@@ -61,7 +61,7 @@ export default function SendBriefPage() {
             { n:'3', t:'הלקוח ממלא',          s:'שאלון 4 שלבים, ~5 דקות' },
             { n:'4', t:'AI בונה הכל',         s:'אווטאר + מודעות + משפך' },
           ].map(({ n, t, s }) => (
-            <div key={n} className="flex items-start gap-3 py-2.5 border-b border-[#1E2F42] last:border-0">
+            <div key={n} className="flex items-start gap-3 py-2.5 border-b border-[#243752] last:border-0">
               <div className="w-5 h-5 rounded-full bg-[#0A7AFF] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{n}</div>
               <div>
                 <div className="text-sm font-medium">{t}</div>
@@ -75,7 +75,7 @@ export default function SendBriefPage() {
           <Card>
             <CardLabel>קודים פעילים ({codes.length})</CardLabel>
             {codes.map(c => (
-              <div key={c} className="flex items-center justify-between py-2.5 border-b border-[#1E2F42] last:border-0">
+              <div key={c} className="flex items-center justify-between py-2.5 border-b border-[#243752] last:border-0">
                 <span className="font-mono text-sm text-[#D4AF55]">{c}</span>
                 <div className="flex gap-2">
                   <CopyBtn text={c} label="קוד" />

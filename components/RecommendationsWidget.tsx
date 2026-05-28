@@ -48,7 +48,7 @@ export function RecommendationsWidget() {
   if (recs.length === 0) return null;
 
   return (
-    <div className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4 mb-5">
+    <div className="bg-[#152138] border border-[#243752] rounded-xl p-4 mb-5">
       <div className="flex items-center justify-between mb-3">
         <div className="text-[11px] font-bold text-[#2E4459] uppercase tracking-widest flex items-center gap-1.5">
           <div className="w-0.5 h-3 bg-[#D4AF55] rounded-full" />

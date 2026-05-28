@@ -98,7 +98,7 @@ export default function ApprovalsPage() {
         {Object.entries(stats).map(([k, v]) => {
           const s = STATUS_LABELS[k as keyof typeof STATUS_LABELS];
           return (
-            <div key={k} className="bg-[#111A24] border border-[#1E2F42] rounded-lg p-3 text-center">
+            <div key={k} className="bg-[#152138] border border-[#243752] rounded-lg p-3 text-center">
               <div className="font-mono text-xl font-medium" style={{ color: s.color }}>{v}</div>
               <div className="text-[11px] text-[#6B8FA8] mt-0.5">{s.emoji} {s.label}</div>
             </div>
@@ -146,7 +146,7 @@ export default function ApprovalsPage() {
             {newLink && (
               <Card className="mt-3" style={{borderColor: 'rgba(184,149,58,.3)'}}>
                 <CardLabel>🔗 הקישור מוכן</CardLabel>
-                <div className="flex items-center justify-between bg-[#070A0E] border border-[#2A4158] rounded-lg px-3 py-2 mb-2">
+                <div className="flex items-center justify-between bg-[#0B1424] border border-[#324C6B] rounded-lg px-3 py-2 mb-2">
                   <span className="text-[11px] font-mono text-[#D4AF55] truncate flex-1" dir="ltr">{newLink}</span>
                   <CopyBtn text={newLink} label="📋 העתק" />
                 </div>
@@ -158,7 +158,7 @@ export default function ApprovalsPage() {
           <div>
             {/* Live preview */}
             <div className="text-xs font-bold text-[#2E4459] uppercase tracking-wider mb-3">תצוגה מקדימה — מה הלקוח יראה</div>
-            <div className="bg-white text-black rounded-xl overflow-hidden border border-[#2A4158]">
+            <div className="bg-white text-black rounded-xl overflow-hidden border border-[#324C6B]">
               <div className="bg-gradient-to-r from-[#0A7AFF] to-[#3D9FFF] text-white p-4">
                 <div className="text-xs opacity-90">בקשת אישור</div>
                 <div className="font-bold">{title || 'תוכן לאישור'}</div>
@@ -182,7 +182,7 @@ export default function ApprovalsPage() {
       {tab === 'list' && (
         <div>
           {items.length === 0 ? (
-            <div className="text-center py-16 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+            <div className="text-center py-16 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
               <div className="text-4xl mb-3 opacity-30">📭</div>
               <div className="text-sm mb-4">עוד לא שלחת בקשות אישור</div>
               <Btn variant="primary" onClick={() => setTab('create')}>+ צור בקשה ראשונה</Btn>
@@ -192,7 +192,7 @@ export default function ApprovalsPage() {
               const s = STATUS_LABELS[item.status];
               const url = typeof window !== 'undefined' ? `${window.location.origin}/approve/${item.token}` : '';
               return (
-                <div key={item.id} className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4 mb-2">
+                <div key={item.id} className="bg-[#152138] border border-[#243752] rounded-xl p-4 mb-2">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">

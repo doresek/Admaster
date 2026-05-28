@@ -146,7 +146,7 @@ export default function LibraryPage() {
       )}
 
       {!loading && filtered.length === 0 && (
-        <div className="text-center py-16 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+        <div className="text-center py-16 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
           <div className="text-4xl mb-3 opacity-30">📚</div>
           <div className="text-sm">אין פריטים</div>
         </div>
@@ -157,7 +157,7 @@ export default function LibraryPage() {
           const client = clients.find(c => c.id === it.client_id);
           const preview = it.output?.text || it.output?.post || it.output?.body || '';
           return (
-            <div key={it.id} className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4">
+            <div key={it.id} className="bg-[#152138] border border-[#243752] rounded-xl p-4">
               <div className="flex items-start justify-between mb-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 mb-1">
@@ -176,13 +176,13 @@ export default function LibraryPage() {
               {(it.tags && it.tags.length > 0) && (
                 <div className="flex flex-wrap gap-1 mb-2">
                   {it.tags.map(t => (
-                    <span key={t} className="text-[10px] bg-[#1D2D3E] text-[#6B8FA8] px-1.5 py-0.5 rounded">#{t}</span>
+                    <span key={t} className="text-[10px] bg-[#22334D] text-[#6B8FA8] px-1.5 py-0.5 rounded">#{t}</span>
                   ))}
                 </div>
               )}
               {it.folder && <div className="text-[10px] text-[#D4AF55] mb-2">📁 {it.folder}</div>}
 
-              <div className="flex items-center justify-between pt-2 border-t border-[#1E2F42]">
+              <div className="flex items-center justify-between pt-2 border-t border-[#243752]">
                 <div className="text-[10px] text-[#2E4459]">{new Date(it.created_at).toLocaleDateString('he')}</div>
                 <div className="flex items-center gap-1">
                   <Btn variant="ghost" size="xs" onClick={() => setEditing(it)}>✏️</Btn>
@@ -198,7 +198,7 @@ export default function LibraryPage() {
       {/* Edit modal */}
       {editing && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#111A24] border border-[#1E2F42] rounded-2xl max-w-md w-full p-5">
+          <div className="bg-[#152138] border border-[#243752] rounded-2xl max-w-md w-full p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="font-bold text-base text-[#D9E8F5]">עריכת פריט</div>
               <button onClick={() => setEditing(null)} className="text-[#2E4459] hover:text-white">✕</button>
@@ -214,9 +214,9 @@ export default function LibraryPage() {
             <div className="mb-3">
               <label className="block text-xs font-medium text-[#6B8FA8] mb-1.5">לקוח</label>
               <select value={editing.client_id ?? ''} onChange={e => setEditing(p => p ? { ...p, client_id: e.target.value || null } : p)}
-                className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-[#D9E8F5] outline-none" dir="rtl">
+                className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-sm text-[#D9E8F5] outline-none" dir="rtl">
                 <option value="">ללא</option>
-                {clients.map(c => <option key={c.id} value={c.id} className="bg-[#162030]">{c.emoji} {c.name}</option>)}
+                {clients.map(c => <option key={c.id} value={c.id} className="bg-[#1A2A42]">{c.emoji} {c.name}</option>)}
               </select>
             </div>
             <div className="flex gap-2">

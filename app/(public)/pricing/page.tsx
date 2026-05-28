@@ -43,24 +43,27 @@ const FEATURES_PER_PLAN: Record<keyof typeof PLAN_CONFIG, string[]> = {
 export default function PricingPage() {
   return (
     <div className="px-4 py-16 max-w-6xl mx-auto">
-      <div className="text-center mb-12">
-        <div className="text-[11px] font-bold text-[#2E4459] uppercase tracking-widest mb-2">תמחור</div>
-        <h1 className="text-4xl md:text-5xl font-bold text-white mb-3" style={{ fontFamily: 'DM Serif Display,serif' }}>
-          תמחור פשוט וברור
-        </h1>
-        <p className="text-[#6B8FA8]">בלי הפתעות. בלי עלויות נסתרות. תוכל לבטל בכל רגע.</p>
+      <div className="hero-mesh relative overflow-hidden -mx-4 px-4 py-12 mb-12">
+        <div className="relative z-10 max-w-3xl">
+          <div className="text-2xs font-bold tracking-kicker uppercase text-t3 mb-3">תמחור</div>
+          <h1 className="font-serif text-white text-4xl md:text-6xl leading-tight tracking-tight">
+            תמחור פשוט וברור
+          </h1>
+          <span className="rule-gold mt-5 block w-32" aria-hidden />
+          <p className="text-t2 max-w-2xl mt-6 text-lg leading-relaxed">בלי הפתעות. בלי עלויות נסתרות. תוכל לבטל בכל רגע.</p>
+        </div>
       </div>
 
-      <div className="grid md:grid-cols-4 gap-3 mb-16">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-16">
         {(['free','starter','pro','agency'] as const).map(id => {
           const p = PLAN_CONFIG[id];
           const isPro = id === 'pro';
           return (
-            <div key={id} className="bg-[#111A24] rounded-2xl p-6 border relative"
-              style={{ borderColor: isPro ? p.color : '#1E2F42' }}>
+            <div key={id} className="bg-[#152138] rounded-2xl p-6 border relative"
+              style={{ borderColor: isPro ? p.color : '#243752' }}>
               {isPro && (
-                <div className="absolute -top-3 right-1/2 translate-x-1/2 bg-[#7C3AED] text-white text-[10px] font-bold px-3 py-1 rounded-full">
-                  ⭐ הכי פופולרי
+                <div className="absolute -top-3 right-1/2 translate-x-1/2 bg-goldl text-bg text-2xs font-bold tracking-label px-3 py-1 rounded-full uppercase shadow-[0_4px_14px_rgba(212,175,85,0.35)]">
+                  הכי פופולרי
                 </div>
               )}
               <div className="font-bold text-lg mb-1" style={{ color: p.color }}>{p.name}</div>
@@ -88,7 +91,7 @@ export default function PricingPage() {
       </div>
 
       {/* Credit costs table */}
-      <div className="bg-[#111A24] border border-[#1E2F42] rounded-2xl p-6 mb-16">
+      <div className="bg-[#152138] border border-[#243752] rounded-2xl p-6 mb-16">
         <h2 className="font-bold text-xl text-white mb-4">עלות פעולות (בקרדיטים)</h2>
         <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 text-sm">
           {Object.entries(CREDIT_COSTS).map(([action, cost]) => {
@@ -101,7 +104,7 @@ export default function PricingPage() {
               approval:'✅ אישור לקוח', img_edit:'🪄 עריכת תמונה',
             };
             return (
-              <div key={action} className="flex items-center justify-between py-1.5 border-b border-[#1E2F42] last:border-0">
+              <div key={action} className="flex items-center justify-between py-1.5 border-b border-[#243752] last:border-0">
                 <span className="text-[#D9E8F5]">{labelMap[action] ?? action}</span>
                 <span className={cost === 0 ? 'text-[#34D399] font-bold' : 'font-mono text-[#D4AF55]'}>
                   {cost === 0 ? 'חינם' : `${cost}⚡`}

@@ -119,7 +119,7 @@ ${channel === 'email' ? '[SUBJECT]נושא האימייל[/SUBJECT]\n' : ''}[BOD
                   <Chip key={c.id} label={`${c.emoji} ${c.label}`} active={channel===c.id} onClick={() => setChannel(c.id)} />
                 ))}
               </div>
-              <div className="text-[11px] text-[#6B8FA8] bg-[#162030] rounded-lg px-3 py-2">
+              <div className="text-[11px] text-[#6B8FA8] bg-[#1A2A42] rounded-lg px-3 py-2">
                 מגבלת אורך: <strong className="text-[#D9E8F5]">{ch.max.toLocaleString()}</strong> תווים
               </div>
             </Card>
@@ -131,7 +131,7 @@ ${channel === 'email' ? '[SUBJECT]נושא האימייל[/SUBJECT]\n' : ''}[BOD
                   <Chip key={f.id} label={`${f.emoji} ${f.name_he.split('—')[0].trim()}`} active={fw===f.id} onClick={()=>setFw(f.id)} />
                 ))}
               </div>
-              <div className="text-[11px] text-[#6B8FA8] bg-[#162030] rounded-lg px-3 py-2">
+              <div className="text-[11px] text-[#6B8FA8] bg-[#1A2A42] rounded-lg px-3 py-2">
                 {fwObj.description}
               </div>
             </Card>
@@ -189,7 +189,7 @@ ${channel === 'email' ? '[SUBJECT]נושא האימייל[/SUBJECT]\n' : ''}[BOD
                 )}
               </>
             ) : (
-              <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+              <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
                 <span className="text-5xl mb-3 opacity-30">{ch.emoji}</span>
                 <span className="text-sm">הזן בריף ולחץ "צור הודעה"</span>
               </div>
@@ -201,7 +201,7 @@ ${channel === 'email' ? '[SUBJECT]נושא האימייל[/SUBJECT]\n' : ''}[BOD
       {tab === 'history' && (
         <div>
           {history.length === 0 ? (
-            <div className="text-center py-16 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+            <div className="text-center py-16 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
               <div className="text-4xl mb-3 opacity-30">📭</div>
               <div className="text-sm">אין הודעות עדיין</div>
             </div>
@@ -209,13 +209,13 @@ ${channel === 'email' ? '[SUBJECT]נושא האימייל[/SUBJECT]\n' : ''}[BOD
             history.map(m => {
               const cInfo = CHANNELS.find(c => c.id === m.channel);
               return (
-                <div key={m.id} className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4 mb-2">
+                <div key={m.id} className="bg-[#152138] border border-[#243752] rounded-xl p-4 mb-2">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className="text-lg">{cInfo?.emoji}</span>
                       <span className="text-sm font-medium">{cInfo?.label}</span>
                       {m.framework && (
-                        <span className="text-[10px] bg-[#1D2D3E] text-[#6B8FA8] px-2 py-0.5 rounded-full">{m.framework.toUpperCase()}</span>
+                        <span className="text-[10px] bg-[#22334D] text-[#6B8FA8] px-2 py-0.5 rounded-full">{m.framework.toUpperCase()}</span>
                       )}
                     </div>
                     <span className="text-[10px] text-[#2E4459]">{new Date(m.created_at).toLocaleDateString('he')}</span>

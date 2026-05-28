@@ -57,7 +57,7 @@ export default function PublishPage() {
             <CardLabel>לקוח</CardLabel>
             <div className="flex flex-wrap gap-2 mb-3">
               {clients.map(c => <button key={c.id} onClick={() => setSelC(c)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-all ${selC?.id===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#1E2F42] bg-[#162030] text-[#6B8FA8] hover:border-[#2A4158]'}`}>
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-all ${selC?.id===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#243752] bg-[#1A2A42] text-[#6B8FA8] hover:border-[#324C6B]'}`}>
                 <span>{c.emoji}</span>{c.name}
               </button>)}
             </div>
@@ -87,7 +87,7 @@ export default function PublishPage() {
           <div className="text-xs text-[#6B8FA8] mb-2">תצוגה מקדימה</div>
           <Card>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-full bg-[#1D2D3E] flex items-center justify-center text-base">📘</div>
+              <div className="w-8 h-8 rounded-full bg-[#22334D] flex items-center justify-center text-base">📘</div>
               <div>
                 <div className="font-semibold text-sm">{page?.name || 'הדף שלך'}</div>
                 <div className="text-[10px] text-[#2E4459]">עכשיו · 🌍</div>

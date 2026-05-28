@@ -57,24 +57,27 @@ export default function FaqPage() {
   const [open, setOpen] = useState<number|null>(0);
   return (
     <div className="px-4 py-16 max-w-3xl mx-auto">
-      <div className="text-center mb-12">
-        <div className="text-[11px] font-bold text-[#2E4459] uppercase tracking-widest mb-2">FAQ</div>
-        <h1 className="text-4xl font-bold text-white mb-3" style={{ fontFamily: 'DM Serif Display,serif' }}>
-          שאלות נפוצות
-        </h1>
-        <p className="text-[#6B8FA8]">הכל מה שרציתם לדעת לפני שמתחילים</p>
+      <div className="hero-mesh relative overflow-hidden -mx-4 px-4 py-12 mb-12">
+        <div className="relative z-10 max-w-3xl">
+          <div className="text-2xs font-bold tracking-kicker uppercase text-t3 mb-3">FAQ</div>
+          <h1 className="font-serif text-white text-4xl md:text-5xl leading-tight tracking-tight">
+            שאלות נפוצות
+          </h1>
+          <span className="rule-gold mt-5 block w-32" aria-hidden />
+          <p className="text-t2 mt-6 text-lg leading-relaxed">הכל מה שרציתם לדעת לפני שמתחילים</p>
+        </div>
       </div>
 
       <div className="space-y-2">
         {FAQS.map((f, i) => (
-          <div key={i} className="bg-[#111A24] border border-[#1E2F42] rounded-xl overflow-hidden">
+          <div key={i} className="bg-[#152138] border border-[#243752] rounded-xl overflow-hidden">
             <button onClick={() => setOpen(open === i ? null : i)}
-              className="w-full flex items-center justify-between gap-3 px-5 py-4 text-right hover:bg-[#162030] transition-colors">
+              className="w-full flex items-center justify-between gap-3 px-5 py-4 text-right hover:bg-[#1A2A42] transition-colors">
               <span className="font-semibold text-[#D9E8F5] text-[14.5px]">{f.q}</span>
               <span className={`text-[#3D9FFF] text-lg transition-transform ${open === i ? 'rotate-180' : ''}`}>▾</span>
             </button>
             {open === i && (
-              <div className="px-5 pb-4 text-[13.5px] text-[#6B8FA8] leading-relaxed border-t border-[#1E2F42] pt-3">
+              <div className="px-5 pb-4 text-[13.5px] text-[#6B8FA8] leading-relaxed border-t border-[#243752] pt-3">
                 {f.a}
               </div>
             )}

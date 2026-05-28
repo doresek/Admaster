@@ -76,7 +76,7 @@ export default function TeamPage() {
                 <div className="flex gap-2">
                   {ROLES.map(r=>(
                     <button key={r.id} onClick={()=>setForm(p=>({...p,role:r.id}))}
-                      className={`flex-1 p-2.5 rounded-lg border text-center transition-all ${form.role===r.id?`border-[${r.color}] bg-[${r.color}]/10`:'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]'}`}
+                      className={`flex-1 p-2.5 rounded-lg border text-center transition-all ${form.role===r.id?`border-[${r.color}] bg-[${r.color}]/10`:'border-[#243752] bg-[#1A2A42] hover:border-[#324C6B]'}`}
                       style={{ borderColor: form.role===r.id ? r.color : '', background: form.role===r.id ? `${r.color}18` : '' }}>
                       <div className="text-xs font-bold" style={{ color: form.role===r.id ? r.color : '#6B8FA8' }}>{r.label}</div>
                       <div className="text-[10px] text-[#2E4459] mt-0.5">{r.desc}</div>
@@ -103,7 +103,7 @@ export default function TeamPage() {
               ['קרדיטים / תשלום','✅','❌','❌'],
               ['הגדרות Billing','✅','❌','❌'],
             ].map(([f,a,ag,v])=>(
-              <div key={f} className="grid grid-cols-4 gap-2 py-1.5 border-b border-[#1E2F42] last:border-0 text-xs">
+              <div key={f} className="grid grid-cols-4 gap-2 py-1.5 border-b border-[#243752] last:border-0 text-xs">
                 <div className="text-[#6B8FA8]">{f}</div>
                 <div className="text-center">{a}</div>
                 <div className="text-center">{ag}</div>
@@ -118,7 +118,7 @@ export default function TeamPage() {
 
         <div>
           {members.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+            <div className="flex flex-col items-center justify-center h-48 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
               <span className="text-4xl mb-3 opacity-30">👥</span>
               <span className="text-sm">אין חברי צוות עדיין</span>
             </div>
@@ -126,8 +126,8 @@ export default function TeamPage() {
             <Card>
               <CardLabel>חברי צוות ({members.length}/{limit})</CardLabel>
               {members.map(m=>(
-                <div key={m.id} className="flex items-center gap-3 py-3 border-b border-[#1E2F42] last:border-0">
-                  <div className="w-8 h-8 rounded-full bg-[#1D2D3E] flex items-center justify-center text-sm font-bold">
+                <div key={m.id} className="flex items-center gap-3 py-3 border-b border-[#243752] last:border-0">
+                  <div className="w-8 h-8 rounded-full bg-[#22334D] flex items-center justify-center text-sm font-bold">
                     {(m.name||m.email).charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -135,8 +135,8 @@ export default function TeamPage() {
                     <div className="text-[11px] text-[#2E4459] truncate">{m.email}</div>
                   </div>
                   <select value={m.role} onChange={e=>changeRole(m.id,e.target.value)}
-                    className="text-[11px] bg-[#162030] border border-[#1E2F42] rounded-lg px-2 py-1 outline-none text-[#D9E8F5]">
-                    {ROLES.map(r=><option key={r.id} value={r.id} className="bg-[#162030]">{r.label}</option>)}
+                    className="text-[11px] bg-[#1A2A42] border border-[#243752] rounded-lg px-2 py-1 outline-none text-[#D9E8F5]">
+                    {ROLES.map(r=><option key={r.id} value={r.id} className="bg-[#1A2A42]">{r.label}</option>)}
                   </select>
                   <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: statusColor[m.status]||'#6B8FA8' }} />
                   <button onClick={()=>removeMember(m.id)} className="text-[#2E4459] hover:text-red-400 text-xs">✕</button>

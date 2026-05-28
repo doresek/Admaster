@@ -78,7 +78,7 @@ export default function ClientsPage() {
           <div className="flex flex-wrap gap-2 mb-3">
             {['🏢','✡️','🕍','🛍','💎','📚','🏋','🎨'].map(e => (
               <button key={e} onClick={() => uf('emoji', e)}
-                className={clsx('w-9 h-9 rounded-lg text-lg transition-all', form.emoji===e ? 'bg-[#0A7AFF]/20 border border-[#0A7AFF]' : 'bg-[#162030] border border-[#1E2F42] hover:border-[#2A4158]')}>
+                className={clsx('w-9 h-9 rounded-lg text-lg transition-all', form.emoji===e ? 'bg-[#0A7AFF]/20 border border-[#0A7AFF]' : 'bg-[#1A2A42] border border-[#243752] hover:border-[#324C6B]')}>
                 {e}
               </button>
             ))}
@@ -94,7 +94,7 @@ export default function ClientsPage() {
                 className="text-[11px] text-[#3D9FFF] hover:underline">❓ איך מקבלים?</a>
             </div>
             <input type="password" value={form.token} onChange={e=>uf('token',e.target.value)} placeholder="EAAxxxxxxxx..."
-              className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]"
+              className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]"
               dir="ltr" />
           </div>
           {err && <Alert type="red">{err}</Alert>}
@@ -105,7 +105,7 @@ export default function ClientsPage() {
       )}
 
       {clients.length === 0 && !showForm && (
-        <div className="text-center py-14 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+        <div className="text-center py-14 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
           <div className="text-4xl mb-3 opacity-30">🔌</div>
           <div className="text-base font-semibold mb-2">אין לקוחות מחוברים</div>
           <div className="text-sm mb-4">חבר לקוח עם Meta Access Token</div>
@@ -116,9 +116,9 @@ export default function ClientsPage() {
       <div className="grid grid-cols-3 gap-3">
         {clients.map(c => (
           <div key={c.id} onClick={() => setSelC(c)}
-            className="bg-[#111A24] border border-[#1E2F42] rounded-xl overflow-hidden cursor-pointer hover:border-[#0A7AFF] hover:-translate-y-0.5 transition-all">
+            className="bg-[#152138] border border-[#243752] rounded-xl overflow-hidden cursor-pointer hover:border-[#0A7AFF] hover:-translate-y-0.5 transition-all">
             <div className="p-3.5 flex items-start gap-2.5">
-              <div className="w-9 h-9 rounded-lg bg-[#1D2D3E] border border-[#2A4158] flex items-center justify-center text-lg flex-shrink-0">{c.emoji}</div>
+              <div className="w-9 h-9 rounded-lg bg-[#22334D] border border-[#324C6B] flex items-center justify-center text-lg flex-shrink-0">{c.emoji}</div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm">{c.name}</div>
                 <div className="text-[11px] text-[#6B8FA8] truncate">{c.industry}</div>
@@ -129,7 +129,7 @@ export default function ClientsPage() {
                 <span className={`text-[10px] font-bold ${c.status==='connected'?'text-[#059669]':'text-red-400'}`}>{c.status==='connected'?'פעיל':'שגיאה'}</span>
               </div>
             </div>
-            <div className="flex gap-3 px-3.5 py-2 border-t border-[#1E2F42]">
+            <div className="flex gap-3 px-3.5 py-2 border-t border-[#243752]">
               <div className="text-[10px] text-[#6B8FA8]"><strong className="text-[#D9E8F5] text-xs">{c.pages.length}</strong> דפים</div>
               <div className="text-[10px] text-[#6B8FA8]"><strong className="text-[#D9E8F5] text-xs">{c.ad_accounts.length}</strong> חשבונות</div>
               <div className="text-[10px] text-[#6B8FA8]"><strong className="text-[#D9E8F5] text-xs">{c.posts_published}</strong> פוסטים</div>
@@ -155,7 +155,7 @@ function ClientWorkspace({ client, onBack, onUpdate }: { client: MetaClient; onB
       </div>
       <div className="grid grid-cols-4 gap-3 mb-4">
         {[{i:'📄',v:client.pages.length,l:'דפים'},{i:'💰',v:client.ad_accounts.length,l:'חשבונות'},{i:'📤',v:client.posts_published,l:'פוסטים'},{i:'🚀',v:client.campaigns_created,l:'קמפיינים'}].map(s=>(
-          <div key={s.l} className="bg-[#111A24] border border-[#1E2F42] rounded-lg p-3"><div className="font-mono text-xl">{s.v}</div><div className="text-[11px] text-[#6B8FA8]">{s.l}</div></div>
+          <div key={s.l} className="bg-[#152138] border border-[#243752] rounded-lg p-3"><div className="font-mono text-xl">{s.v}</div><div className="text-[11px] text-[#6B8FA8]">{s.l}</div></div>
         ))}
       </div>
       <Card>
@@ -166,10 +166,10 @@ function ClientWorkspace({ client, onBack, onUpdate }: { client: MetaClient; onB
             {client.pages.length===0?<Alert type="amber">לא נמצאו דפים — בדוק הרשאות Token</Alert>:
               client.pages.map(p=>(
                 <div key={p.id} onClick={()=>onUpdate({selected_page_id:p.id})}
-                  className={`flex items-center gap-3 p-3 rounded-lg border mb-2 cursor-pointer transition-all ${client.selected_page_id===p.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]'}`}>
-                  <div className="w-8 h-8 rounded-lg bg-[#1D2D3E] flex items-center justify-center">📘</div>
+                  className={`flex items-center gap-3 p-3 rounded-lg border mb-2 cursor-pointer transition-all ${client.selected_page_id===p.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#243752] bg-[#1A2A42] hover:border-[#324C6B]'}`}>
+                  <div className="w-8 h-8 rounded-lg bg-[#22334D] flex items-center justify-center">📘</div>
                   <div><div className="text-sm font-medium">{p.name}</div><div className="text-[11px] text-[#6B8FA8]">{p.fan_count?.toLocaleString()||0} עוקבים · {p.id}</div></div>
-                  <div className={`w-4 h-4 rounded-full border ml-auto ${client.selected_page_id===p.id?'border-[#3D9FFF] text-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[10px]':'border-[#2A4158]'}`}>{client.selected_page_id===p.id?'✓':''}</div>
+                  <div className={`w-4 h-4 rounded-full border ml-auto ${client.selected_page_id===p.id?'border-[#3D9FFF] text-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[10px]':'border-[#324C6B]'}`}>{client.selected_page_id===p.id?'✓':''}</div>
                 </div>
               ))}
           </div>
@@ -180,10 +180,10 @@ function ClientWorkspace({ client, onBack, onUpdate }: { client: MetaClient; onB
             {client.ad_accounts.length===0?<Alert type="amber">לא נמצאו חשבונות — בדוק הרשאות Token</Alert>:
               client.ad_accounts.map(a=>(
                 <div key={a.id} onClick={()=>onUpdate({selected_ad_account_id:a.id})}
-                  className={`flex items-center gap-3 p-3 rounded-lg border mb-2 cursor-pointer transition-all ${client.selected_ad_account_id===a.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]'}`}>
-                  <div className="w-8 h-8 rounded-lg bg-[#1D2D3E] flex items-center justify-center">💰</div>
+                  className={`flex items-center gap-3 p-3 rounded-lg border mb-2 cursor-pointer transition-all ${client.selected_ad_account_id===a.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#243752] bg-[#1A2A42] hover:border-[#324C6B]'}`}>
+                  <div className="w-8 h-8 rounded-lg bg-[#22334D] flex items-center justify-center">💰</div>
                   <div><div className="text-sm font-medium">{a.name}</div><div className="text-[11px] text-[#6B8FA8]">{a.currency} · {a.id}</div></div>
-                  <div className={`w-4 h-4 rounded-full border ml-auto ${client.selected_ad_account_id===a.id?'border-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[#3D9FFF] text-[10px]':'border-[#2A4158]'}`}>{client.selected_ad_account_id===a.id?'✓':''}</div>
+                  <div className={`w-4 h-4 rounded-full border ml-auto ${client.selected_ad_account_id===a.id?'border-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[#3D9FFF] text-[10px]':'border-[#324C6B]'}`}>{client.selected_ad_account_id===a.id?'✓':''}</div>
                 </div>
               ))}
           </div>

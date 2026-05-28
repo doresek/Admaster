@@ -123,7 +123,7 @@ export default function CreditsPage() {
       {/* Plans */}
       <div className="grid grid-cols-4 gap-3 mb-6">
         {(Object.entries(PLAN_CONFIG) as [Plan, typeof PLAN_CONFIG[Plan]][]).map(([id, cfg]) => (
-          <div key={id} className="bg-[#111A24] rounded-xl border p-4 relative" style={{ borderColor: id === plan ? cfg.color : '#1E2F42' }}>
+          <div key={id} className="bg-[#152138] rounded-xl border p-4 relative" style={{ borderColor: id === plan ? cfg.color : '#243752' }}>
             {id === plan && (
               <div className="absolute -top-2 right-3 bg-[#0A7AFF] text-white text-[9px] font-bold px-2 py-0.5 rounded-full">החבילה שלך</div>
             )}
@@ -153,7 +153,7 @@ export default function CreditsPage() {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {TOPUPS.map(t => (
-            <div key={t.credits} className={`bg-[#162030] border rounded-xl p-4 relative ${t.popular ? 'border-[#D4AF55]' : 'border-[#1E2F42]'}`}>
+            <div key={t.credits} className={`bg-[#1A2A42] border rounded-xl p-4 relative ${t.popular ? 'border-[#D4AF55]' : 'border-[#243752]'}`}>
               {t.popular && <div className="absolute -top-2 right-3 bg-[#D4AF55] text-black text-[9px] font-bold px-2 py-0.5 rounded-full">פופולרי</div>}
               <div className="font-mono text-2xl text-[#D9E8F5]">⚡ {t.credits.toLocaleString()}</div>
               <div className="text-xs text-[#6B8FA8] mb-3">₪{(t.amount / t.credits).toFixed(2)} לקרדיט</div>
@@ -171,7 +171,7 @@ export default function CreditsPage() {
         <CardLabel>💡 עלות פעולות</CardLabel>
         <div className="grid grid-cols-3 gap-2">
           {Object.entries(CREDIT_COSTS).map(([k, v]) => (
-            <div key={k} className="flex items-center justify-between bg-[#162030] rounded-lg px-3 py-1.5">
+            <div key={k} className="flex items-center justify-between bg-[#1A2A42] rounded-lg px-3 py-1.5">
               <span className="text-[12.5px] text-[#D9E8F5]">{ACTION_LABELS[k] ?? k}</span>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${v === 0 ? 'bg-[#059669]/15 text-[#34D399]' : 'bg-[#B8953A]/10 text-[#D4AF55] border border-[#B8953A]/25'}`}>
                 {v === 0 ? 'חינם' : `⚡${v}`}
@@ -210,7 +210,7 @@ export default function CreditsPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between bg-[#162030] rounded-lg px-3 py-2 mb-3">
+        <div className="flex items-center justify-between bg-[#1A2A42] rounded-lg px-3 py-2 mb-3">
           <div className="text-xs text-[#6B8FA8]">
             {monthlyStats.count} פעולות · {monthFilter === 'all' ? 'כל ההיסטוריה' : monthFilter}
           </div>
@@ -221,7 +221,7 @@ export default function CreditsPage() {
           {filtered.length === 0 ? (
             <div className="text-center py-8 text-xs text-[#2E4459]">אין פעולות בתקופה שנבחרה</div>
           ) : filtered.map(h => (
-            <div key={h.id} className="flex items-center gap-3 py-2 border-b border-[#1E2F42] last:border-0">
+            <div key={h.id} className="flex items-center gap-3 py-2 border-b border-[#243752] last:border-0">
               <span className="text-sm">{ACTION_LABELS[h.action]?.split(' ')[0] ?? '⚡'}</span>
               <div className="flex-1 text-[12.5px]">{ACTION_LABELS[h.action]?.slice(2) ?? h.action}</div>
               <div className="text-xs text-red-400 font-medium">-{h.cost}⚡</div>
@@ -236,7 +236,7 @@ export default function CreditsPage() {
         <Card className="mt-4">
           <CardLabel>היסטוריית רכישות חד-פעמיות</CardLabel>
           {topupHistory.map(t => (
-            <div key={t.id} className="flex items-center justify-between py-2 border-b border-[#1E2F42] last:border-0 text-sm">
+            <div key={t.id} className="flex items-center justify-between py-2 border-b border-[#243752] last:border-0 text-sm">
               <div>
                 <div className="text-[#D9E8F5]">⚡ {t.credits.toLocaleString()} קרדיטים · ₪{t.amount_ils}</div>
                 <div className="text-[10px] text-[#2E4459]">{new Date(t.created_at).toLocaleString('he')}</div>

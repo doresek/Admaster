@@ -117,10 +117,10 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
       </div>
 
       {/* Pipeline */}
-      <div className="flex items-center gap-2 bg-[#111A24] border border-[#1E2F42] rounded-lg px-4 py-3 mb-4 overflow-x-auto">
+      <div className="flex items-center gap-2 bg-[#152138] border border-[#243752] rounded-lg px-4 py-3 mb-4 overflow-x-auto">
         {pipe.map((p, i) => (
           <div key={p.l} className="flex items-center gap-2 flex-shrink-0">
-            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${p.done?'bg-[#059669] text-white':'bg-[#1D2D3E] text-[#2E4459]'}`}>
+            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${p.done?'bg-[#059669] text-white':'bg-[#22334D] text-[#2E4459]'}`}>
               {p.done ? '✓' : i+1}
             </div>
             <span className={`text-xs font-medium ${p.done?'text-[#059669]':'text-[#2E4459]'}`}>{p.l}</span>
@@ -146,7 +146,7 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
       {tab==='overview' && (
         <div className="grid grid-cols-2 gap-3">
           {Object.entries(v).filter(([,val])=>val).map(([k,val])=>(
-            <div key={k} className="bg-[#111A24] border border-[#1E2F42] rounded-lg p-3">
+            <div key={k} className="bg-[#152138] border border-[#243752] rounded-lg p-3">
               <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1">{k.replace(/_/g,' ')}</div>
               <div className="text-xs leading-relaxed">{val as string}</div>
             </div>
@@ -156,8 +156,8 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
 
       {/* Avatar */}
       {tab==='avatar' && (av ? (
-        <div className="border border-[#1E2F42] rounded-xl overflow-hidden">
-          <div className="bg-gradient-to-r from-[#070A0E] to-[#1D2D3E] p-4 flex items-center gap-3">
+        <div className="border border-[#243752] rounded-xl overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0B1424] to-[#22334D] p-4 flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-white/5 border-2 border-[#D4AF55] flex items-center justify-center text-2xl">{xt(av,'AE')||'👤'}</div>
             <div>
               <div className="font-bold text-base">{xt(av,'AN')}</div>
@@ -170,7 +170,7 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
               return(
                 <div key={lbl}>
                   <div className="text-[10px] font-bold text-[#2E4459] uppercase mb-1">{ico} {lbl}</div>
-                  <div className="text-[12.5px] leading-relaxed bg-[#162030] rounded-lg p-2.5">{c}</div>
+                  <div className="text-[12.5px] leading-relaxed bg-[#1A2A42] rounded-lg p-2.5">{c}</div>
                 </div>
               );
             })}
@@ -186,7 +186,7 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
         const bonuses = (v.offer_bonuses||'').split(/[,\n]/).filter(b=>b.trim());
         return(
           <div>
-            <div className="text-center py-5 border-b border-[#1E2F42] mb-4">
+            <div className="text-center py-5 border-b border-[#243752] mb-4">
               {ap>0&&<div className="font-mono text-xl text-[#6B8FA8] line-through mb-1">₪{ap.toLocaleString()}</div>}
               <div className="flex items-center justify-center gap-3">
                 {pp>0&&<div className="font-mono text-3xl font-medium text-red-400">₪{pp.toLocaleString()}</div>}
@@ -195,7 +195,7 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
             </div>
             {bonuses.length>0&&<div className="border-2 border-[#D4AF55] rounded-xl p-4 mb-4">
               <div className="text-[10px] font-bold text-[#D4AF55] mb-3 uppercase tracking-wider">⭐ Value Stack</div>
-              {bonuses.map((b,i)=><div key={i} className="flex justify-between py-1.5 border-b border-[#1E2F42] text-sm"><span>🎁 {b}</span><span className="text-[#D4AF55] font-bold">מתנה</span></div>)}
+              {bonuses.map((b,i)=><div key={i} className="flex justify-between py-1.5 border-b border-[#243752] text-sm"><span>🎁 {b}</span><span className="text-[#D4AF55] font-bold">מתנה</span></div>)}
               <div className="flex justify-between pt-2.5 font-bold text-base"><span>ערך כולל</span><span className="text-[#D4AF55]">{ap?`₪${ap.toLocaleString()}`:'שווה הרבה יותר'}</span></div>
             </div>}
             <div className="grid grid-cols-2 gap-3">
@@ -210,8 +210,8 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
       {/* Ads */}
       {tab==='ads' && (ads ? (
         adTypes.map(({k,l,c})=>{ const cnt=xt(ads,k); if(!cnt)return null; return(
-          <div key={k} className="border border-[#1E2F42] rounded-xl overflow-hidden mb-3">
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#1E2F42]">
+          <div key={k} className="border border-[#243752] rounded-xl overflow-hidden mb-3">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#243752]">
               <div className="text-[10px] font-bold px-2 py-1 rounded-full uppercase" style={{background:`${c}15`,color:c,border:`1px solid ${c}33`}}>{l}</div>
               <CopyBtn text={cnt} />
             </div>
@@ -309,7 +309,7 @@ export default function BriefsPage() {
       {newCode && (
         <Card className="mb-4" style={{borderColor:'rgba(184,149,58,.3)'}}>
           <CardLabel>🔗 קישור חדש נוצר</CardLabel>
-          <div className="flex items-center justify-between bg-[#070A0E] border border-[#2A4158] rounded-lg px-4 py-3 mb-3">
+          <div className="flex items-center justify-between bg-[#0B1424] border border-[#324C6B] rounded-lg px-4 py-3 mb-3">
             <span className="font-mono text-2xl text-[#D4AF55] tracking-widest">{newCode}</span>
             <CopyBtn text={newCode} label="📋 העתק קוד" />
           </div>
@@ -323,7 +323,7 @@ export default function BriefsPage() {
           <div className="flex flex-wrap gap-2">
             {codes.map(c => (
               <button key={c} onClick={()=>navigator.clipboard.writeText(c)}
-                className="font-mono text-sm bg-[#162030] border border-[#1E2F42] text-[#6B8FA8] px-3 py-1.5 rounded-lg hover:border-[#2A4158] hover:text-[#D9E8F5] transition-colors">
+                className="font-mono text-sm bg-[#1A2A42] border border-[#243752] text-[#6B8FA8] px-3 py-1.5 rounded-lg hover:border-[#324C6B] hover:text-[#D9E8F5] transition-colors">
                 {c}
               </button>
             ))}
@@ -334,7 +334,7 @@ export default function BriefsPage() {
       {loading && <div className="flex items-center justify-center py-16"><div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" /></div>}
 
       {!loading && briefs.length === 0 && (
-        <div className="text-center py-16 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+        <div className="text-center py-16 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
           <div className="text-4xl mb-3 opacity-30">📋</div>
           <div className="text-base font-semibold mb-2">אין בריפים עדיין</div>
           <div className="text-sm mb-4">צור קישור ושלח ללקוח שלך</div>
@@ -348,8 +348,8 @@ export default function BriefsPage() {
         const pctColor = pct >= 90 ? '#34D399' : pct >= 50 ? '#D97706' : '#6B8FA8';
         return (
           <div key={b.id} onClick={()=>setSel(b)}
-            className="flex items-center gap-3 bg-[#111A24] border border-[#1E2F42] rounded-xl px-4 py-3 mb-2 cursor-pointer hover:border-[#2A4158] hover:-translate-x-0.5 transition-all">
-            <div className="w-9 h-9 rounded-lg bg-[#1D2D3E] flex items-center justify-center text-lg">🏢</div>
+            className="flex items-center gap-3 bg-[#152138] border border-[#243752] rounded-xl px-4 py-3 mb-2 cursor-pointer hover:border-[#324C6B] hover:-translate-x-0.5 transition-all">
+            <div className="w-9 h-9 rounded-lg bg-[#22334D] flex items-center justify-center text-lg">🏢</div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-0.5">
                 <span className="font-semibold text-sm">{b.values?.biz_name || 'ללא שם'}</span>
@@ -361,7 +361,7 @@ export default function BriefsPage() {
               <div className="text-xs text-[#2E4459] truncate">
                 {(b.values?.biz_what || '').substring(0, 60)} · {new Date(b.submitted_at).toLocaleDateString('he')}
               </div>
-              <div className="mt-1.5 h-1 bg-[#1D2D3E] rounded-full overflow-hidden">
+              <div className="mt-1.5 h-1 bg-[#22334D] rounded-full overflow-hidden">
                 <div className="h-full transition-all" style={{ width: `${pct}%`, background: pctColor }} />
               </div>
             </div>

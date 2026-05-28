@@ -109,7 +109,7 @@ export default function VariationsPage() {
                   'rounded-xl border p-4 mb-3 cursor-pointer transition-all',
                   sel === i
                     ? 'border-[#0A7AFF] bg-[#0A7AFF]/06'
-                    : 'border-[#1E2F42] bg-[#111A24] hover:border-[#2A4158]'
+                    : 'border-[#243752] bg-[#152138] hover:border-[#324C6B]'
                 )}>
                 <div className="flex items-start gap-3">
                   <div className="w-5 h-5 rounded-full bg-[#0A7AFF]/12 border border-[#0A7AFF] text-[#3D9FFF] text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -156,7 +156,7 @@ export default function VariationsPage() {
           })}
 
           {!loading && vars.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-64 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+            <div className="flex flex-col items-center justify-center h-64 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
               <span className="text-4xl mb-3 opacity-30">🔀</span>
               <span className="text-sm">הזן פוסט ולחץ "צור וריאציות"</span>
             </div>

@@ -27,8 +27,8 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#070A0E] px-4" dir="rtl">
-      <div className="bg-[#0C1118] border border-[#2A4158] rounded-2xl p-8 w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center bg-[#0B1424] px-4" dir="rtl">
+      <div className="bg-[#0F1A2E] border border-[#324C6B] rounded-2xl p-8 w-full max-w-sm">
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-white">Ad<em className="text-[#D4AF55] not-italic">Master</em> Pro</h1>
           <p className="text-[#6B8FA8] text-sm mt-1">🚀 הצטרף — 150 קרדיטים חינם</p>
@@ -46,7 +46,7 @@ export default function RegisterPage() {
               <input
                 type={type} value={form[k as keyof typeof form]}
                 onChange={e => u(k, e.target.value)}
-                className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]"
+                className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]"
                 dir={dir as 'ltr' | 'rtl'} placeholder={ph} required
               />
             </div>

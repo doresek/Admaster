@@ -21,8 +21,8 @@ const variantCls: Record<BtnVariant, string> = {
   green:   'bg-[#059669] hover:brightness-110 text-white',
   amber:   'bg-[#D97706] hover:brightness-110 text-white',
   gold:    'bg-[#B8953A] hover:bg-[#D4AF55] text-black font-bold',
-  ghost:   'bg-[#162030] border border-[#1E2F42] text-[#6B8FA8] hover:border-[#2A4158] hover:text-[#D9E8F5]',
-  outline: 'border border-[#2A4158] text-[#6B8FA8] hover:border-[#0A7AFF] hover:text-[#3D9FFF]',
+  ghost:   'bg-[#1A2A42] border border-[#243752] text-[#6B8FA8] hover:border-[#324C6B] hover:text-[#D9E8F5]',
+  outline: 'border border-[#324C6B] text-[#6B8FA8] hover:border-[#0A7AFF] hover:text-[#3D9FFF]',
   red:     'bg-red-900/20 border border-red-500/25 text-red-400 hover:bg-red-900/30',
 };
 
@@ -54,8 +54,39 @@ export function Btn({ variant='primary', size='md', loading, children, full, cla
 // ─── CARD ────────────────────────────────────────────────────
 export function Card({ children, className, style }: { children: ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
-    <div className={clsx('bg-[#111A24] border border-[#1E2F42] rounded-xl p-4 transition-colors hover:border-[#2A4158]', className)} style={style}>
+    <div className={clsx('bg-[#152138] border border-[#243752] rounded-xl p-4 transition-all hover:border-[#324C6B] hover:-translate-y-0.5', className)} style={style}>
       {children}
+    </div>
+  );
+}
+
+// ─── SKELETON ────────────────────────────────────────────────
+export function Skeleton({ className }: { className?: string }) {
+  return <div className={clsx('animate-pulse bg-[#243752]/40 rounded-lg', className)} aria-hidden="true" />;
+}
+
+// ─── EMPTY STATE ─────────────────────────────────────────────
+export function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+}: {
+  icon?: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+  title: string;
+  description?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center px-6 py-14 bg-[#152138]/40 border border-dashed border-[#243752] rounded-xl">
+      {Icon && (
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#0A7AFF]/10 text-[#3D9FFF] mb-4">
+          <Icon size={22} strokeWidth={1.6} />
+        </div>
+      )}
+      <div className="font-bold text-base text-[#D9E8F5] mb-1.5">{title}</div>
+      {description && <p className="text-sm text-[#6B8FA8] leading-relaxed max-w-sm mb-5">{description}</p>}
+      {action}
     </div>
   );
 }
@@ -79,7 +110,7 @@ export function Chip({ label, active, onClick }: { label: string; active?: boole
         'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
         active
           ? 'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]'
-          : 'border-[#1E2F42] bg-[#162030] text-[#6B8FA8] hover:border-[#2A4158] hover:text-[#D9E8F5]'
+          : 'border-[#243752] bg-[#1A2A42] text-[#6B8FA8] hover:border-[#324C6B] hover:text-[#D9E8F5]'
       )}
     >
       {label}
@@ -104,7 +135,7 @@ export function Input({ label, value, onChange, placeholder, type='text', requir
       <input
         type={type} value={value} onChange={e => onChange(e.target.value)}
         placeholder={placeholder} required={required}
-        className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-[13px] text-[#D9E8F5] outline-none focus:border-[#0A7AFF] focus:bg-[#111A24] placeholder-[#2E4459] transition-colors"
+        className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-[13px] text-[#D9E8F5] outline-none focus:border-[#0A7AFF] focus:bg-[#152138] placeholder-[#2E4459] transition-colors"
         dir={type === 'email' || type === 'password' ? 'ltr' : 'rtl'}
       />
     </div>
@@ -119,7 +150,7 @@ export function Textarea({ label, value, onChange, placeholder, rows=4 }: { labe
       <textarea
         value={value} onChange={e => onChange(e.target.value)}
         placeholder={placeholder} rows={rows}
-        className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-[13px] text-[#D9E8F5] outline-none focus:border-[#0A7AFF] focus:bg-[#111A24] placeholder-[#2E4459] transition-colors resize-y"
+        className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-[13px] text-[#D9E8F5] outline-none focus:border-[#0A7AFF] focus:bg-[#152138] placeholder-[#2E4459] transition-colors resize-y"
         dir="rtl"
       />
     </div>
@@ -133,10 +164,10 @@ export function Select({ label, value, onChange, options }: { label?: string; va
       {label && <label className="block text-xs font-medium text-[#6B8FA8] mb-1.5">{label}</label>}
       <select
         value={value} onChange={e => onChange(e.target.value)}
-        className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-[13px] text-[#D9E8F5] outline-none focus:border-[#0A7AFF] transition-colors"
+        className="w-full bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-[13px] text-[#D9E8F5] outline-none focus:border-[#0A7AFF] transition-colors"
         dir="rtl"
       >
-        {options.map(o => <option key={o.value} value={o.value} className="bg-[#162030]">{o.label}</option>)}
+        {options.map(o => <option key={o.value} value={o.value} className="bg-[#1A2A42]">{o.label}</option>)}
       </select>
     </div>
   );
@@ -162,7 +193,7 @@ export function Alert({ type='blue', children, className }: { type?: AlertType; 
 // ─── OUTPUT BOX ────────────────────────────────────────────────
 export function OutputBox({ text, className }: { text: string; className?: string }) {
   return (
-    <div className={clsx('bg-[#162030] border border-[#0A7AFF] rounded-lg p-4 whitespace-pre-wrap text-sm leading-relaxed text-[#D9E8F5] animate-[fadeUp_.3s_ease]', className)}>
+    <div className={clsx('bg-[#1A2A42] border border-[#0A7AFF] rounded-lg p-4 whitespace-pre-wrap text-sm leading-relaxed text-[#D9E8F5] animate-[fadeUp_.3s_ease]', className)}>
       {text}
     </div>
   );
@@ -180,11 +211,12 @@ export function CostBadge({ cost }: { cost: number }) {
 // ─── PAGE HEADER ─────────────────────────────────────────────
 export function PageHeader({ eyebrow, title, sub, right }: { eyebrow?: string; title: string; sub?: string; right?: ReactNode }) {
   return (
-    <div className="flex items-start justify-between mb-6">
-      <div>
-        {eyebrow && <div className="text-[11px] font-bold text-[#2E4459] uppercase tracking-widest mb-1">{eyebrow}</div>}
-        <h1 className="text-2xl font-bold text-[#D9E8F5] mb-1">{title}</h1>
-        {sub && <p className="text-[#6B8FA8] text-sm">{sub}</p>}
+    <div className="flex items-start justify-between gap-4 mb-7">
+      <div className="min-w-0">
+        {eyebrow && <div className="text-2xs font-bold tracking-kicker uppercase text-t3 mb-2">{eyebrow}</div>}
+        <h1 className="font-serif text-2xl md:text-3xl text-[#D9E8F5] leading-tight tracking-tight">{title}</h1>
+        <span className="rule-gold mt-3 block w-16" aria-hidden />
+        {sub && <p className="text-[#6B8FA8] text-sm mt-3 leading-relaxed">{sub}</p>}
       </div>
       {right && <div className="flex items-center gap-2 flex-shrink-0">{right}</div>}
     </div>
@@ -194,7 +226,7 @@ export function PageHeader({ eyebrow, title, sub, right }: { eyebrow?: string; t
 // ─── STAT CARD ────────────────────────────────────────────────
 export function StatCard({ icon, value, label, glow }: { icon: string; value: string | number; label: string; glow?: string }) {
   return (
-    <div className="relative bg-[#111A24] border border-[#1E2F42] rounded-lg p-3.5 overflow-hidden">
+    <div className="relative bg-[#152138] border border-[#243752] rounded-lg p-3.5 overflow-hidden">
       <div className="absolute top-0 right-0 w-16 h-16 rounded-full opacity-60" style={{ background: `radial-gradient(circle at top right, ${glow || 'rgba(10,122,255,0.12)'}, transparent 70%)` }} />
       <div className="absolute top-2.5 left-2.5 text-[18px] opacity-20">{icon}</div>
       <div className="font-mono text-2xl font-medium text-[#D9E8F5] leading-none mb-1">{value}</div>
@@ -206,7 +238,7 @@ export function StatCard({ icon, value, label, glow }: { icon: string; value: st
 // ─── TABS ─────────────────────────────────────────────────────
 export function Tabs({ tabs, active, onChange }: { tabs: { id: string; label: string }[]; active: string; onChange: (id: string) => void }) {
   return (
-    <div className="flex border-b border-[#1E2F42] mb-4">
+    <div className="flex border-b border-[#243752] mb-4">
       {tabs.map(t => (
         <button key={t.id} onClick={() => onChange(t.id)}
           className={clsx(

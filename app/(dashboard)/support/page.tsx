@@ -144,7 +144,7 @@ export default function SupportPage() {
           {messages.map(m => (
             <div key={m.id} className={clsx('rounded-xl p-4', m.is_staff
               ? 'bg-[#0A7AFF]/8 border border-[#0A7AFF]/25'
-              : 'bg-[#111A24] border border-[#1E2F42]')}>
+              : 'bg-[#152138] border border-[#243752]')}>
               <div className="flex items-center justify-between mb-2">
                 <div className="text-[10px] font-bold uppercase" style={{ color: m.is_staff ? '#3D9FFF' : '#6B8FA8' }}>
                   {m.is_staff ? '🛟 צוות AdMaster' : 'אתה'}
@@ -176,7 +176,7 @@ export default function SupportPage() {
       {tab === 'list' && (
         <div>
           {tickets.length === 0 ? (
-            <div className="text-center py-16 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+            <div className="text-center py-16 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
               <div className="text-4xl mb-3 opacity-30">📭</div>
               <div className="text-base font-semibold mb-2">אין פניות פתוחות</div>
               <div className="text-sm mb-4">פתחו פנייה חדשה ונחזור אליכם</div>
@@ -187,7 +187,7 @@ export default function SupportPage() {
               const s = STATUS_STYLE[t.status];
               return (
                 <div key={t.id} onClick={() => openTicket(t)}
-                  className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4 mb-2 cursor-pointer hover:border-[#2A4158] hover:-translate-x-0.5 transition-all">
+                  className="bg-[#152138] border border-[#243752] rounded-xl p-4 mb-2 cursor-pointer hover:border-[#324C6B] hover:-translate-x-0.5 transition-all">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">

@@ -14,7 +14,7 @@ const DATE_PRESETS = [
 
 function MetricCard({ label, value, sub, color, icon }: { label:string;value:string;sub?:string;color?:string;icon:string }) {
   return (
-    <div className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4 relative overflow-hidden">
+    <div className="bg-[#152138] border border-[#243752] rounded-xl p-4 relative overflow-hidden">
       <div className="absolute top-0 right-0 w-16 h-16 rounded-full opacity-50" style={{ background: `radial-gradient(circle at top right, ${color||'rgba(10,122,255,0.1)'}, transparent 70%)` }} />
       <div className="text-lg opacity-20 absolute top-3 left-3">{icon}</div>
       <div className="text-[11px] text-[#6B8FA8] font-medium uppercase tracking-wider mb-1">{label}</div>
@@ -32,7 +32,7 @@ function MiniBar({ label, value, max }: { label:string; value:number; max:number
         <span className="text-[#6B8FA8] truncate flex-1 ml-3">{label}</span>
         <span className="text-[#D9E8F5] font-mono flex-shrink-0">₪{value.toLocaleString()}</span>
       </div>
-      <div className="h-1.5 bg-[#1D2D3E] rounded-full overflow-hidden">
+      <div className="h-1.5 bg-[#22334D] rounded-full overflow-hidden">
         <div className="h-full bg-gradient-to-r from-[#0A7AFF] to-[#3D9FFF] rounded-full" style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -96,8 +96,8 @@ export default function AnalyticsPage() {
         right={
           <div className="flex items-center gap-2">
             <select value={preset} onChange={e=>setPreset(e.target.value)}
-              className="bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2 text-sm text-[#D9E8F5] outline-none focus:border-[#0A7AFF]" dir="rtl">
-              {DATE_PRESETS.map(p=><option key={p.value} value={p.value} className="bg-[#162030]">{p.label}</option>)}
+              className="bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2 text-sm text-[#D9E8F5] outline-none focus:border-[#0A7AFF]" dir="rtl">
+              {DATE_PRESETS.map(p=><option key={p.value} value={p.value} className="bg-[#1A2A42]">{p.label}</option>)}
             </select>
             <Btn variant="ghost" size="sm" onClick={fetchAnalytics} loading={loading}>🔄</Btn>
           </div>
@@ -108,7 +108,7 @@ export default function AnalyticsPage() {
         <div className="flex gap-2 mb-5 flex-wrap">
           {clients.map(c => (
             <button key={c.id} onClick={() => setSelC(c.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-all ${selC===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#1E2F42] bg-[#162030] text-[#6B8FA8] hover:border-[#2A4158]'}`}>
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-all ${selC===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#243752] bg-[#1A2A42] text-[#6B8FA8] hover:border-[#324C6B]'}`}>
               <span>{c.emoji}</span>{c.name}
             </button>
           ))}
@@ -159,8 +159,8 @@ export default function AnalyticsPage() {
             <Card>
               <CardLabel>✨ מודעות מובילות (CTR)</CardLabel>
               {(data?.ads ?? []).filter((a:any)=>a.insights?.data?.[0]).slice(0,5).map((a:any,i:number) => (
-                <div key={a.id} className="flex items-center gap-3 py-2 border-b border-[#1E2F42] last:border-0">
-                  <div className="w-5 h-5 rounded-full bg-[#1D2D3E] text-[10px] flex items-center justify-center font-bold text-[#6B8FA8]">{i+1}</div>
+                <div key={a.id} className="flex items-center gap-3 py-2 border-b border-[#243752] last:border-0">
+                  <div className="w-5 h-5 rounded-full bg-[#22334D] text-[10px] flex items-center justify-center font-bold text-[#6B8FA8]">{i+1}</div>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs truncate">{a.name}</div>
                     <div className="text-[10px] text-[#2E4459]">₪{parseFloat(a.insights.data[0].spend||0).toFixed(0)} · {a.insights.data[0].impressions?.toLocaleString()} חשיפות</div>

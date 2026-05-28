@@ -34,7 +34,7 @@ export default function CompetitorPage() {
         <div className="flex gap-3">
           <input type="text" value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==='Enter'&&search()}
             placeholder="חפש תחום, מוצר, או שם עסק... לדוגמה: תפילין, בר מצווה, ספרי תורה"
-            className="flex-1 bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-[#D9E8F5] outline-none focus:border-[#0A7AFF] placeholder-[#2E4459]" dir="rtl" />
+            className="flex-1 bg-[#1A2A42] border border-[#243752] rounded-lg px-3 py-2.5 text-sm text-[#D9E8F5] outline-none focus:border-[#0A7AFF] placeholder-[#2E4459]" dir="rtl" />
           <Btn variant="primary" loading={loading} onClick={search} disabled={!query.trim()}>🔍 חפש</Btn>
         </div>
         {isMock && <Alert type="amber" className="mt-3">💡 מציג דוגמאות — להגדרת Meta Ad Library API הוסף META_APP_TOKEN</Alert>}
@@ -47,9 +47,9 @@ export default function CompetitorPage() {
           <div>
             <div className="text-xs font-bold text-[#2E4459] uppercase tracking-wider mb-3">{ads.length} מודעות נמצאו</div>
             {ads.map((ad,i)=>(
-              <Card key={ad.id || i} className="mb-3 hover:border-[#2A4158]">
+              <Card key={ad.id || i} className="mb-3 hover:border-[#324C6B]">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="w-7 h-7 rounded bg-[#1D2D3E] flex items-center justify-center text-xs font-bold text-[#0A7AFF]">{i+1}</div>
+                  <div className="w-7 h-7 rounded bg-[#22334D] flex items-center justify-center text-xs font-bold text-[#0A7AFF]">{i+1}</div>
                   <div>
                     <div className="text-xs font-bold">{ad.page_name}</div>
                     {ad.ad_delivery_start_time && <div className="text-[10px] text-[#2E4459]">מ-{new Date(ad.ad_delivery_start_time).toLocaleDateString('he')}</div>}
@@ -57,7 +57,7 @@ export default function CompetitorPage() {
                   {ad.impressions && <div className="mr-auto text-[10px] text-[#6B8FA8]">{ad.impressions.lower_bound?.toLocaleString()}+ חשיפות</div>}
                 </div>
                 {ad.ad_creative_bodies?.[0] && (
-                  <div className="text-[13px] leading-relaxed text-[#D9E8F5] bg-[#162030] rounded-lg p-3 mb-2">
+                  <div className="text-[13px] leading-relaxed text-[#D9E8F5] bg-[#1A2A42] rounded-lg p-3 mb-2">
                     {ad.ad_creative_bodies[0].substring(0, 200)}
                     {ad.ad_creative_bodies[0].length > 200 ? '...' : ''}
                   </div>
@@ -80,7 +80,7 @@ export default function CompetitorPage() {
               <Card style={{ borderColor: 'rgba(109,40,217,.3)', position: 'sticky', top: 20 }}>
                 <CardLabel>🤖 ניתוח AI</CardLabel>
                 <div className="text-[13px] leading-relaxed whitespace-pre-wrap text-[#D9E8F5]">{analysis}</div>
-                <div className="mt-4 pt-4 border-t border-[#1E2F42]">
+                <div className="mt-4 pt-4 border-t border-[#243752]">
                   <a href="/create" className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#0A7AFF] hover:bg-[#3D9FFF] text-white text-sm font-semibold rounded-lg transition-colors">
                     ✨ צור מודעה מנצחת →
                   </a>
@@ -92,7 +92,7 @@ export default function CompetitorPage() {
       )}
 
       {!loading && ads.length === 0 && !error && (
-        <div className="flex flex-col items-center justify-center py-16 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
+        <div className="flex flex-col items-center justify-center py-16 border border-dashed border-[#324C6B] rounded-xl text-[#2E4459]">
           <span className="text-5xl mb-3 opacity-30">🔍</span>
           <div className="text-base font-semibold mb-1">חפש מתחרים</div>
           <div className="text-sm">הזן מילת מפתח או שם עסק לגילוי מודעות פעילות</div>

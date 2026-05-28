@@ -36,17 +36,20 @@ const POSTS = [
 export default function BlogPage() {
   return (
     <div className="px-4 py-16 max-w-4xl mx-auto">
-      <div className="text-center mb-12">
-        <div className="text-[11px] font-bold text-[#2E4459] uppercase tracking-widest mb-2">בלוג</div>
-        <h1 className="text-4xl font-bold text-white mb-3" style={{ fontFamily: 'DM Serif Display,serif' }}>
-          תובנות שיווק ו-AI
-        </h1>
-        <p className="text-[#6B8FA8]">מה שמשווקים ישראלים צריכים לדעת</p>
+      <div className="hero-mesh relative overflow-hidden -mx-4 px-4 py-12 mb-12">
+        <div className="relative z-10 max-w-3xl">
+          <div className="text-2xs font-bold tracking-kicker uppercase text-t3 mb-3">בלוג</div>
+          <h1 className="font-serif text-white text-4xl md:text-5xl leading-tight tracking-tight">
+            תובנות שיווק ו-AI
+          </h1>
+          <span className="rule-gold mt-5 block w-32" aria-hidden />
+          <p className="text-t2 mt-6 text-lg leading-relaxed">מה שמשווקים ישראלים צריכים לדעת</p>
+        </div>
       </div>
 
       <div className="space-y-3">
         {POSTS.map(p => (
-          <article key={p.slug} className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-5 hover:border-[#2A4158] transition-all">
+          <article key={p.slug} className="bg-[#152138] border border-[#243752] rounded-xl p-5 hover:border-[#324C6B] transition-all">
             <Link href={`/blog/${p.slug}`} className="block">
               <h2 className="text-xl font-bold text-white mb-2 hover:text-[#3D9FFF] transition-colors">{p.title}</h2>
               <p className="text-[13.5px] text-[#6B8FA8] leading-relaxed mb-3">{p.excerpt}</p>
