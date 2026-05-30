@@ -9,9 +9,40 @@
 // owns auth/credits/persistence). buildObjectStorySpec / destinationToObjective /
 // toCallToAction are pure and unit-tested.
 // ════════════════════════════════════════════
+import dns from 'node:dns/promises';
+import net from 'node:net';
 import type { Destination, DestinationType, MetaCampaignObjective } from '@/types';
 
 const GRAPH = 'https://graph.facebook.com/v19.0';
+const MAX_IMAGE_BYTES = 12 * 1024 * 1024; // 12MB cap on fetched creatives
+
+function isPrivateIp(ip: string): boolean {
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split('.').map(Number);
+    return a === 10 || a === 127 || a === 0
+      || (a === 172 && b >= 16 && b <= 31)
+      || (a === 192 && b === 168)
+      || (a === 169 && b === 254);
+  }
+  const v = ip.toLowerCase();
+  return v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80');
+}
+
+/**
+ * SSRF guard: the image URL comes from user-supplied approval content, so before
+ * the server fetches it we require https and reject hosts that resolve to private
+ * / loopback / link-local ranges (cloud metadata, internal services, localhost).
+ */
+async function assertSafeImageUrl(raw: string): Promise<void> {
+  let u: URL;
+  try { u = new URL(raw); } catch { throw new Error('כתובת תמונה לא תקינה'); }
+  if (u.protocol !== 'https:') throw new Error('כתובת התמונה חייבת להיות https');
+  if (/^(localhost|0\.0\.0\.0|\[?::1\]?)$/i.test(u.hostname)) throw new Error('כתובת תמונה לא מורשית');
+  let resolved: { address: string }[];
+  try { resolved = await dns.lookup(u.hostname, { all: true }); }
+  catch { throw new Error('לא ניתן לאמת את כתובת התמונה'); }
+  if (resolved.some(r => isPrivateIp(r.address))) throw new Error('כתובת תמונה לא מורשית');
+}
 
 // ─── Graph helper ────────────────────────────────────────
 async function graph(path: string, token: string, method: 'GET' | 'POST' | 'DELETE' = 'GET', body?: object) {
@@ -109,9 +140,14 @@ export function buildObjectStorySpec(input: StorySpecInput): Record<string, unkn
 
 /** Upload image bytes to the ad account; returns the image_hash for the creative. */
 export async function uploadAdImage(token: string, adAccountId: string, imageUrl: string): Promise<{ imageHash: string }> {
-  const imgRes = await fetch(imageUrl);
+  await assertSafeImageUrl(imageUrl);
+  const imgRes = await fetch(imageUrl, { redirect: 'error' }); // no redirects → no SSRF bypass via 3xx
   if (!imgRes.ok) throw new Error('לא ניתן להוריד את התמונה ליצירת המודעה');
-  const base64 = Buffer.from(await imgRes.arrayBuffer()).toString('base64');
+  const ct = imgRes.headers.get('content-type') || '';
+  if (!ct.startsWith('image/')) throw new Error('הכתובת אינה מצביעה על תמונה');
+  const buf = Buffer.from(await imgRes.arrayBuffer());
+  if (buf.byteLength > MAX_IMAGE_BYTES) throw new Error('התמונה גדולה מדי (מקסימום 12MB)');
+  const base64 = buf.toString('base64');
   const data = await graph(`${actId(adAccountId)}/adimages`, token, 'POST', { bytes: base64 });
   // Response shape: { images: { <key>: { hash, url } } } — take the first entry.
   const first = data?.images && (Object.values(data.images)[0] as { hash?: string } | undefined);
