@@ -48,6 +48,20 @@ async function getAccessToken(): Promise<string> {
   return token;
 }
 
+/**
+ * Map our internal ASPECT_* tokens to Vertex/Gemini aspect-ratio strings.
+ * Shared by the image route and the smart pipeline so the mapping lives in one place.
+ * Note: 4:5 has no native Gemini ratio — we approximate with the closest portrait 3:4.
+ */
+export const GEMINI_ASPECT: Record<string, string> = {
+  ASPECT_1_1:  '1:1',
+  ASPECT_16_9: '16:9',
+  ASPECT_9_16: '9:16',
+  ASPECT_4_5:  '3:4',
+  ASPECT_4_3:  '4:3',
+  ASPECT_3_4:  '3:4',
+};
+
 export function getProjectId(): string {
   return process.env.GOOGLE_CLOUD_PROJECT
     || parseCredentials().project_id;
@@ -55,6 +69,40 @@ export function getProjectId(): string {
 
 export function getLocation(): string {
   return process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
+}
+
+/**
+ * Wrap Hebrew text runs in straight double quotes so Gemini renders them verbatim
+ * in the image. Standard prompt-engineering trick — quoted text gets reproduced
+ * letter-for-letter instead of being "interpreted" by the model.
+ *
+ * Skips when the prompt is mostly Hebrew (descriptive, not meant to appear in image).
+ * Skips Hebrew already inside quotes (no double-wrapping).
+ * Converts Hebrew gershayim (״...״) to ASCII quotes ("...") — Gemini handles ASCII better.
+ */
+export function wrapHebrewForGemini(prompt: string): string {
+  // If the prompt is dominantly Hebrew, assume it's a descriptive brief, not text-on-image.
+  const letters = prompt.replace(/[^\p{L}]/gu, '');
+  const hebrewLetters = (prompt.match(/[֐-׿]/g) || []).length;
+  const isMostlyHebrew = letters.length > 0 && hebrewLetters / letters.length > 0.6;
+  if (isMostlyHebrew) return prompt;
+
+  // Normalize Hebrew gershayim to ASCII straight quotes.
+  const normalized = prompt.replace(/[״״]/g, '"');
+
+  // Split on quoted segments so we never re-wrap text already in quotes.
+  // The capturing group keeps the quoted parts in the output array.
+  const segments = normalized.split(/("[^"]*")/);
+  const HEBREW_RUN = /[֐-׿]+(?:\s+[֐-׿]+)*/g;
+
+  return segments
+    .map((seg, i) => {
+      // Odd indices = inside quotes; leave as-is.
+      if (i % 2 === 1) return seg;
+      // Even indices = outside any quotes; wrap any Hebrew run we find.
+      return seg.replace(HEBREW_RUN, (m) => `"${m}"`);
+    })
+    .join('');
 }
 
 export interface VertexImageInput {
@@ -84,11 +132,14 @@ export async function callVertexImageGen(input: VertexImageInput): Promise<Verte
   const location = getLocation();
   const token = await getAccessToken();
 
+  // Auto-quote Hebrew text so Gemini renders it verbatim in the image.
+  const promptText = wrapHebrewForGemini(input.prompt);
+
   const parts: Array<Record<string, unknown>> = [];
   if (input.sourceImage) {
     parts.push({ inlineData: { mimeType: input.sourceImage.mimeType, data: input.sourceImage.base64 } });
   }
-  parts.push({ text: input.prompt });
+  parts.push({ text: promptText });
 
   const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${model}:generateContent`;
 

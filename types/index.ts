@@ -22,6 +22,7 @@ export type CreditAction =
   | 'refine'     // Auto-refinement loop based on feedback
   | 'approval'   // Send for client approval (no extra cost; bundled with publish)
   | 'img_edit'   // Image refinement via text prompt
+  | 'img_smart'  // Best-of-N image pipeline (3 variations + LLM judge)
   // ── Phase C ──────────────────────────────────
   | 'analyze_brief'   // analyze a brief and suggest improvements
   | 'analyze_weak'    // analyze a weak/failing ad
@@ -52,6 +53,7 @@ export const CREDIT_COSTS: Record<CreditAction, number> = {
   refine:     4,
   approval:   0,
   img_edit:   3,
+  img_smart:  8,
   // ── Phase C ──────────────────────────────────
   analyze_brief: 2,
   analyze_weak:  3,

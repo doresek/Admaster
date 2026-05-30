@@ -31,9 +31,9 @@ const PW      = process.env.TEST_PW    || '0503377';
     await page.goto(`${APP_URL}/images`, { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle');
 
-    console.log('3. Select Ideogram provider (Gemini has no billing yet)');
-    // Click the Ideogram provider button by visible text
-    await page.getByText('Ideogram V2', { exact: false }).first().click();
+    console.log('3. Select provider:', process.env.TEST_PROVIDER || 'gemini');
+    const providerLabel = process.env.TEST_PROVIDER === 'ideogram' ? 'Ideogram V2' : 'Gemini Nano Banana';
+    await page.getByText(providerLabel, { exact: false }).first().click();
     await page.waitForTimeout(300);
 
     console.log('4. Type prompt');
@@ -49,14 +49,30 @@ const PW      = process.env.TEST_PW    || '0503377';
     const generateBtn = page.getByRole('button', { name: '🎨 צור תמונה', exact: true });
     await generateBtn.click();
 
-    console.log('6. Wait for image (up to 60s)…');
+    console.log('6. Wait for image (smart pipeline, up to 90s)…');
     const t0 = Date.now();
-    await page.waitForSelector('img[alt="Generated"]', { timeout: 60000 });
+    await page.waitForSelector('img[alt="Generated"]', { timeout: 90000 });
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
     console.log(`   ✓ Image rendered in ${elapsed}s`);
 
     const imgUrl = await page.locator('img[alt="Generated"]').first().getAttribute('src');
     console.log('   image URL:', imgUrl?.slice(0, 100));
+
+    // Smart pipeline assertions: judge rationale + "show N other versions" link.
+    const othersLink = page.getByText(/הצג \d+ גרסאות נוספות/);
+    if (await othersLink.first().isVisible().catch(() => false)) {
+      console.log('   ✓ "show other versions" link present');
+      await othersLink.first().click();
+      await page.waitForTimeout(500);
+      const otherCount = await page.locator('img[alt^="גרסה"]').count();
+      console.log('   ✓ other versions revealed:', otherCount);
+    } else {
+      console.log('   ⚠️  no "show others" link (single candidate or single-shot fallback)');
+    }
+    const rationale = page.locator('text=🏆');
+    if (await rationale.first().isVisible().catch(() => false)) {
+      console.log('   ✓ judge rationale:', (await rationale.first().textContent())?.slice(0, 120));
+    }
 
     // Check there's no error visible
     const errorVisible = await page.locator('text=❌').first().isVisible().catch(() => false);
