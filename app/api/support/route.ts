@@ -12,10 +12,10 @@ export async function GET(req: NextRequest) {
 
   if (id) {
     const [ticket, messages] = await Promise.all([
-      supabase.from('support_tickets').select('*').eq('id', id).eq('user_id', user.id).single(),
+      supabase.from('support_tickets').select('*').eq('id', id).eq('user_id', user.id).maybeSingle(),
       supabase.from('support_messages').select('*').eq('ticket_id', id).order('created_at', { ascending: true }),
     ]);
-    if (ticket.error) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (ticket.error || !ticket.data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json({ ticket: ticket.data, messages: messages.data ?? [] });
   }
 
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   if (ticketId) {
     if (!body?.trim()) return NextResponse.json({ error: 'Empty message' }, { status: 400 });
     // Verify ownership
-    const { data: t } = await supabase.from('support_tickets').select('id').eq('id', ticketId).eq('user_id', user.id).single();
+    const { data: t } = await supabase.from('support_tickets').select('id').eq('id', ticketId).eq('user_id', user.id).maybeSingle();
     if (!t) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     const { data: msg, error } = await supabase.from('support_messages').insert({
       ticket_id: ticketId, author_id: user.id, body, is_staff: false,

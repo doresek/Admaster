@@ -3,21 +3,14 @@ import { createClient } from '@/lib/supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CREDIT_COSTS } from '@/types';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { callVertexImageGen } from '@/lib/vertex-ai';
+import { callVertexImageGen, GEMINI_ASPECT } from '@/lib/vertex-ai';
+import { uploadToStorage } from '@/lib/image-storage';
+import { runImagePipeline } from '@/lib/image-pipeline';
+import { readActiveClientCookie } from '@/lib/active-client';
 
 // "Nano Banana" — Google's image-gen Gemini models. Pro is the newer, higher-quality one.
 // Available models (early 2026): gemini-2.5-flash-image, gemini-3-pro-image-preview, gemini-3.1-flash-image-preview
 const GEMINI_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image-preview';
-const GEMINI_BUCKET = 'generated-images';
-
-const GEMINI_ASPECT: Record<string, string> = {
-  'ASPECT_1_1':  '1:1',
-  'ASPECT_16_9': '16:9',
-  'ASPECT_9_16': '9:16',
-  'ASPECT_4_5':  '3:4',
-  'ASPECT_4_3':  '4:3',
-  'ASPECT_3_4':  '3:4',
-};
 
 // Idempotency cache: stores response by `${userId}:${key}` for 60s.
 // Prevents double-charging when the client retries or double-clicks.
@@ -41,21 +34,6 @@ if (typeof setInterval !== 'undefined') {
     const now = Date.now();
     for (const [k, v] of idempotencyCache) if (v.expiresAt < now) idempotencyCache.delete(k);
   }, 60_000).unref?.();
-}
-
-async function uploadToStorage(supabase: SupabaseClient, userId: string, base64: string, mimeType: string): Promise<string> {
-  const buffer = Buffer.from(base64, 'base64');
-  const ext = mimeType.split('/')[1] || 'png';
-  const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-  const { error } = await supabase.storage
-    .from(GEMINI_BUCKET)
-    .upload(path, buffer, { contentType: mimeType, upsert: false });
-
-  if (error) throw new Error(`Storage upload failed: ${error.message}`);
-
-  const { data } = supabase.storage.from(GEMINI_BUCKET).getPublicUrl(path);
-  return data.publicUrl;
 }
 
 async function generateGemini(
@@ -193,6 +171,72 @@ export async function POST(req: NextRequest) {
     const isAdapt = mode === 'adapt';
     const action  = isAdapt ? 'img_adapt' : isEdit ? 'img_edit' : 'post';
     const cost    = CREDIT_COSTS[action];
+
+    // ── Smart pipeline (best-of-N + LLM judge) — fresh generation only, never edit/adapt ──
+    const smartEnabled = process.env.IMAGE_PIPELINE_SMART !== '0'
+      && !!process.env.ANTHROPIC_API_KEY && !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    const adCopy: string | undefined = body.adCopy;
+    const useSmart = !mode && (body.smart ?? smartEnabled) && Boolean(adCopy?.trim() || prompt?.trim());
+
+    if (useSmart) {
+      const source = adCopy?.trim()
+        ? { kind: 'adCopy' as const, text: adCopy.trim() }
+        : { kind: 'prompt' as const, text: String(prompt).trim() };
+      if (source.text.length > 2000) {
+        return NextResponse.json({ error: 'Prompt ארוך מדי (מקסימום 2000 תווים)' }, { status: 400 });
+      }
+
+      const smartCost = CREDIT_COSTS['img_smart'];
+      const { data: deduct } = await supabase.rpc('deduct_credits', {
+        p_user_id: user.id, p_action: 'img_smart', p_cost: smartCost,
+      });
+      if (!deduct?.success) return NextResponse.json({ error: 'insufficient_credits' }, { status: 402 });
+
+      const clientId = body.client_id ?? readActiveClientCookie(req.headers.get('cookie') ?? '');
+
+      try {
+        const result = await runImagePipeline({
+          supabase, userId: user.id, source,
+          aspectRatio, style, clientId, briefId: body.brief_id ?? null,
+        });
+
+        const losers = result.candidates
+          .filter(c => c.index !== result.winner.index)
+          .map(c => {
+            const s = result.judge.scores.find(sc => sc.index === c.index);
+            return { url: c.url, concept: c.concept, total: s?.total ?? null };
+          });
+
+        const { error: insertErr } = await supabase.from('generated_images').insert({
+          user_id:         user.id,
+          prompt:          result.winner.prompt,
+          image_url:       result.winner.url,
+          provider:        'gemini',
+          style,
+          aspect_ratio:    aspectRatio,
+          candidate_urls:  losers,
+          judge_rationale: result.judge.rationale,
+          is_smart:        true,
+        });
+        if (insertErr) console.error('[images] smart DB insert failed:', insertErr);
+
+        const responseBody = {
+          url:        result.winner.url,
+          candidates: [result.winner.url, ...losers.map(l => l.url)],
+          rationale:  result.judge.rationale,
+          smart:      true,
+          partial:    result.partial,
+          credits:    deduct.credits,
+          ...(insertErr ? { warning: 'התמונה נוצרה אך לא נשמרה בהיסטוריה' } : {}),
+        };
+        if (idemKey) setIdempotent(user.id, idemKey, responseBody, 200);
+        return NextResponse.json(responseBody);
+      } catch (err: any) {
+        await supabase.rpc('refund_credits', { p_user_id: user.id, p_action: 'img_smart', p_cost: smartCost });
+        console.error('[images] smart pipeline failed:', err);
+        return NextResponse.json({ error: err.message, refunded: smartCost }, { status: 502 });
+      }
+    }
 
     const finalPrompt = isAdapt
       ? `Re-render this exact scene in a new aspect ratio (${aspectRatio}). Preserve subject, colors, and composition.`

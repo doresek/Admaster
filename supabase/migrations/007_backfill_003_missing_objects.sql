@@ -104,7 +104,7 @@ returns table (
   primary_color text,
   secondary_color text
 )
-language plpgsql security definer as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   return query
   select a.id, a.title, a.content, a.status, a.feedback, a.created_at, a.responded_at,
@@ -123,7 +123,7 @@ create or replace function public.respond_to_approval(
   p_status   text,
   p_feedback text
 )
-returns json language plpgsql security definer as $$
+returns json language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_id uuid;
 begin

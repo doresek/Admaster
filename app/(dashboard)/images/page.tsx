@@ -24,18 +24,6 @@ const RATIOS = [
   { id:'ASPECT_4_5',  label:'4:5',    sub:'Instagram', w:56, h:70 },
 ];
 
-const PROMPT_FROM_AD_SYSTEM = `אתה Art Director לקמפיינים שיווקיים. קבלת טקסט של מודעה/פוסט שיווקי.
-תפקידך: לזקק את המסר העיקרי, להבין למי הוא מדבר, ולכתוב prompt לכלי יצירת תמונות AI שיניב תמונה שיווקית שמגדילה את ה-CTR של המודעה.
-
-עקרונות:
-1. אל תתרגם מילולית — בנה סצנה ויזואלית שמדברת לרגש.
-2. בחר subject ברור (אדם / מוצר / סיטואציה) שיתאים לקהל.
-3. כלול: composition, lighting, mood, colors, camera angle, style.
-4. סגנון: מודרני, מקצועי, מתאים ל-Meta/Instagram.
-5. ללא טקסט בתמונה אלא אם המודעה דורשת זאת מפורשות.
-
-החזר רק את ה-prompt באנגלית, ללא הסבר, ללא הקדמה.`;
-
 const PROMPT_ENHANCE_SYSTEM = `אתה מומחה בכתיבת prompts לכלי יצירת תמונות AI (Gemini, Ideogram, Midjourney).
 קח את הבריף הקצר בעברית והרחב אותו ל-prompt מפורט באנגלית שמפיק תמונה שיווקית מקצועית.
 כלול: composition, lighting, mood, colors, camera angle, style, atmosphere.
@@ -54,6 +42,10 @@ export default function ImagesPage() {
   const [currentId, setCurrentId] = useState<string|null>(null);
   const [error,     setError]    = useState('');
   const [history,   setHistory]  = useState<any[]>([]);
+  // smart pipeline: the winner is `current`; these hold the judge rationale + the 2 other versions
+  const [candidates, setCandidates] = useState<string[]>([]);
+  const [rationale,  setRationale]  = useState('');
+  const [showOthers, setShowOthers] = useState(false);
   // edit modal
   const [editOpen,  setEditOpen]  = useState(false);
   const [editPrompt, setEditPrompt] = useState('');
@@ -87,23 +79,25 @@ export default function ImagesPage() {
     setLoading(false); setStage('');
   }
 
-  /** Take ad copy → derive image prompt via Claude → generate image automatically. */
+  /** Ad copy → smart pipeline (server derives the brief + builds the image in one round-trip). */
   async function buildFromAd() {
     if (!adCopy.trim() || loading) return;
-    setLoading(true); setError(''); setStage('מנתח את המודעה ובונה prompt…');
-    try {
-      const generated = await call('post', PROMPT_FROM_AD_SYSTEM, `מודעה:\n${adCopy}`, 500);
-      if (!generated) throw new Error('Claude לא החזיר prompt');
-      setPrompt(generated);
-      setStage('מייצר תמונה לפי ה-prompt…');
-      await generateInternal(generated);
-    } catch (e: any) {
-      setError(e.message); setLoading(false); setStage('');
-    }
+    setLoading(true); setError('');
+    await generateInternal('', adCopy.trim());
   }
 
-  async function generateInternal(promptText: string) {
-    setCurrent(null); setCurrentId(null);
+  // Advance the loading message through the smart-pipeline stages on a timer.
+  // Returns a cleanup fn that clears the pending timers.
+  function startSmartTicker() {
+    setStage('בונה בריף יצירתי…');
+    const t1 = setTimeout(() => setStage('מייצר 3 גרסאות…'), 4000);
+    const t2 = setTimeout(() => setStage('בוחר את הגרסה המנצחת…'), 16000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }
+
+  async function generateInternal(promptText: string, adCopyText?: string) {
+    setCurrent(null); setCurrentId(null); setCandidates([]); setRationale(''); setShowOthers(false);
+    const stopTicker = startSmartTicker();
     try {
       const res = await fetch('/api/images', {
         method: 'POST',
@@ -111,7 +105,7 @@ export default function ImagesPage() {
           'Content-Type': 'application/json',
           'Idempotency-Key': crypto.randomUUID(),
         },
-        body: JSON.stringify({ prompt: promptText, style, aspectRatio: ratio, provider }),
+        body: JSON.stringify({ prompt: promptText, adCopy: adCopyText, smart: true, style, aspectRatio: ratio, provider }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -121,14 +115,17 @@ export default function ImagesPage() {
         throw new Error(msg);
       }
       setCurrent(data.url);
+      if (Array.isArray(data.candidates)) setCandidates(data.candidates);
+      if (data.rationale) setRationale(data.rationale);
       if (data.notice) setError(`ℹ️ ${data.notice}`);
       else if (data.warning) setError(`⚠️ ${data.warning}`);
-      setImages(p => [{ url: data.url, prompt: promptText, style, ratio, createdAt: new Date().toISOString() }, ...p]);
-      setHistory(p => [{ image_url: data.url, prompt: promptText, created_at: new Date().toISOString() }, ...p.slice(0,19)]);
+      const histPrompt = adCopyText ? promptText || 'מהמודעה שלך' : promptText;
+      setImages(p => [{ url: data.url, prompt: histPrompt, style, ratio, createdAt: new Date().toISOString() }, ...p]);
+      setHistory(p => [{ image_url: data.url, prompt: histPrompt, created_at: new Date().toISOString() }, ...p.slice(0,19)]);
     } catch (e: any) {
       setError(e.message);
     } finally {
-      setLoading(false); setStage('');
+      stopTicker(); setLoading(false); setStage('');
     }
   }
 
@@ -160,7 +157,7 @@ export default function ImagesPage() {
           : data.error || 'שגיאה בעריכה';
         throw new Error(msg);
       }
-      setCurrent(data.url); setCurrentId(null);
+      setCurrent(data.url); setCurrentId(null); setCandidates([]); setRationale(''); setShowOthers(false);
       setHistory(p => [{ image_url: data.url, prompt: `[edit] ${editPrompt}`, created_at: new Date().toISOString() }, ...p.slice(0,19)]);
       setEditOpen(false); setEditPrompt('');
     } catch (e: any) {
@@ -170,8 +167,8 @@ export default function ImagesPage() {
 
   return (
     <div>
-      <PageHeader eyebrow="AI Images" title="מחולל תמונות" sub="Gemini Nano Banana · Ideogram · עיצובים לפוסטים ומודעות"
-        right={<CostBadge cost={3} />} />
+      <PageHeader eyebrow="AI Images" title="מחולל תמונות" sub="3 גרסאות + בורר AI · Gemini Nano Banana · עיצובים לפוסטים ומודעות"
+        right={<CostBadge cost={8} />} />
 
       <div className="grid grid-cols-2 gap-4">
         {/* Left — controls */}
@@ -273,6 +270,32 @@ export default function ImagesPage() {
               <div className="rounded-xl overflow-hidden border border-[#2A4158] mb-3">
                 <img src={current} alt="Generated" className="w-full" />
               </div>
+
+              {rationale && (
+                <div className="text-[11px] text-[#6B8FA8] mb-2 leading-relaxed">🏆 {rationale}</div>
+              )}
+
+              {/* Best-of-N: judge picked the winner; offer the other versions one click away */}
+              {candidates.length > 1 && (
+                <div className="mb-3">
+                  <button onClick={() => setShowOthers(o => !o)}
+                    className="text-[11px] font-bold text-[#3D9FFF] hover:underline">
+                    {showOthers ? '▾ הסתר גרסאות נוספות' : `▸ הצג ${candidates.length - 1} גרסאות נוספות`}
+                  </button>
+                  {showOthers && (
+                    <div className="mt-2 grid grid-cols-3 gap-2">
+                      {candidates.filter(u => u !== current).map((u, i) => (
+                        <div key={i}
+                          className="rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-[#0A7AFF] transition-all aspect-square"
+                          onClick={() => setCurrent(u)} title="הפוך לתמונה הנבחרת">
+                          <img src={u} alt={`גרסה ${i + 1}`} className="w-full h-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-2">
                 <a href={current} download="admaster-image.jpg" target="_blank" rel="noreferrer"
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-[#0A7AFF] hover:bg-[#3D9FFF] text-white text-sm font-semibold rounded-lg transition-colors">
@@ -303,7 +326,7 @@ export default function ImagesPage() {
                         });
                         const data = await res.json();
                         if (!res.ok) throw new Error(data.error);
-                        setCurrent(data.url); setRatio(r.id);
+                        setCurrent(data.url); setRatio(r.id); setCandidates([]); setRationale(''); setShowOthers(false);
                         setHistory(p => [{ image_url: data.url, prompt: `[adapt ${r.label}]`, created_at: new Date().toISOString() }, ...p.slice(0,19)]);
                       } catch (e: any) { setError(e.message); }
                       finally { setLoading(false); setStage(''); }
@@ -335,7 +358,7 @@ export default function ImagesPage() {
             <div className="flex flex-col items-center justify-center h-72 gap-4">
               <div className="w-12 h-12 border-2 border-[#0A7AFF]/20 border-t-[#0A7AFF] rounded-full animate-spin" />
               <div className="text-sm text-[#6B8FA8]">{stage || 'מייצר תמונה...'}</div>
-              <div className="text-xs text-[#2E4459]">זה לוקח ~10-20 שניות</div>
+              <div className="text-xs text-[#2E4459]">3 גרסאות + בחירה — זה לוקח ~15-25 שניות</div>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
