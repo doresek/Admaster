@@ -31,6 +31,9 @@ Thumbs.db
 scripts/.pw-data/
 .playwright-mcp/
 
+# Local diagnostic script — contains plaintext login creds, never commit
+scripts/diag.mjs
+
 # Root-level screenshot dumps from local testing
 /*.png
 /*.jpg
