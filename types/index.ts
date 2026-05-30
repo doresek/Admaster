@@ -32,7 +32,9 @@ export type CreditAction =
   | 'recommend'       // AI agent recommendations
   // ── Performance Score (Phase 1) ──────────────
   | 'score'        // predictive performance score on a single copy
-  | 'score_boost'; // rewrite + re-score iteration
+  | 'score_boost'  // rewrite + re-score iteration
+  // ── Meta Ads Launcher ────────────────────────
+  | 'ai_targeting'; // AI-suggested Meta targeting + budget for an ad launch
 
 export const CREDIT_COSTS: Record<CreditAction, number> = {
   post:       3,
@@ -63,6 +65,8 @@ export const CREDIT_COSTS: Record<CreditAction, number> = {
   // ── Performance Score (Phase 1) ──────────────
   score:         1,
   score_boost:   1,
+  // ── Meta Ads Launcher ────────────────────────
+  ai_targeting:  2,
 };
 
 export const PLAN_CONFIG = {
@@ -229,4 +233,45 @@ export interface CampaignConfig {
   headline:    string;
   adText:      string;
   cta:         string;
+}
+
+// ── Meta Ads Launcher ─────────────────────────
+export type DestinationType = 'landing_page' | 'external_url' | 'whatsapp' | 'lead_form';
+
+export interface Destination {
+  type:  DestinationType;
+  value: string;   // landing-page slug → built into /lp/{slug}; URL; wa number; or lead_gen_form_id
+  label?: string;  // human label for UI (e.g. landing-page title)
+}
+
+export interface TargetingSuggestion {
+  ageMin:      number;
+  ageMax:      number;
+  genders:     'male' | 'female' | 'all';
+  geo:         { countries: string[]; cities?: string[] };
+  interests:   { id?: string; name: string }[];
+  dailyBudget: number;   // account-currency minor units
+  rationale:   string;   // one paragraph, Hebrew
+}
+
+export interface LaunchedAd {
+  id:            string;
+  user_id:       string;
+  client_id:     string | null;
+  approval_id:   string | null;
+  ad_account_id: string;
+  campaign_id:   string | null;
+  adset_id:      string | null;
+  creative_id:   string | null;
+  ad_id:         string | null;
+  destination:   Destination | null;
+  targeting:     Record<string, unknown> | null;
+  budget:        number | null;
+  objective:     string | null;
+  headline:      string | null;
+  primary_text:  string | null;
+  cta:           string | null;
+  image_url:     string | null;
+  status:        'PAUSED' | 'ACTIVE' | 'failed';
+  created_at:    string;
 }

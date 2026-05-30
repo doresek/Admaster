@@ -89,7 +89,7 @@ All calls go through Graph API using the decrypted client token. Functions:
 - `POST /api/meta/launch` — same payload + confirmed targeting/budget → preflight token-scope check → `launchFullCampaign` (PAUSED) → insert `launched_ads` row, increment `meta_clients.campaigns_created`. Credit: `campaign` (15, existing). Full failure → refund + 502 `{error, refunded}`. Returns `{ campaignId, adId, adsManagerUrl, status:'PAUSED' }`.
 - `POST /api/meta/ad-status` — `{ clientId, launchedAdId, status }` → `setAdStatus`. No credit.
 
-### Data model: migration `009_launched_ads.sql`
+### Data model: migration `011_launched_ads.sql`
 ```sql
 create table public.launched_ads (
   id              uuid primary key default gen_random_uuid(),
