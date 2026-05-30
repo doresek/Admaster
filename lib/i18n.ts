@@ -69,6 +69,7 @@ type Dict = {
     briefs:          string;
     publish:         string;
     campaign:        string;
+    ads_launcher:    string;
     pixel:           string;
     team:            string;
     agency:          string;
@@ -149,6 +150,7 @@ const HE: Dict = {
     briefs: 'בריפים',
     publish: 'פרסום',
     campaign: 'קמפיין',
+    ads_launcher: 'משגר מודעות',
     pixel: 'Pixel Builder',
     team: 'צוות',
     agency: 'White-Label',
@@ -227,6 +229,7 @@ const EN: Dict = {
     briefs: 'Briefs',
     publish: 'Publish',
     campaign: 'Campaign',
+    ads_launcher: 'Ads Launcher',
     pixel: 'Pixel Builder',
     team: 'Team',
     agency: 'White-Label',
@@ -305,6 +308,7 @@ const AR: Dict = {
     briefs: 'الموجزات',
     publish: 'نشر',
     campaign: 'حملة',
+    ads_launcher: 'مطلق الإعلانات',
     pixel: 'Pixel Builder',
     team: 'الفريق',
     agency: 'White-Label',
