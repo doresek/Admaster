@@ -13,6 +13,7 @@ interface LP {
   template: LandingTemplate;
   content:  LandingContent;
   status:   'draft' | 'published' | 'archived';
+  meta_pixel_id?: string | null;
 }
 
 type Section = 'hero' | 'cta' | 'bullets' | 'faq' | 'testimonials' | 'qualifier' | 'story';
@@ -31,6 +32,9 @@ export default function LandingEditorPage() {
   const [variantsOpen, setVariantsOpen] = useState(false);
   const [variantsLoading, setVariantsLoading] = useState(false);
   const [variants, setVariants] = useState<Array<{ label: string; summary: string; design: any }> | null>(null);
+  const [pixels, setPixels] = useState<Array<{ id: string; name: string; meta_pixel_id: string }>>([]);
+
+  useEffect(() => { fetch('/api/pixel').then(r => r.json()).then(d => setPixels(Array.isArray(d) ? d : [])); }, []);
 
   async function load() {
     setLoading(true);
@@ -57,7 +61,7 @@ export default function LandingEditorPage() {
       const res = await fetch(`/api/landing?id=${page.id}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ title: page.title, content: page.content }),
+        body:    JSON.stringify({ title: page.title, content: page.content, meta_pixel_id: page.meta_pixel_id ?? null }),
       });
       if (!res.ok) {
         const d = await res.json();
@@ -177,6 +181,20 @@ export default function LandingEditorPage() {
             <div className="flex items-center gap-2 bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2 text-xs">
               <span className="text-[#6B8FA8]">URL:</span>
               <Link href={`/lp/${page.slug}`} target="_blank" className="text-[#3D9FFF] font-mono truncate" dir="ltr">/lp/{page.slug}</Link>
+            </div>
+
+            <div className="mt-3">
+              <label className="block text-xs font-medium text-[#6B8FA8] mb-1.5">📊 פיקסל Meta (PageView + Lead בשליחת טופס)</label>
+              <select
+                value={page.meta_pixel_id || ''}
+                onChange={e => setPage({ ...page, meta_pixel_id: e.target.value || null })}
+                className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-[13px] text-[#D9E8F5] outline-none focus:border-[#0A7AFF]">
+                <option value="">ללא פיקסל</option>
+                {pixels.map(px => <option key={px.id} value={px.meta_pixel_id}>{px.name} ({px.meta_pixel_id})</option>)}
+              </select>
+              {pixels.length === 0 && (
+                <div className="text-[10px] text-[#6B8FA8] mt-1">אין פיקסלים — צור אחד במסך הפיקסל. שמור אחרי בחירה.</div>
+              )}
             </div>
           </Card>
 

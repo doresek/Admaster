@@ -95,7 +95,7 @@ export async function PATCH(req: NextRequest) {
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
   const patch = await req.json();
-  const allowed: Record<string, true> = { title: true, content: true, status: true, client_id: true };
+  const allowed: Record<string, true> = { title: true, content: true, status: true, client_id: true, meta_pixel_id: true };
   const updates: Record<string, any> = { updated_at: new Date().toISOString() };
   for (const k of Object.keys(patch)) if (allowed[k]) updates[k] = patch[k];
 
