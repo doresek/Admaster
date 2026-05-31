@@ -34,7 +34,8 @@ export type CreditAction =
   | 'score'        // predictive performance score on a single copy
   | 'score_boost'  // rewrite + re-score iteration
   // ── Meta Ads Launcher ────────────────────────
-  | 'ai_targeting'; // AI-suggested Meta targeting + budget for an ad launch
+  | 'ai_targeting' // AI-suggested Meta targeting + budget for an ad launch
+  | 'ad_insights'; // AI analysis + recommendations on a launched ad's performance
 
 export const CREDIT_COSTS: Record<CreditAction, number> = {
   post:       3,
@@ -67,6 +68,7 @@ export const CREDIT_COSTS: Record<CreditAction, number> = {
   score_boost:   1,
   // ── Meta Ads Launcher ────────────────────────
   ai_targeting:  2,
+  ad_insights:   2,
 };
 
 export const PLAN_CONFIG = {
@@ -252,6 +254,32 @@ export interface TargetingSuggestion {
   interests:   { id?: string; name: string }[];
   dailyBudget: number;   // account-currency minor units
   rationale:   string;   // one paragraph, Hebrew
+}
+
+export interface AdInsights {
+  impressions: number;
+  clicks:      number;
+  spend:       number;   // account currency, major units
+  ctr:         number;   // %
+  cpc:         number;
+  cpm:         number;
+  reach:       number;
+  frequency:   number;
+  results:     number;   // primary action count (leads/link clicks/messaging)
+  costPerResult: number | null;
+}
+
+export interface AdRecommendation {
+  action:   'scale' | 'pause' | 'change_creative' | 'adjust_targeting' | 'adjust_budget' | 'keep';
+  severity: 'high' | 'medium' | 'low';
+  title:    string;   // short Hebrew
+  why:      string;   // Hebrew explanation grounded in the metrics
+}
+
+export interface AdAnalysis {
+  verdict:         'winning' | 'promising' | 'underperforming' | 'too_early';
+  summary:         string;            // one-paragraph Hebrew
+  recommendations: AdRecommendation[];
 }
 
 export interface LaunchedAd {

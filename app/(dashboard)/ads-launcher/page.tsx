@@ -1,10 +1,17 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Card, CardLabel, Input, Textarea, Select, Btn, Alert, PageHeader, Chip, CostBadge } from '@/components/ui';
+import { Card, CardLabel, Input, Textarea, Select, Btn, Alert, PageHeader, Chip, CostBadge, Tabs } from '@/components/ui';
 import { readActiveClientFromDocument } from '@/lib/active-client';
-import type { Destination, DestinationType, TargetingSuggestion } from '@/types';
+import type { Destination, DestinationType, TargetingSuggestion, AdInsights, AdAnalysis } from '@/types';
 import { clsx } from 'clsx';
+
+const VERDICT_LABEL: Record<string, { label: string; color: string }> = {
+  winning:          { label: '🏆 מנצחת',        color: '#22C55E' },
+  promising:        { label: '📈 מבטיחה',       color: '#3D9FFF' },
+  underperforming:  { label: '⚠️ תת-ביצוע',     color: '#F59E0B' },
+  too_early:        { label: '⏳ מוקדם מדי',     color: '#6B8FA8' },
+};
 
 const DESTINATIONS: { id: DestinationType; label: string; emoji: string; placeholder: string; hint: string }[] = [
   { id: 'landing_page', label: 'דף נחיתה שלנו', emoji: '🎯', placeholder: 'slug של הדף (לדוגמה: summer-sale)', hint: 'הקלד את ה-slug של דף הנחיתה שבנית' },
@@ -37,9 +44,52 @@ export default function AdsLauncherPage() {
   const [stage, setStage] = useState('');
   const [error, setError] = useState('');
 
+  // Phase 2 — launched-ads tracking
+  const [tab, setTab] = useState('new');
+  const [launched, setLaunched] = useState<any[]>([]);
+  const [insights, setInsights] = useState<Record<string, AdInsights>>({});
+  const [analysis, setAnalysis] = useState<Record<string, AdAnalysis>>({});
+  const [busyAd, setBusyAd] = useState<string | null>(null);
+
   const searchParams = useSearchParams();
 
   useEffect(() => { setClientId(readActiveClientFromDocument()); }, []);
+
+  useEffect(() => {
+    if (tab === 'launched') fetch('/api/meta/launched').then(r => r.json()).then(d => setLaunched(Array.isArray(d) ? d : []));
+  }, [tab]);
+
+  async function analyzeAd(ad: any) {
+    if (!clientId) { setError('בחר לקוח פעיל'); return; }
+    setBusyAd(ad.id); setError('');
+    try {
+      const res = await fetch('/api/meta/ad-insights', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, launchedAdId: ad.id, analyze: true }),
+      });
+      const data = await res.json();
+      if (data.insights) setInsights(m => ({ ...m, [ad.id]: data.insights }));
+      if (data.analysis) setAnalysis(m => ({ ...m, [ad.id]: data.analysis }));
+      if (!res.ok && !data.analysis) throw new Error(data.error || 'שגיאה בניתוח');
+    } catch (e: any) { setError(e.message); }
+    finally { setBusyAd(null); }
+  }
+
+  async function toggleStatus(ad: any) {
+    if (!clientId) return;
+    const next = ad.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
+    setBusyAd(ad.id); setError('');
+    try {
+      const res = await fetch('/api/meta/ad-status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, launchedAdId: ad.id, status: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'שגיאה בשינוי סטטוס');
+      setLaunched(list => list.map(x => x.id === ad.id ? { ...x, status: next } : x));
+    } catch (e: any) { setError(e.message); }
+    finally { setBusyAd(null); }
+  }
 
   useEffect(() => {
     fetch('/api/approvals').then(r => r.json()).then((d: any[]) => {
@@ -139,11 +189,13 @@ export default function AdsLauncherPage() {
       <PageHeader eyebrow="Meta Ads" title="משגר מודעות" sub="ממודעה מאושרת → קמפיין פייסבוק חי — הכל מ-AdMaster"
         right={<CostBadge cost={15} />} />
 
+      <Tabs active={tab} onChange={setTab} tabs={[{ id: 'new', label: '🚀 השקה חדשה' }, { id: 'launched', label: '📊 מודעות שהושקו' }]} />
+
       {!clientId && <Alert type="amber" className="mb-3">בחר לקוח פעיל בראש המסך כדי להשיק מודעות.</Alert>}
       {error && <Alert type="red" className="mb-3">❌ {error}</Alert>}
 
       {/* Step 1 — pick approved ad */}
-      {step === 1 && (
+      {tab === 'new' && step === 1 && (
         <Card>
           <CardLabel>1 · בחר מודעה שאושרה על ידי הלקוח</CardLabel>
           {approved.length === 0 ? (
@@ -166,7 +218,7 @@ export default function AdsLauncherPage() {
       )}
 
       {/* Step 2 — destination + targeting + creative */}
-      {step === 2 && picked && (
+      {tab === 'new' && step === 2 && picked && (
         <div className="grid grid-cols-2 gap-4">
           <Card>
             <CardLabel>2 · יעד המודעה</CardLabel>
@@ -229,7 +281,7 @@ export default function AdsLauncherPage() {
       )}
 
       {/* Step 3 — preview */}
-      {step === 3 && (
+      {tab === 'new' && step === 3 && (
         <Card>
           <CardLabel>3 · תצוגה מקדימה מ-Meta</CardLabel>
           {/* previewHtml is the <iframe> returned by Meta's /generatepreviews Graph endpoint
@@ -245,7 +297,7 @@ export default function AdsLauncherPage() {
       )}
 
       {/* Step 4 — launched */}
-      {step === 4 && result && (
+      {tab === 'new' && step === 4 && result && (
         <Card>
           <div className="text-center py-4">
             <div className="text-3xl mb-2">🎉</div>
@@ -265,6 +317,76 @@ export default function AdsLauncherPage() {
             </div>
           </div>
         </Card>
+      )}
+
+      {/* Launched-ads tracking + AI analysis */}
+      {tab === 'launched' && (
+        <div>
+          {launched.length === 0 ? (
+            <Card><div className="text-sm text-[#6B8FA8] py-6 text-center">עדיין לא הושקו מודעות. השק אחת מהטאב "השקה חדשה".</div></Card>
+          ) : (
+            <div className="space-y-3">
+              {launched.map(ad => {
+                const ins = insights[ad.id]; const an = analysis[ad.id];
+                const v = an ? VERDICT_LABEL[an.verdict] : null;
+                return (
+                  <Card key={ad.id}>
+                    <div className="flex items-start gap-3">
+                      {ad.image_url && <img src={ad.image_url} alt="" className="w-16 h-16 rounded object-cover" />}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-[#D9E8F5] truncate">{ad.headline || 'מודעה'}</span>
+                          <span className={clsx('text-[10px] font-bold px-2 py-0.5 rounded-full',
+                            ad.status === 'ACTIVE' ? 'bg-green-500/15 text-green-400' : 'bg-amber-500/15 text-amber-400')}>
+                            {ad.status === 'ACTIVE' ? 'פעיל' : 'מושהה'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-[#6B8FA8] truncate mt-0.5">{ad.primary_text}</div>
+                      </div>
+                      <div className="flex flex-col gap-1.5 items-end shrink-0">
+                        <Btn variant="ghost" size="xs" loading={busyAd === ad.id} onClick={() => toggleStatus(ad)}>
+                          {ad.status === 'ACTIVE' ? '⏸ השהה' : '▶️ הפעל'}
+                        </Btn>
+                        <Btn variant="ghost" size="xs" loading={busyAd === ad.id} onClick={() => analyzeAd(ad)}>📊 נתח (2⚡)</Btn>
+                      </div>
+                    </div>
+
+                    {ins && (
+                      <div className="grid grid-cols-4 gap-2 mt-3">
+                        {[
+                          ['חשיפות', ins.impressions], ['קליקים', ins.clicks],
+                          ['CTR', `${ins.ctr.toFixed(2)}%`], ['הוצאה', `₪${ins.spend.toFixed(0)}`],
+                          ['תוצאות', ins.results], ['עלות/תוצאה', ins.costPerResult != null ? `₪${ins.costPerResult.toFixed(1)}` : '—'],
+                          ['CPC', `₪${ins.cpc.toFixed(2)}`], ['CPM', `₪${ins.cpm.toFixed(1)}`],
+                        ].map(([label, val], i) => (
+                          <div key={i} className="bg-[#111A24] border border-[#1E2F42] rounded-lg p-2 text-center">
+                            <div className="text-[9px] text-[#6B8FA8] uppercase tracking-wide">{label}</div>
+                            <div className="text-sm font-bold text-[#D9E8F5]">{val}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {an && (
+                      <div className="mt-3 border-t border-[#1E2F42] pt-3">
+                        {v && <div className="text-xs font-bold mb-1" style={{ color: v.color }}>{v.label}</div>}
+                        <div className="text-[11px] text-[#6B8FA8] leading-relaxed mb-2">{an.summary}</div>
+                        <div className="space-y-1.5">
+                          {an.recommendations.map((r, i) => (
+                            <div key={i} className="text-[11px] bg-[#0A7AFF]/5 border border-[#0A7AFF]/20 rounded p-2">
+                              <span className="font-bold text-[#3D9FFF]">{r.title}</span>
+                              <span className="text-[#6B8FA8]"> — {r.why}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
 
       {loading && stage && (
