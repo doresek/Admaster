@@ -56,6 +56,15 @@ export default function AdsLauncherPage() {
   const [pageId, setPageId] = useState('');
   const [adAccountId, setAdAccountId] = useState('');
 
+  // Launch mode + extra campaign details
+  const [mode, setMode] = useState<'oneclick' | 'custom'>('oneclick');
+  const [specialInstructions, setSpecialInstructions] = useState('');
+  const [publishNow, setPublishNow] = useState(true);
+  const [startTime, setStartTime] = useState('');       // datetime-local value when scheduling
+  const [pixels, setPixels] = useState<{ id: string; name: string; meta_pixel_id: string }[]>([]);
+  const [pixelId, setPixelId] = useState('');           // meta_pixel_id to optimize for (optional)
+  const [conversionEvent, setConversionEvent] = useState('LEAD');
+
   const searchParams = useSearchParams();
 
   const [activeClient, setActiveClient] = useState<{ name: string; emoji: string } | null>(null);
@@ -80,7 +89,14 @@ export default function AdsLauncherPage() {
         setAdAccountId(d.selectedAdAccountId || (d.adAccounts?.length === 1 ? d.adAccounts[0].id : ''));
       }
     }).catch(() => {});
+    fetch(`/api/pixel?clientId=${clientId}`).then(r => r.json())
+      .then(d => setPixels(Array.isArray(d) ? d : [])).catch(() => {});
   }, [clientId]);
+
+  const CONVERSION_EVENTS = ['LEAD', 'PURCHASE', 'COMPLETE_REGISTRATION', 'ADD_TO_CART', 'CONTACT', 'SUBSCRIBE'];
+  function effectiveStartTime() {
+    return publishNow || !startTime ? undefined : new Date(startTime).toISOString();
+  }
 
   useEffect(() => {
     if (tab === 'launched') fetch('/api/meta/launched').then(r => r.json()).then(d => setLaunched(Array.isArray(d) ? d : []));
@@ -134,15 +150,18 @@ export default function AdsLauncherPage() {
     setHeadline(a.title || '');
     setError('');
     setStep(2);
+    // One-click: auto-build targeting from the brief right away.
+    if (mode === 'oneclick') setTimeout(() => suggestTargeting(a), 0);
   }
 
-  async function suggestTargeting() {
-    if (!clientId || !picked) return;
-    setLoading(true); setStage('ה-AI בונה טרגוט…'); setError('');
+  async function suggestTargeting(adArg?: any) {
+    const ad = adArg || picked;
+    if (!clientId || !ad) return;
+    setLoading(true); setStage('ה-AI בונה טרגוט מהבריף…'); setError('');
     try {
       const res = await fetch('/api/meta/targeting', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, approvalId: picked.id, pageId, adAccountId }),
+        body: JSON.stringify({ clientId, approvalId: ad.id, pageId, adAccountId, specialInstructions }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'שגיאה בהצעת טרגוט');
@@ -184,6 +203,9 @@ export default function AdsLauncherPage() {
           budget: Math.round(budgetIls * 100),
           campaignName: headline || picked.title || undefined,
           pageId, adAccountId,
+          startTime: effectiveStartTime(),
+          pixelId: pixelId || undefined,
+          conversionEvent: pixelId ? conversionEvent : undefined,
         }),
       });
       const data = await res.json();
@@ -221,6 +243,20 @@ export default function AdsLauncherPage() {
 
       {!clientId && <Alert type="amber" className="mb-3">בחר לקוח פעיל בראש המסך כדי להשיק מודעות.</Alert>}
       {error && <Alert type="red" className="mb-3">❌ {error}</Alert>}
+
+      {tab === 'new' && step === 1 && (
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          {([['oneclick', '⚡ קמפיין בקליק', 'הכל אוטומטי מהבריף — אתה רק מאשר'],
+             ['custom', '🎛 התאמה אישית', 'שליטה מלאה בכל פרט']] as const).map(([id, label, sub]) => (
+            <button key={id} onClick={() => setMode(id)}
+              className={clsx('text-right p-3 rounded-lg border transition-all',
+                mode === id ? 'border-[#0A7AFF] bg-[#0A7AFF]/12' : 'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]')}>
+              <div className="text-sm font-bold text-[#D9E8F5]">{label}</div>
+              <div className="text-[10px] text-[#6B8FA8]">{sub}</div>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Step 1 — pick approved ad (filtered to the active client) */}
       {tab === 'new' && step === 1 && (
@@ -288,6 +324,19 @@ export default function AdsLauncherPage() {
             <Input value={destValue} onChange={setDestValue} placeholder={destMeta.placeholder} />
             <div className="text-[10px] text-[#6B8FA8] mt-1">{destMeta.hint}</div>
 
+            {(destType === 'landing_page' || destType === 'external_url') && (
+              <div className="mt-4">
+                <CardLabel>פיקסל + מטרת המרה (אופציונלי)</CardLabel>
+                <div className="text-[10px] text-[#6B8FA8] mb-1">בחר פיקסל ואירוע — הקמפיין יְיוּעַל להמרה הזו.</div>
+                <Select value={pixelId} onChange={setPixelId}
+                  options={[{ value: '', label: 'ללא ייעול להמרה' }, ...pixels.map(px => ({ value: px.meta_pixel_id, label: px.name }))]} />
+                {pixelId && (
+                  <Select value={conversionEvent} onChange={setConversionEvent}
+                    options={CONVERSION_EVENTS.map(e => ({ value: e, label: e }))} />
+                )}
+              </div>
+            )}
+
             <div className="mt-4"><CardLabel>קריאייטיב</CardLabel></div>
             <Input value={headline} onChange={setHeadline} placeholder="כותרת המודעה" />
             <Textarea value={primaryText} onChange={setPrimaryText} placeholder="טקסט ראשי" rows={4} />
@@ -297,8 +346,15 @@ export default function AdsLauncherPage() {
           <Card>
             <div className="flex items-center justify-between">
               <CardLabel>טרגוט + תקציב</CardLabel>
-              <Btn variant="ghost" size="sm" loading={loading} onClick={suggestTargeting}>🤖 הצע טרגוט (2⚡)</Btn>
+              <Btn variant="ghost" size="sm" loading={loading} onClick={() => suggestTargeting()}>🤖 הצע טרגוט (2⚡)</Btn>
             </div>
+            {mode === 'custom' && (
+              <div className="mb-2">
+                <div className="text-[10px] text-[#6B8FA8] mb-1">הוראות מיוחדות (מעל הבריף)</div>
+                <Textarea value={specialInstructions} onChange={setSpecialInstructions}
+                  placeholder="לדוגמה: התמקד בנשים 30-45 בצפון, הדגש דחיפות..." rows={2} />
+              </div>
+            )}
             {!targeting ? (
               <div className="text-sm text-[#6B8FA8] py-6 text-center">לחץ "הצע טרגוט" כדי שה-AI יבנה קהל + תקציב, או הגדר ידנית.</div>
             ) : (
@@ -323,6 +379,16 @@ export default function AdsLauncherPage() {
                 <div>
                   <div className="text-[10px] text-[#6B8FA8] mb-1">תקציב יומי (₪)</div>
                   <Input value={String(budgetIls)} onChange={v => setBudgetIls(Number(v) || 0)} />
+                </div>
+                <div>
+                  <div className="text-[10px] text-[#6B8FA8] mb-1">מתי לפרסם</div>
+                  <label className="flex items-center gap-2 text-[12px] text-[#D9E8F5] mb-1">
+                    <input type="checkbox" checked={publishNow} onChange={e => setPublishNow(e.target.checked)} /> פרסם עכשיו
+                  </label>
+                  {!publishNow && (
+                    <input type="datetime-local" value={startTime} onChange={e => setStartTime(e.target.value)}
+                      className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2 text-[13px] text-[#D9E8F5] outline-none focus:border-[#0A7AFF]" />
+                  )}
                 </div>
               </div>
             )}

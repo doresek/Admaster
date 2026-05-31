@@ -41,16 +41,24 @@ function parseJsonLoose<T>(text: string): T {
 
 export async function suggestTargeting(
   supabase: SupabaseClient,
-  args: { userId: string; clientId?: string | null; approvedAdText: string; token?: string; adAccountId?: string },
+  args: {
+    userId: string; clientId?: string | null; approvedAdText: string;
+    token?: string; adAccountId?: string; specialInstructions?: string;
+  },
 ): Promise<TargetingSuggestion> {
+  // Brief/brand/client context is the foundation; special instructions layer on TOP.
   const ctx = await buildAiContext(supabase, { userId: args.userId, clientId: args.clientId ?? null, briefId: null });
   const system = ctx.combined ? `${ctx.combined}\n\n═══ TASK ═══\n${TARGETING_SYSTEM}` : TARGETING_SYSTEM;
+
+  const special = args.specialInstructions?.trim()
+    ? `\n\n═══ SPECIAL INSTRUCTIONS (override the brief where they conflict) ═══\n${args.specialInstructions.trim()}`
+    : '';
 
   const msg = await anthropic.messages.create({
     model: CLAUDE_MODEL,
     max_tokens: 600,
     system,
-    messages: [{ role: 'user', content: `Approved ad copy:\n\n${args.approvedAdText}` }],
+    messages: [{ role: 'user', content: `Approved ad copy:\n\n${args.approvedAdText}${special}` }],
   });
   const raw = msg.content.find(b => b.type === 'text')?.text ?? '';
 

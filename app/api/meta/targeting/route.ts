@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const rl = checkRateLimit(`meta-targeting:${user.id}`, { max: 20, windowMs: 60_000 });
     if (!rl.ok) return NextResponse.json({ error: 'יותר מדי בקשות, נסה שוב בעוד מעט' }, { status: 429 });
 
-    const { clientId, approvalId, pageId, adAccountId } = await req.json();
+    const { clientId, approvalId, pageId, adAccountId, specialInstructions } = await req.json();
     if (!clientId || !approvalId) return NextResponse.json({ error: 'Missing clientId or approvalId' }, { status: 400 });
 
     const [ctx, ad] = await Promise.all([
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     try {
       const suggestion = await suggestTargeting(supabase, {
         userId: user.id, clientId, approvedAdText: ad.text,
-        token: ctx.token, adAccountId: ctx.adAccountId,
+        token: ctx.token, adAccountId: ctx.adAccountId, specialInstructions,
       });
       return NextResponse.json({ suggestion, credits: deduct.credits });
     } catch (err: any) {

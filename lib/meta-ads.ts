@@ -179,6 +179,9 @@ export interface LaunchInput {
   dailyBudget:      number;            // account-currency minor units
   targeting:        Record<string, unknown>;
   objectStorySpec:  Record<string, unknown>;
+  startTime?:       string;            // ISO8601 — schedule the ad set's start
+  pixelId?:         string;            // optimize for conversions on this pixel
+  conversionEvent?: string;            // custom_event_type, e.g. LEAD / PURCHASE
 }
 
 export interface LaunchResult {
@@ -196,12 +199,17 @@ export interface LaunchResult {
 export async function launchFullCampaign(token: string, adAccountId: string, input: LaunchInput): Promise<LaunchResult> {
   const cfg = DESTINATION_CONFIG[input.destinationType];
   const acc = actId(adAccountId);
+  // Conversion mode: optimize for a pixel event (closes the loop with the
+  // landing-page pixel). Overrides the destination-based objective/optimization.
+  const isConversion = Boolean(input.pixelId && input.conversionEvent);
+  const objective = isConversion ? 'OUTCOME_SALES' : cfg.objective;
+  const optimizationGoal = isConversion ? 'OFFSITE_CONVERSIONS' : cfg.optimizationGoal;
   let campaignId: string | undefined;
 
   try {
     const campaign = await graph(`${acc}/campaigns`, token, 'POST', {
       name: input.campaignName,
-      objective: cfg.objective,
+      objective,
       status: 'PAUSED',
       special_ad_categories: [],
     });
@@ -212,12 +220,17 @@ export async function launchFullCampaign(token: string, adAccountId: string, inp
       campaign_id: campaignId,
       daily_budget: input.dailyBudget,
       billing_event: 'IMPRESSIONS',
-      optimization_goal: cfg.optimizationGoal,
+      optimization_goal: optimizationGoal,
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
       targeting: input.targeting,
       status: 'PAUSED',
     };
-    if (cfg.needsPromotedPage) adSetBody.promoted_object = { page_id: input.pageId };
+    if (input.startTime) adSetBody.start_time = input.startTime;
+    if (isConversion) {
+      adSetBody.promoted_object = { pixel_id: input.pixelId, custom_event_type: input.conversionEvent };
+    } else if (cfg.needsPromotedPage) {
+      adSetBody.promoted_object = { page_id: input.pageId };
+    }
 
     const adSet = await graph(`${acc}/adsets`, token, 'POST', adSetBody);
 

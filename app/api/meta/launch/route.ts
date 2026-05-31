@@ -34,7 +34,8 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { clientId, approvalId, headline, primaryText, cta, budget, campaignName, pageId, adAccountId } = body;
+    const { clientId, approvalId, headline, primaryText, cta, budget, campaignName, pageId, adAccountId,
+            startTime, pixelId, conversionEvent } = body;
     const destination = body.destination as Destination;
     const targeting = body.targeting as TargetingSuggestion;
     if (!clientId || !approvalId || !destination?.type || !targeting) {
@@ -81,6 +82,9 @@ export async function POST(req: NextRequest) {
         dailyBudget,
         targeting: metaTargeting,
         objectStorySpec: spec,
+        startTime: startTime || undefined,
+        pixelId: pixelId || undefined,
+        conversionEvent: conversionEvent || undefined,
       });
 
       // Persist + bump the client's campaign counter (best-effort).
