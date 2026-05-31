@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { clientId, approvalId, headline, primaryText, cta, budget, campaignName } = body;
+    const { clientId, approvalId, headline, primaryText, cta, budget, campaignName, pageId, adAccountId } = body;
     const destination = body.destination as Destination;
     const targeting = body.targeting as TargetingSuggestion;
     if (!clientId || !approvalId || !destination?.type || !targeting) {
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
 
     const [ctx, ad] = await Promise.all([
-      loadMetaClientContext(supabase, clientId, user.id),
+      loadMetaClientContext(supabase, clientId, user.id, { pageId, adAccountId }),
       loadApprovedAd(supabase, approvalId, user.id),
     ]);
     if (!ad.imageUrl) return NextResponse.json({ error: 'למודעה המאושרת אין תמונה' }, { status: 400 });

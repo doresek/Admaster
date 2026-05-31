@@ -16,11 +16,11 @@ export async function POST(req: NextRequest) {
     const rl = checkRateLimit(`meta-targeting:${user.id}`, { max: 20, windowMs: 60_000 });
     if (!rl.ok) return NextResponse.json({ error: 'יותר מדי בקשות, נסה שוב בעוד מעט' }, { status: 429 });
 
-    const { clientId, approvalId } = await req.json();
+    const { clientId, approvalId, pageId, adAccountId } = await req.json();
     if (!clientId || !approvalId) return NextResponse.json({ error: 'Missing clientId or approvalId' }, { status: 400 });
 
     const [ctx, ad] = await Promise.all([
-      loadMetaClientContext(supabase, clientId, user.id),
+      loadMetaClientContext(supabase, clientId, user.id, { pageId, adAccountId }),
       loadApprovedAd(supabase, approvalId, user.id),
     ]);
 

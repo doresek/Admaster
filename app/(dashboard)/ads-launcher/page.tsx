@@ -51,9 +51,25 @@ export default function AdsLauncherPage() {
   const [analysis, setAnalysis] = useState<Record<string, AdAnalysis>>({});
   const [busyAd, setBusyAd] = useState<string | null>(null);
 
+  // Which page + ad account this launch targets (token may have many — always explicit & visible).
+  const [channels, setChannels] = useState<{ pages: { id: string; name: string }[]; adAccounts: { id: string; name: string }[] }>({ pages: [], adAccounts: [] });
+  const [pageId, setPageId] = useState('');
+  const [adAccountId, setAdAccountId] = useState('');
+
   const searchParams = useSearchParams();
 
   useEffect(() => { setClientId(readActiveClientFromDocument()); }, []);
+
+  useEffect(() => {
+    if (!clientId) return;
+    fetch(`/api/meta/channels?clientId=${clientId}`).then(r => r.json()).then(d => {
+      if (d?.pages) {
+        setChannels({ pages: d.pages, adAccounts: d.adAccounts || [] });
+        setPageId(d.selectedPageId || (d.pages.length === 1 ? d.pages[0].id : ''));
+        setAdAccountId(d.selectedAdAccountId || (d.adAccounts?.length === 1 ? d.adAccounts[0].id : ''));
+      }
+    }).catch(() => {});
+  }, [clientId]);
 
   useEffect(() => {
     if (tab === 'launched') fetch('/api/meta/launched').then(r => r.json()).then(d => setLaunched(Array.isArray(d) ? d : []));
@@ -115,7 +131,7 @@ export default function AdsLauncherPage() {
     try {
       const res = await fetch('/api/meta/targeting', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, approvalId: picked.id }),
+        body: JSON.stringify({ clientId, approvalId: picked.id, pageId, adAccountId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'שגיאה בהצעת טרגוט');
@@ -133,7 +149,7 @@ export default function AdsLauncherPage() {
     try {
       const res = await fetch('/api/meta/preview', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, approvalId: picked.id, headline, primaryText, cta, destination: destination() }),
+        body: JSON.stringify({ clientId, approvalId: picked.id, headline, primaryText, cta, destination: destination(), pageId, adAccountId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'שגיאה בתצוגה מקדימה');
@@ -156,6 +172,7 @@ export default function AdsLauncherPage() {
           targeting: { ...targeting, dailyBudget: Math.round(budgetIls * 100) },
           budget: Math.round(budgetIls * 100),
           campaignName: headline || picked.title || undefined,
+          pageId, adAccountId,
         }),
       });
       const data = await res.json();
@@ -221,7 +238,25 @@ export default function AdsLauncherPage() {
       {tab === 'new' && step === 2 && picked && (
         <div className="grid grid-cols-2 gap-4">
           <Card>
-            <CardLabel>2 · יעד המודעה</CardLabel>
+            <CardLabel>2 · מפרסם דרך</CardLabel>
+            <div className="text-[10px] text-[#6B8FA8] mb-2">ודא שזה העמוד וחשבון המודעות הנכונים ללקוח הזה.</div>
+            <div className="grid grid-cols-1 gap-2 mb-2">
+              <div>
+                <div className="text-[10px] text-[#6B8FA8] mb-1">📘 עמוד פייסבוק</div>
+                <Select value={pageId} onChange={setPageId}
+                  options={[{ value: '', label: '— בחר עמוד —' }, ...channels.pages.map(p => ({ value: p.id, label: p.name }))]} />
+              </div>
+              <div>
+                <div className="text-[10px] text-[#6B8FA8] mb-1">💰 חשבון מודעות</div>
+                <Select value={adAccountId} onChange={setAdAccountId}
+                  options={[{ value: '', label: '— בחר חשבון —' }, ...channels.adAccounts.map(a => ({ value: a.id, label: a.name }))]} />
+              </div>
+              {(!pageId || !adAccountId) && (
+                <div className="text-[10px] text-amber-400">⚠️ בחר עמוד וחשבון מודעות לפני המשך.</div>
+              )}
+            </div>
+
+            <CardLabel>יעד המודעה</CardLabel>
             <div className="grid grid-cols-2 gap-2 my-2">
               {DESTINATIONS.map(d => (
                 <button key={d.id} onClick={() => { setDestType(d.id); setCta(d.id === 'whatsapp' ? 'WHATSAPP_MESSAGE' : d.id === 'lead_form' ? 'SIGN_UP' : 'LEARN_MORE'); }}
@@ -274,7 +309,7 @@ export default function AdsLauncherPage() {
             )}
             <div className="flex gap-2 mt-4">
               <Btn variant="ghost" size="sm" onClick={() => setStep(1)}>← חזרה</Btn>
-              <Btn variant="primary" full loading={loading} onClick={doPreview} disabled={!destValue.trim()}>תצוגה מקדימה →</Btn>
+              <Btn variant="primary" full loading={loading} onClick={doPreview} disabled={!destValue.trim() || !pageId || !adAccountId}>תצוגה מקדימה →</Btn>
             </div>
           </Card>
         </div>

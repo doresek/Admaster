@@ -17,14 +17,14 @@ export async function POST(req: NextRequest) {
     if (!rl.ok) return NextResponse.json({ error: 'יותר מדי בקשות, נסה שוב בעוד מעט' }, { status: 429 });
 
     const body = await req.json();
-    const { clientId, approvalId, headline, primaryText, cta, adFormat } = body;
+    const { clientId, approvalId, headline, primaryText, cta, adFormat, pageId, adAccountId } = body;
     const destination = body.destination as Destination;
     if (!clientId || !approvalId || !destination?.type) {
       return NextResponse.json({ error: 'Missing clientId, approvalId or destination' }, { status: 400 });
     }
 
     const [ctx, ad] = await Promise.all([
-      loadMetaClientContext(supabase, clientId, user.id),
+      loadMetaClientContext(supabase, clientId, user.id, { pageId, adAccountId }),
       loadApprovedAd(supabase, approvalId, user.id),
     ]);
     if (!ad.imageUrl) return NextResponse.json({ error: 'למודעה המאושרת אין תמונה' }, { status: 400 });
