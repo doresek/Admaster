@@ -58,7 +58,18 @@ export default function AdsLauncherPage() {
 
   const searchParams = useSearchParams();
 
+  const [activeClient, setActiveClient] = useState<{ name: string; emoji: string } | null>(null);
+
   useEffect(() => { setClientId(readActiveClientFromDocument()); }, []);
+
+  // Resolve the active client's name/emoji for the "ads for <client>" label.
+  useEffect(() => {
+    if (!clientId) { setActiveClient(null); return; }
+    fetch('/api/active-client').then(r => r.json()).then(d => {
+      const c = (d?.clients || []).find((x: any) => x.id === clientId);
+      setActiveClient(c ? { name: c.name, emoji: c.emoji || '🏢' } : null);
+    }).catch(() => {});
+  }, [clientId]);
 
   useEffect(() => {
     if (!clientId) return;
@@ -211,26 +222,34 @@ export default function AdsLauncherPage() {
       {!clientId && <Alert type="amber" className="mb-3">בחר לקוח פעיל בראש המסך כדי להשיק מודעות.</Alert>}
       {error && <Alert type="red" className="mb-3">❌ {error}</Alert>}
 
-      {/* Step 1 — pick approved ad */}
+      {/* Step 1 — pick approved ad (filtered to the active client) */}
       {tab === 'new' && step === 1 && (
         <Card>
-          <CardLabel>1 · בחר מודעה שאושרה על ידי הלקוח</CardLabel>
-          {approved.length === 0 ? (
-            <div className="text-sm text-[#6B8FA8] py-6 text-center">
-              אין מודעות מאושרות עדיין. שלח מודעה לאישור לקוח ממסך האישורים, ואז חזור לכאן.
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 mt-2">
-              {approved.map(a => (
-                <button key={a.id} onClick={() => selectApproval(a)}
-                  className="text-right border border-[#1E2F42] bg-[#162030] rounded-lg p-3 hover:border-[#0A7AFF] transition-all">
-                  {a.content?.image_url && <img src={a.content.image_url} alt="" className="w-full h-28 object-cover rounded mb-2" />}
-                  <div className="text-xs font-bold text-[#D9E8F5] mb-1">{a.title || 'מודעה מאושרת'}</div>
-                  <div className="text-[11px] text-[#6B8FA8] line-clamp-3">{a.content?.text}</div>
-                </button>
-              ))}
-            </div>
-          )}
+          <CardLabel>
+            1 · בחר מודעה מאושרת{activeClient ? ` עבור ${activeClient.emoji} ${activeClient.name}` : ''}
+          </CardLabel>
+          {(() => {
+            const myAds = clientId ? approved.filter(a => a.client_id === clientId) : [];
+            if (!clientId) return <div className="text-sm text-[#6B8FA8] py-6 text-center">בחר לקוח פעיל בראש המסך.</div>;
+            if (myAds.length === 0) return (
+              <div className="text-sm text-[#6B8FA8] py-6 text-center">
+                אין מודעות מאושרות ללקוח הזה. צור מודעה, שלח לאישור הלקוח, ואז חזור לכאן.
+              </div>
+            );
+            return (
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                {myAds.map(a => (
+                  <button key={a.id} onClick={() => selectApproval(a)}
+                    className="text-right border border-[#1E2F42] bg-[#162030] rounded-lg p-3 hover:border-[#0A7AFF] transition-all">
+                    {a.content?.image_url && <img src={a.content.image_url} alt="" className="w-full h-28 object-cover rounded mb-2" />}
+                    <div className="text-xs font-bold text-[#D9E8F5] mb-1">{a.title || 'מודעה מאושרת'}</div>
+                    {activeClient && <div className="text-[10px] text-[#3D9FFF] mb-1">{activeClient.emoji} {activeClient.name}</div>}
+                    <div className="text-[11px] text-[#6B8FA8] line-clamp-3">{a.content?.text}</div>
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
         </Card>
       )}
 
