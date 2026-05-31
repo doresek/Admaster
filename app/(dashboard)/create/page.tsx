@@ -2,9 +2,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Card, CardLabel, Chip, Textarea, Btn, OutputBox, Tabs, CopyBtn, CostBadge, Alert, PageHeader, Spinner } from '@/components/ui';
-import { useAI } from '@/lib/hooks/useAI';
 import { FRAMEWORKS, FRAMEWORKS_BY_ID, type FrameworkId } from '@/lib/frameworks';
-import { composeMasterPrompt, parseMasterResponse, isCriticalFailure, type MasterStudioOutput } from '@/lib/master-studio';
+import { MASTER_NOTES_MAX, type MasterV2Output } from '@/lib/master-studio';
 import { ScoreBadge } from '@/components/ScoreBadge';
 import { ScorePanel } from '@/components/ScorePanel';
 import { BoostButton } from '@/components/BoostButton';
@@ -20,7 +19,7 @@ const TONES = ['חם ואישי','מקצועי','חסידי','דחיפות','ס�
 const TYPES = ['הצגת מוצר','מבצע','בניית אמון','שאלה לקהל','טיפ מקצועי'];
 const HOOKS = ['שאלה פרובוקטיבית','עובדה מפתיעה','סיפור אישי','הצעה חסרת תחרות','אזהרה'];
 
-const MASTER_NOTES_MAX = 2000;
+const STAGE_LABELS = ['', 'מנתח קהל ובוחר 3 משווקים…', '3 משווקים כותבים + השופט בוחר…', 'משייף את הזוכה…'];
 
 export default function CreatePage() {
   const [plt,  setPlt]   = useState('facebook');
@@ -35,14 +34,16 @@ export default function CreatePage() {
   const [masterNotes, setMasterNotes] = useState('');
 
   const [tab,  setTab]   = useState('post');
-  const [out,  setOut]   = useState<MasterStudioOutput | null>(null);
+  const [out,  setOut]   = useState<MasterV2Output | null>(null);
   const [revealOpen, setRevealOpen] = useState(true);
 
   const [score, setScore]               = useState<(ScoreResult & { score_id: string; iteration: number; max: number }) | null>(null);
   const [showPanel, setShowPanel]       = useState(false);
   const [scoreLoading, setScoreLoading] = useState(false);
 
-  const { call, loading, error } = useAI();
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState<string | null>(null);
+  const [stage,   setStage]   = useState<0 | 1 | 2 | 3>(0); // 0 idle, 1 strategist, 2 creators+judge, 3 editor
   const pLabel = PLATFORMS.find(p => p.id === plt)?.l ?? plt;
 
   async function fetchScore(copy: string, sourceId?: string) {
@@ -68,27 +69,37 @@ export default function CreatePage() {
 
   async function generate() {
     if (!brief.trim()) return;
-    const system = composeMasterPrompt({
-      brief,
-      platform:    pLabel,
-      tone,
-      type,
-      framework:   fwOverride ?? undefined,
-      hook:        hookOverride ?? undefined,
-      masterNotes: masterNotes.slice(0, MASTER_NOTES_MAX),
-    });
-    const text = await call('master_post', system, `בריף: ${brief}`, 2500, plt);
-    if (!text) return;
-    const parsed = parseMasterResponse(text);
-    if (isCriticalFailure(parsed)) {
-      // Show as soft error — the API already deducted credits.
-      // (Auto-refund is best implemented server-side in a follow-up.)
-      console.warn('[create] critical tags missing in response');
+    setLoading(true); setStage(1); setError(null); setOut(null); setScore(null);
+    // Optimistic stage ticker (no SSE in v1): advance the label on a timer.
+    const t1 = setTimeout(() => setStage(2), 12_000);
+    const t2 = setTimeout(() => setStage(3), 75_000);
+    try {
+      const res = await fetch('/api/ai/master', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brief,
+          masterNotes: masterNotes.slice(0, MASTER_NOTES_MAX),
+          platform:    pLabel,
+          tone,
+          type,
+          framework:   fwOverride ?? undefined,
+          hook:        hookOverride ?? undefined,
+          locale:      'he',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? 'שגיאה ביצירה — נסה שוב'); return; }
+      const output = data as MasterV2Output;
+      setOut(output);
+      if (output.winner?.draft?.post) fetchScore(output.winner.draft.post);
+      setTab('post');
+      setRevealOpen(true);
+    } catch {
+      setError('שגיאת רשת — נסה שוב');
+    } finally {
+      clearTimeout(t1); clearTimeout(t2); setLoading(false); setStage(0);
     }
-    setOut(parsed);
-    if (parsed?.post) fetchScore(parsed.post);
-    setTab('post');
-    setRevealOpen(true);
   }
 
   const TABS = [
@@ -102,7 +113,7 @@ export default function CreatePage() {
   return (
     <div>
       <PageHeader eyebrow="יצירה" title="צור פוסט" sub="מבריף קצר לפוסט מקצועי"
-        right={<CostBadge cost={4} />} />
+        right={<CostBadge cost={6} />} />
 
       <div className="grid grid-cols-2 gap-4">
         {/* Left — settings */}
@@ -190,69 +201,91 @@ export default function CreatePage() {
         <div>
           {out ? (
             <>
-              {(out.avatar || out.marketer) && (
-                <Card className="mb-3" style={{ borderColor: '#2A3E66' }}>
-                  <button
-                    onClick={() => setRevealOpen(o => !o)}
-                    className="w-full flex items-center justify-between text-right"
-                  >
-                    <span className="text-[13px] font-semibold text-[#D9E8F5] flex items-center gap-2">
-                      🧠 Why this works
-                    </span>
-                    <span className="text-[#6B8FA8] text-xs">{revealOpen ? '▾' : '▸'}</span>
-                  </button>
+              <Card className="mb-3" style={{ borderColor: '#2A3E66' }}>
+                <button
+                  onClick={() => setRevealOpen(o => !o)}
+                  className="w-full flex items-center justify-between text-right"
+                >
+                  <span className="text-[13px] font-semibold text-[#D9E8F5] flex items-center gap-2">
+                    🧠 למה זה עובד
+                  </span>
+                  <span className="text-[#6B8FA8] text-xs">{revealOpen ? '▾' : '▸'}</span>
+                </button>
 
-                  {revealOpen && (
-                    <div className="mt-3 space-y-3 text-[12px] leading-relaxed">
-                      {out.avatar && (
-                        <div>
-                          <div className="text-[11px] font-bold text-[#6B8FA8] uppercase tracking-wider mb-1">👤 אווטאר</div>
-                          <div className="space-y-0.5 text-[#D9E8F5]">
-                            {out.avatar.persona         && <div><span className="text-[#6B8FA8]">פרסונה:</span> {out.avatar.persona}</div>}
-                            {out.avatar.fears           && <div><span className="text-[#6B8FA8]">פחדים:</span> {out.avatar.fears}</div>}
-                            {out.avatar.desires         && <div><span className="text-[#6B8FA8]">רצונות:</span> {out.avatar.desires}</div>}
-                            {out.avatar.awareness_level && <div><span className="text-[#6B8FA8]">Awareness:</span> {out.avatar.awareness_level}</div>}
-                            {out.avatar.objections      && <div><span className="text-[#6B8FA8]">התנגדויות:</span> {out.avatar.objections}</div>}
-                          </div>
-                        </div>
-                      )}
-
-                      {out.marketer && (
-                        <div className="border-t border-[#1E2F42] pt-2">
-                          <div className="text-[11px] font-bold text-[#6B8FA8] uppercase tracking-wider mb-1">🎯 משווק נבחר</div>
-                          <div className="text-[#D9E8F5] flex items-center gap-2">
-                            <span className="text-lg">{out.marketer.emoji}</span>
-                            <span className="font-semibold">{out.marketer.name}</span>
-                          </div>
-                          {out.why && <div className="text-[#6B8FA8] mt-1">{out.why}</div>}
-                        </div>
-                      )}
-
-                      {out.principles.length > 0 && (
-                        <div className="border-t border-[#1E2F42] pt-2">
-                          <div className="text-[11px] font-bold text-[#6B8FA8] uppercase tracking-wider mb-1">📚 עקרונות שיושמו</div>
-                          <ul className="space-y-1 text-[#D9E8F5]">
-                            {out.principles.map((p, i) => (
-                              <li key={i}>
-                                <span className="font-semibold text-[#3D9FFF]">{p.principle}</span>
-                                {p.application && <span className="text-[#6B8FA8]"> → {p.application}</span>}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
+                {revealOpen && (
+                  <div className="mt-3 space-y-3 text-[12px] leading-relaxed">
+                    {/* Winning marketer + score + boosted badge */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xl">{out.winner.marketer.emoji}</span>
+                      <span className="font-semibold text-[#D9E8F5]">{out.winner.marketer.name}</span>
+                      <span className="mr-auto text-[11px] font-semibold rounded-full bg-[#0A7AFF] text-white px-2.5 py-0.5">
+                        ציון {out.winner.score}
+                      </span>
+                      {out.boosted && (
+                        <span className="text-[11px] font-semibold rounded-full bg-emerald-500 text-white px-2.5 py-0.5">
+                          שופר ✨
+                        </span>
                       )}
                     </div>
-                  )}
-                </Card>
-              )}
+
+                    {/* Runner-ups */}
+                    {out.marketers.filter(m => m.id !== out.winner.marketer.id).length > 0 && (
+                      <p className="text-[11px] text-[#6B8FA8]">
+                        התחרה מול:{' '}
+                        {out.marketers
+                          .filter(m => m.id !== out.winner.marketer.id)
+                          .map(m => `${m.emoji} ${m.name}`)
+                          .join(' · ')}
+                      </p>
+                    )}
+
+                    {/* Judge rationale */}
+                    {out.judgeRationale && (
+                      <div className="border-t border-[#1E2F42] pt-2">
+                        <div className="text-[11px] font-bold text-[#6B8FA8] uppercase tracking-wider mb-1">⚖️ למה השופט בחר בזה</div>
+                        <p className="text-[#D9E8F5]">{out.judgeRationale}</p>
+                      </div>
+                    )}
+
+                    {/* Principles applied (from the winning draft) */}
+                    {out.winner.draft.principles.length > 0 && (
+                      <div className="border-t border-[#1E2F42] pt-2">
+                        <div className="text-[11px] font-bold text-[#6B8FA8] uppercase tracking-wider mb-1">📚 עקרונות שיושמו</div>
+                        <ul className="space-y-1 text-[#D9E8F5]">
+                          {out.winner.draft.principles.map((p, i) => (
+                            <li key={i}>
+                              <span className="font-semibold text-[#3D9FFF]">{p.principle}</span>
+                              {p.application && <span className="text-[#6B8FA8]"> → {p.application}</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Collapsible avatar profile */}
+                    {out.avatar && (
+                      <details className="border-t border-[#1E2F42] pt-2">
+                        <summary className="cursor-pointer text-[11px] font-bold text-[#6B8FA8] uppercase tracking-wider">👤 פרופיל האווטאר</summary>
+                        <div className="mt-2 space-y-0.5 text-[#D9E8F5]">
+                          {out.avatar.persona         && <div><span className="text-[#6B8FA8]">פרסונה:</span> {out.avatar.persona}</div>}
+                          {out.avatar.fears           && <div><span className="text-[#6B8FA8]">פחדים:</span> {out.avatar.fears}</div>}
+                          {out.avatar.desires         && <div><span className="text-[#6B8FA8]">רצונות:</span> {out.avatar.desires}</div>}
+                          {out.avatar.awareness_level && <div><span className="text-[#6B8FA8]">מודעות:</span> {out.avatar.awareness_level}</div>}
+                          {out.avatar.objections      && <div><span className="text-[#6B8FA8]">התנגדויות:</span> {out.avatar.objections}</div>}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                )}
+              </Card>
 
               <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
               {tab === 'post' && (
                 <>
-                  <OutputBox text={out.post} />
+                  <OutputBox text={out.winner.draft.post} />
                   <div className="flex gap-2 mt-2">
-                    <CopyBtn text={out.post + '\n\n' + out.hashtags.join(' ')} />
+                    <CopyBtn text={out.winner.draft.post + '\n\n' + out.winner.draft.hashtags.join(' ')} />
                     <Btn variant="ghost" size="sm" onClick={generate} disabled={loading}>🔄 שוב</Btn>
                   </div>
                   {(score || scoreLoading) && (
@@ -267,7 +300,7 @@ export default function CreatePage() {
                               iteration={score.iteration}
                               max={score.max}
                               onBoosted={(b) => {
-                                setOut(prev => prev ? { ...prev, post: b.copy } : prev);
+                                setOut(prev => prev ? { ...prev, winner: { ...prev.winner, draft: { ...prev.winner.draft, post: b.copy } } } : prev);
                                 setScore(prev => prev ? { ...prev, score: b.score, band: b.band, score_id: b.score_id, iteration: b.iteration, max: b.max } : prev);
                               }}
                             />
@@ -286,8 +319,8 @@ export default function CreatePage() {
 
               {tab === 'wa' && (
                 <>
-                  <OutputBox text={out.whatsapp} />
-                  <CopyBtn text={out.whatsapp} className="mt-2" />
+                  <OutputBox text={out.winner.draft.whatsapp} />
+                  <CopyBtn text={out.winner.draft.whatsapp} className="mt-2" />
                 </>
               )}
 
@@ -295,31 +328,44 @@ export default function CreatePage() {
                 <>
                   <Card className="bg-[#162030]">
                     <CardLabel>Prompt לתמונה</CardLabel>
-                    <div className="text-sm leading-relaxed" dir="ltr" style={{ textAlign: 'left' }}>{out.image}</div>
+                    <div className="text-sm leading-relaxed" dir="ltr" style={{ textAlign: 'left' }}>{out.winner.draft.image}</div>
                   </Card>
                   <div className="flex gap-2 mt-2">
                     <Link
-                      href={`/images?prompt=${encodeURIComponent(out.image.slice(0, 2000))}`}
+                      href={`/images?prompt=${encodeURIComponent(out.winner.draft.image.slice(0, 2000))}`}
                       className="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold rounded-lg bg-[#0A7AFF] hover:bg-[#3D9FFF] text-white shadow-[0_4px_14px_rgba(10,122,255,0.3)] transition-colors"
                     >
                       🎨 פתח במחולל התמונות (3⚡)
                     </Link>
-                    <CopyBtn text={out.image} label="📋 העתק prompt" />
+                    <CopyBtn text={out.winner.draft.image} label="📋 העתק prompt" />
                   </div>
                 </>
               )}
 
               {tab === 'hashtags' && (
                 <div className="flex flex-wrap gap-2">
-                  {out.hashtags.map((h, i) => (
+                  {out.winner.draft.hashtags.map((h, i) => (
                     <span key={i} className="bg-[#0A7AFF]/10 border border-[#0A7AFF]/20 text-[#3D9FFF] px-3 py-1 rounded-full text-sm font-medium">{h}</span>
                   ))}
-                  <CopyBtn text={out.hashtags.join(' ')} className="mt-2 w-full" />
+                  <CopyBtn text={out.winner.draft.hashtags.join(' ')} className="mt-2 w-full" />
                 </div>
               )}
 
-              {tab === 'tips' && <OutputBox text={out.tips} className="text-sm" />}
+              {tab === 'tips' && <OutputBox text={out.winner.draft.tips} className="text-sm" />}
             </>
+          ) : loading ? (
+            <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#2A4158] rounded-xl text-[#6B8FA8] gap-4">
+              <Spinner size={28} />
+              <span className="text-sm font-medium text-[#D9E8F5]">{STAGE_LABELS[stage]}</span>
+              <div className="flex items-center gap-2">
+                {[1, 2, 3].map(s => (
+                  <span
+                    key={s}
+                    className={`h-1.5 w-8 rounded-full transition-colors ${stage >= s ? 'bg-[#0A7AFF]' : 'bg-[#1E2F42]'}`}
+                  />
+                ))}
+              </div>
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
               <span className="text-4xl mb-3 opacity-30">✨</span>
