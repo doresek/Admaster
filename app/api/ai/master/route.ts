@@ -62,41 +62,61 @@ export async function POST(req: NextRequest) {
 
   const input: MasterStudioInput = { brief, masterNotes, platform, tone, type, framework, hook, locale };
 
-  let result;
-  try {
-    result = await runMasterPipeline(input, run);
-  } catch (e) {
-    await refundCredits(supabase, user.id, 'master_post', deduct.cost);
-    return NextResponse.json(
-      { error: 'נכשל ביצירה — נסה שוב', detail: String(e).slice(0, 200) },
-      { status: 502 }
-    );
-  }
+  // Stream the run as newline-delimited JSON:
+  //   {"type":"stage","stage":"strategist"|"creators"|"judge"|"editor"}   (one per stage as it begins)
+  //   {"type":"result", ...MasterV2Output, "credits": <number>}            (on success)
+  //   {"type":"error","error":"...","reason"?:"..."}                       (on failure; credits already refunded)
+  // Pre-stream guards above (401/429/400/402) still return plain JSON.
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'));
+      try {
+        const result = await runMasterPipeline(input, run, {
+          onStage: (stage) => send({ type: 'stage', stage }),
+        });
 
-  if (!result.ok) {
-    await refundCredits(supabase, user.id, 'master_post', deduct.cost);
-    return NextResponse.json({ error: 'תוצאה חלקית — נסה שוב', reason: result.reason }, { status: 502 });
-  }
+        if (!result.ok) {
+          await refundCredits(supabase, user.id, 'master_post', deduct.cost);
+          send({ type: 'error', error: 'תוצאה חלקית — נסה שוב', reason: result.reason });
+          return;
+        }
 
-  // Persist for history/analytics (best-effort; do not fail the request on insert error).
-  const out = result.output;
-  const { error: insertErr } = await supabase.from('generated_content').insert({
-    user_id:   user.id,
-    client_id: activeClientId ?? null,
-    type:      'master_post',
-    platform:  platform ?? null,
-    input:     { brief: brief.substring(0, 500) },
-    output: {
-      post:      out.winner.draft.post.substring(0, 2000),
-      marketer:  out.winner.marketer,
-      score:     out.winner.score,
-      boosted:   out.boosted,
-      avatar:    out.avatar,
-      scores:    out.scores,
-      why:       out.judgeRationale,
+        // Persist for history/analytics (best-effort; never fail the run on insert error).
+        const out = result.output;
+        const { error: insertErr } = await supabase.from('generated_content').insert({
+          user_id:   user.id,
+          client_id: activeClientId ?? null,
+          type:      'master_post',
+          platform:  platform ?? null,
+          input:     { brief: brief.substring(0, 500) },
+          output: {
+            post:     out.winner.draft.post.substring(0, 2000),
+            marketer: out.winner.marketer,
+            score:    out.winner.score,
+            boosted:  out.boosted,
+            avatar:   out.avatar,
+            scores:   out.scores,
+            why:      out.judgeRationale,
+          },
+        });
+        if (insertErr) console.error('[master route] insert failed:', insertErr.message);
+
+        send({ type: 'result', ...out, credits: deduct.credits });
+      } catch (e) {
+        await refundCredits(supabase, user.id, 'master_post', deduct.cost);
+        send({ type: 'error', error: 'נכשל ביצירה — נסה שוב', detail: String(e).slice(0, 200) });
+      } finally {
+        controller.close();
+      }
     },
   });
-  if (insertErr) console.error('[master route] insert failed:', insertErr.message);
 
-  return NextResponse.json({ ...out, credits: deduct.credits });
+  return new Response(stream, {
+    headers: {
+      'Content-Type':  'application/x-ndjson; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+    },
+  });
 }

@@ -9,6 +9,14 @@ import { type MasterStudioInput, type MasterV2Output } from './index';
 /** Calls Claude with a (system, user) prompt and returns the raw text. */
 export type StageRunner = (system: string, user: string, maxTokens: number) => Promise<string>;
 
+/** Pipeline stages, in execution order. Emitted via onStage as each one begins. */
+export type PipelineStage = 'strategist' | 'creators' | 'judge' | 'editor';
+
+export interface PipelineOpts {
+  /** Fired when each stage STARTS — used to stream live progress to the UI. */
+  onStage?: (stage: PipelineStage) => void;
+}
+
 export type PipelineResult =
   | { ok: true; output: MasterV2Output }
   | { ok: false; reason: 'strategist' | 'creators' | 'judge' };
@@ -16,14 +24,18 @@ export type PipelineResult =
 const BOOST_THRESHOLD = 80;
 
 export async function runMasterPipeline(
-  input: MasterStudioInput, run: StageRunner,
+  input: MasterStudioInput, run: StageRunner, opts: PipelineOpts = {},
 ): Promise<PipelineResult> {
+  const emit = (stage: PipelineStage) => { try { opts.onStage?.(stage); } catch { /* never let UI hooks break the run */ } };
+
   // A. Strategist
+  emit('strategist');
   const sp = composeStrategistPrompt(input);
   const strat = parseStrategist(await run(sp.system, sp.user, 800));
   if (strat.ranked.length === 0) return { ok: false, reason: 'strategist' };
 
   // B. Creators (parallel) — each ranked marketer writes one post.
+  emit('creators');
   const drafts = await Promise.all(strat.ranked.map(async (m) => {
     const marketer = (MARKETERS_BY_ID as Record<string, Marketer>)[m.id as string];
     if (!marketer) return null;
@@ -38,6 +50,7 @@ export async function runMasterPipeline(
   if (survivors.length < 2) return { ok: false, reason: 'creators' };
 
   // C. Judge
+  emit('judge');
   const jp = composeJudgePrompt(survivors, input);
   const judge = parseJudge(await run(jp.system, jp.user, 1000), survivors.length);
   if (!judge) return { ok: false, reason: 'judge' };
@@ -49,6 +62,7 @@ export async function runMasterPipeline(
 
   // D. Editor (conditional)
   if (winnerScore < BOOST_THRESHOLD) {
+    emit('editor');
     try {
       const scoreObj = judge.scores.find(s => s.index === winnerIdx)!;
       const ep = composeEditorPrompt(winnerDraft, survivors[winnerIdx].marketer, scoreObj, input);

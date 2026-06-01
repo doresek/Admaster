@@ -68,4 +68,21 @@ describe('runMasterPipeline', () => {
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.reason).toBe('judge');
   });
+
+  it('emits onStage in order; no editor stage when score >= 80', async () => {
+    const stages: string[] = [];
+    await runMasterPipeline(input, runner({ judge: judge(0, 90) }) as any, { onStage: s => stages.push(s) });
+    expect(stages).toEqual(['strategist', 'creators', 'judge']);
+  });
+
+  it('emits the editor stage when score < 80', async () => {
+    const stages: string[] = [];
+    await runMasterPipeline(input, runner({ judge: judge(0, 64), editor: POST('x') }) as any, { onStage: s => stages.push(s) });
+    expect(stages).toEqual(['strategist', 'creators', 'judge', 'editor']);
+  });
+
+  it('a throwing onStage never breaks the run', async () => {
+    const res = await runMasterPipeline(input, runner({ judge: judge(1, 92) }) as any, { onStage: () => { throw new Error('boom'); } });
+    expect(res.ok).toBe(true);
+  });
 });

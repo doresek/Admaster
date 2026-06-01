@@ -70,9 +70,8 @@ export default function CreatePage() {
   async function generate() {
     if (!brief.trim()) return;
     setLoading(true); setStage(1); setError(null); setOut(null); setScore(null);
-    // Optimistic stage ticker (no SSE in v1): advance the label on a timer.
-    const t1 = setTimeout(() => setStage(2), 12_000);
-    const t2 = setTimeout(() => setStage(3), 75_000);
+    // Real progress: the route streams NDJSON stage events as each stage begins.
+    const STAGE_NUM: Record<string, 1 | 2 | 3> = { strategist: 1, creators: 2, judge: 2, editor: 3 };
     try {
       const res = await fetch('/api/ai/master', {
         method:  'POST',
@@ -88,17 +87,46 @@ export default function CreatePage() {
           locale:      'he',
         }),
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ?? 'שגיאה ביצירה — נסה שוב'); return; }
-      const output = data as MasterV2Output;
-      setOut(output);
-      if (output.winner?.draft?.post) fetchScore(output.winner.draft.post);
-      setTab('post');
-      setRevealOpen(true);
+
+      // Pre-stream guards (401/429/400/402) return plain JSON, not a stream.
+      if (!res.ok || !res.body) {
+        let msg = 'שגיאה ביצירה — נסה שוב';
+        try { msg = (await res.json()).error ?? msg; } catch { /* keep default */ }
+        setError(msg);
+        return;
+      }
+
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '', streamDone = false;
+      while (!streamDone) {
+        const { value, done } = await reader.read();
+        streamDone = done;
+        buf += decoder.decode(value ?? new Uint8Array(), { stream: !streamDone });
+        let nl: number;
+        while ((nl = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (!line) continue;
+          let evt: any;
+          try { evt = JSON.parse(line); } catch { continue; }
+          if (evt.type === 'stage') {
+            setStage(STAGE_NUM[evt.stage] ?? 2);
+          } else if (evt.type === 'result') {
+            const { type: _t, credits: _c, ...output } = evt;
+            setOut(output as MasterV2Output);
+            if (output.winner?.draft?.post) fetchScore(output.winner.draft.post);
+            setTab('post');
+            setRevealOpen(true);
+          } else if (evt.type === 'error') {
+            setError(evt.error ?? 'שגיאה ביצירה — נסה שוב');
+          }
+        }
+      }
     } catch {
       setError('שגיאת רשת — נסה שוב');
     } finally {
-      clearTimeout(t1); clearTimeout(t2); setLoading(false); setStage(0);
+      setLoading(false); setStage(0);
     }
   }
 
