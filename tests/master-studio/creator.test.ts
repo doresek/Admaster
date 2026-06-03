@@ -14,6 +14,11 @@ describe('composeCreatorPrompt', () => {
     expect(system).toContain('[POST]');
     expect(user).toContain('קורס יוגה');
   });
+  it('instructs the model to ground in the brief and not fabricate facts', () => {
+    const { system } = composeCreatorPrompt({ brief: 'x', platform: 'FB' }, MARKETERS_BY_ID.halbert, avatar);
+    expect(system).toContain('מקור האמת');
+    expect(system).toContain('אל תמציא');   // no inventing products/prices/etc.
+  });
   it('forces framework when locked', () => {
     const { system } = composeCreatorPrompt(
       { brief: 'x', platform: 'FB', framework: 'pas' }, MARKETERS_BY_ID.halbert, avatar);

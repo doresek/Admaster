@@ -12,6 +12,9 @@ export function composeStrategistPrompt(input: MasterStudioInput): { system: str
 
 כתוב ${localeWord(input.locale)}.
 
+═══ מקור האמת (חובה) ═══
+גזור את האווטאר אך ורק מה-CLIENT BRIEF וה-BRAND DNA שלמעלה (אם הופיעו) ומהבריף שלמטה. אל תמציא קהל, כאבים, מוצר או פרטים שלא נמסרו — אם משהו חסר, הסק בזהירות מתוך הנתון בלבד.
+
 ═══ MASTER NOTES (🔒 עדיפות עליונה) ═══
 ${notes || '— אין —'}
 

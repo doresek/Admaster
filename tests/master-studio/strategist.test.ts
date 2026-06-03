@@ -13,6 +13,11 @@ describe('composeStrategistPrompt', () => {
     expect(system).toContain('RANKED_MARKETERS');         // contract present
     expect(system).toContain('AVATAR_PROFILE');
   });
+  it('instructs the avatar to be derived from the brief, not invented', () => {
+    const { system } = composeStrategistPrompt({ brief: 'x', platform: 'FB' });
+    expect(system).toContain('מקור האמת');
+    expect(system).toContain('אל תמציא');
+  });
 });
 
 describe('parseStrategist', () => {
