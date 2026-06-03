@@ -6,6 +6,7 @@ export default function PublicBriefPage({ params }: { params: { token: string } 
   const { token } = params;
 
   const [values, setValues] = useState<Record<string, string>>({});
+  const [hydrated, setHydrated] = useState(false); // existing answers loaded
   const [step,   setStep]   = useState(0);
   const [saved,  setSaved]  = useState(false);   // "נשמר אוטומטית ✓"
   const [done,   setDone]   = useState(false);   // success state after סיום
@@ -16,6 +17,27 @@ export default function PublicBriefPage({ params }: { params: { token: string } 
   const cur         = BRIEFING_TEMPLATE[step];
   const completion = briefCompletion(values);
   const canAdvance = isStepComplete(cur, values);
+
+  // ── Hydrate from existing answers on mount (resume, don't blank) ──
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/briefs/by-token?token=${encodeURIComponent(token)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled && data?.values && typeof data.values === 'object') {
+            setValues(data.values as Record<string, string>);
+          }
+        }
+      } catch {
+        // Non-fatal: fall back to an empty form.
+      } finally {
+        if (!cancelled) setHydrated(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
 
   // ── Autosave (POST { token, values }) ─────────────────────────
   const save = useCallback(async (): Promise<boolean> => {
@@ -67,6 +89,15 @@ export default function PublicBriefPage({ params }: { params: { token: string } 
     setSubmitting(false);
     if (ok) setDone(true);
   }
+
+  // ── Loading state (until existing answers are hydrated) ───────
+  if (!hydrated) return (
+    <Shell>
+      <div className="flex items-center justify-center py-12">
+        <div className="w-6 h-6 border-2 border-[#1E2F42] border-t-[#0A7AFF] rounded-full animate-spin" />
+      </div>
+    </Shell>
+  );
 
   // ── Success state ─────────────────────────────────────────────
   if (done) return (
