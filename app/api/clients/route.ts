@@ -12,9 +12,9 @@ export async function GET() {
 
     const { data: clients, error } = await supabase
       .from('meta_clients')
-      .select('id, name, emoji, email, phone, company, notes, status, industry, created_at')
+      .select('id, name, emoji, email, phone, company, notes, status, industry, connected_at')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+      .order('connected_at', { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
         emoji:   body.emoji || '🏢',
         token:   null,
       })
-      .select('id, name, emoji, email, phone, company, notes, status, industry, created_at')
+      .select('id, name, emoji, email, phone, company, notes, status, industry, connected_at')
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
