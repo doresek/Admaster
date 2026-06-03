@@ -10,22 +10,32 @@ import type { BriefValues } from '@/types';
 //   { token, values }  — autosave-friendly per-client token path (upsert)
 export async function POST(req: NextRequest) {
   try {
-    // Public endpoint → rate-limit by IP.
-    // Autosave hits this often, so allow a generous burst.
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown';
-    const rl = checkRateLimit(`brief-submit:${ip}`, { max: 120, windowMs: 60 * 60_000 });
+
+    const body = await req.json() as { code?: string; token?: string; values: BriefValues };
+    const { values } = body;
+    // Treat empty strings as absent.
+    const token = body.token?.trim() || '';
+    const code  = body.code?.trim()  || '';
+
+    // Require a non-empty token OR code up front (don't fall through to a 500).
+    if (!token && !code) {
+      return NextResponse.json({ error: 'Missing token or code' }, { status: 400 });
+    }
+    if (!values) {
+      return NextResponse.json({ error: 'Missing values' }, { status: 400 });
+    }
+
+    // Split rate limits: the token autosave path is generous; the legacy code
+    // path (no expiry → brute-force surface) is gated tightly. Distinct keys.
+    const rl = token
+      ? checkRateLimit(`brief-token:${ip}`, { max: 120, windowMs: 60 * 60_000 })
+      : checkRateLimit(`brief-code:${ip}`,  { max: 15,  windowMs: 60 * 60_000 });
     if (!rl.ok) {
       return NextResponse.json(
         { error: 'יותר מדי שליחות — נסה שוב מאוחר יותר', retryAfter: rl.retryAfter },
         { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } }
       );
-    }
-
-    const body = await req.json() as { code?: string; token?: string; values: BriefValues };
-    const { code, token, values } = body;
-
-    if (!values || (!code && !token)) {
-      return NextResponse.json({ error: 'Missing token/code or values' }, { status: 400 });
     }
 
     const admin = createAdminClient();
@@ -47,26 +57,52 @@ export async function POST(req: NextRequest) {
       }
 
       const completion = briefCompletion(values as Record<string, unknown>);
-      const status     = completion >= 100 ? 'complete' : 'new';
 
-      // Find an existing brief for this client (or by code) to update in place.
-      let existing: { id: string } | null = null;
       if (briefCode.client_id) {
-        const { data } = await admin
+        // Per-client row: read current status once (never downgrade) then do a
+        // single race-safe upsert keyed by client_id (autosave is concurrent).
+        const { data: existingBrief } = await admin
           .from('briefs')
-          .select('id')
+          .select('status')
           .eq('client_id', briefCode.client_id)
           .maybeSingle();
-        existing = data ?? null;
-      }
-      if (!existing) {
-        const { data } = await admin
+        const prev = existingBrief?.status as string | undefined;
+        const status =
+          completion >= 100       ? 'complete'
+          : prev === 'complete'   ? 'complete'
+          : prev === 'has_avatar' ? 'has_avatar'
+          :                         'new';
+
+        const { error } = await admin
           .from('briefs')
-          .select('id')
-          .eq('code', briefCode.code)
-          .maybeSingle();
-        existing = data ?? null;
+          .upsert(
+            {
+              client_id:  briefCode.client_id,
+              values,
+              status,
+              updated_at: new Date().toISOString(),
+              code:       briefCode.code,
+              user_id:    briefCode.user_id,
+            },
+            { onConflict: 'client_id' }
+          );
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+        return NextResponse.json({ ok: true, completion });
       }
+
+      // Legacy code-only token (no client_id): fall back to find-by-code.
+      const { data: existing } = await admin
+        .from('briefs')
+        .select('id, status')
+        .eq('code', briefCode.code)
+        .maybeSingle();
+      const prev = existing?.status as string | undefined;
+      const status =
+        completion >= 100       ? 'complete'
+        : prev === 'complete'   ? 'complete'
+        : prev === 'has_avatar' ? 'has_avatar'
+        :                         'new';
 
       if (existing) {
         const { error } = await admin
@@ -78,9 +114,8 @@ export async function POST(req: NextRequest) {
         const { error } = await admin
           .from('briefs')
           .insert({
-            code:      briefCode.code,
-            user_id:   briefCode.user_id,
-            client_id: briefCode.client_id,
+            code:    briefCode.code,
+            user_id: briefCode.user_id,
             values,
             status,
           });
