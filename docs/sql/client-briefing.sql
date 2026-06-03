@@ -23,4 +23,13 @@ create index if not exists idx_brief_codes_token on public.brief_codes(token);
 
 -- Public fill (no auth) reads brief_codes by token via the service role in
 -- /api/briefs/submit, so no new RLS policy is required (service role bypasses RLS).
+
+-- 3) CRM-style clients (auto-ads parity): a client can exist WITHOUT a Meta
+--    connection, and carries contact details. meta_clients was Meta-only
+--    (token NOT NULL, no contacts), so relax + extend.
+alter table public.meta_clients alter column token drop not null;
+alter table public.meta_clients add column if not exists email   text;
+alter table public.meta_clients add column if not exists phone   text;
+alter table public.meta_clients add column if not exists company text;
+alter table public.meta_clients add column if not exists notes   text;
 -- ============================================================
