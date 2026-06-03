@@ -8,46 +8,56 @@ import { PLAN_CONFIG } from '@/types';
 import { useI18n, LOCALES } from '@/lib/i18n-context';
 import { useState, useEffect } from 'react';
 
-type NavItem =
-  | { id: string; href: string; icon: string; labelKey: keyof ReturnType<typeof useI18n>['t']['nav']; cost?: number; badge?: 'new' | 'pro' }
-  | { sec: keyof ReturnType<typeof useI18n>['t']['nav'] };
+type NavLink = { id: string; href: string; icon: string; label: string; cost?: number; badge?: 'pro' };
+type NavSec  = { sec: string; collapsible?: boolean };
+type NavItem = NavLink | NavSec;
 
+// Beginner-first information architecture: Cockpit is the home; the day-to-day
+// flow is up top; power tools live under a collapsed "מתקדם" group so a newcomer
+// sees a handful of items, not 35.
 const NAV: NavItem[] = [
-  { id:'dash',       href:'/',            icon:'⚡', labelKey:'dashboard' },
-  { id:'brand',      href:'/brand',       icon:'🧬', labelKey:'brand' },
-  { sec:'sec_analyze' },
-  { id:'analytics',  href:'/analytics',   icon:'📈', labelKey:'analytics',  badge:'new' },
-  { id:'competitor', href:'/competitor',  icon:'🔍', labelKey:'competitor', badge:'new' },
-  { id:'reports',    href:'/reports',     icon:'📋', labelKey:'reports',    badge:'new' },
-  { sec:'sec_create' },
-  { id:'quick',      href:'/quick-campaign', icon:'🚀', labelKey:'quick_campaign', cost:15, badge:'new' },
-  { id:'create',     href:'/create',      icon:'✨', labelKey:'create',     cost:3 },
-  { id:'images',     href:'/images',      icon:'🎨', labelKey:'images',     cost:5, badge:'new' },
-  { id:'analyze',    href:'/analyze',     icon:'🔬', labelKey:'analyze',    cost:5 },
-  { id:'variations', href:'/variations',  icon:'🔀', labelKey:'variations', cost:8 },
-  { id:'lab',        href:'/lab',         icon:'🧪', labelKey:'lab',        badge:'new' },
-  { id:'refine',     href:'/refine',      icon:'🔁', labelKey:'refine',     cost:4, badge:'new' },
-  { id:'calendar',   href:'/calendar',    icon:'📅', labelKey:'calendar',   cost:3 },
-  { sec:'sec_messages' },
-  { id:'messages',   href:'/messages',    icon:'📧', labelKey:'messages',   cost:3,  badge:'new' },
-  { id:'series',     href:'/series',      icon:'🗓', labelKey:'series',     cost:20, badge:'new' },
-  { sec:'sec_content' },
-  { id:'landing',    href:'/landing-pages', icon:'📄', labelKey:'landing',   badge:'new' },
-  { id:'schedule',   href:'/schedule',    icon:'🗓', labelKey:'schedule',   badge:'new' },
-  { id:'approvals',  href:'/approvals',   icon:'✅', labelKey:'approvals',  badge:'new' },
-  { id:'library',    href:'/library',     icon:'📚', labelKey:'library',    badge:'new' },
-  { id:'history',    href:'/history',     icon:'🕒', labelKey:'history',    badge:'new' },
-  { sec:'sec_meta' },
-  { id:'clients',    href:'/clients',     icon:'👥', labelKey:'clients' },
-  { id:'briefs',     href:'/briefs',      icon:'📝', labelKey:'briefs' },
-  { id:'publish',    href:'/publish',     icon:'📤', labelKey:'publish',    cost:2 },
-  { id:'campaign',   href:'/campaign',    icon:'🚀', labelKey:'campaign',   cost:15 },
-  { id:'pixel',      href:'/pixel',       icon:'📊', labelKey:'pixel',      badge:'new' },
-  { sec:'sec_manage' },
-  { id:'team',       href:'/team',        icon:'👤', labelKey:'team',       badge:'new' },
-  { id:'agency',     href:'/agency',      icon:'🏢', labelKey:'agency',     badge:'pro' },
-  { id:'support',    href:'/support',     icon:'🎫', labelKey:'support',    badge:'new' },
-  { id:'credits',    href:'/credits',     icon:'💎', labelKey:'credits' },
+  { id:'cockpit', href:'/cockpit', icon:'🚀', label:'קוקפיט' },
+  { id:'dash',    href:'/',        icon:'⚡', label:'לוח בקרה' },
+
+  { sec:'עבודה שוטפת' },
+  { id:'clients',   href:'/clients',   icon:'👥', label:'לקוחות' },
+  { id:'briefs',    href:'/briefs',    icon:'📝', label:'בריפים' },
+  { id:'approvals', href:'/approvals', icon:'✅', label:'אישורים' },
+  { id:'publish',   href:'/publish',   icon:'📤', label:'פרסום', cost:2 },
+
+  { sec:'יצירה' },
+  { id:'quick',   href:'/quick-campaign', icon:'🚀', label:'קמפיין מהיר', cost:15 },
+  { id:'create',  href:'/create',         icon:'✨', label:'יצירת פוסט',  cost:3 },
+  { id:'images',  href:'/images',         icon:'🎨', label:'תמונות',      cost:5 },
+  { id:'landing', href:'/landing-pages',  icon:'📄', label:'דפי נחיתה' },
+
+  { sec:'שיפור וניתוח' },
+  { id:'analyze',    href:'/analyze',    icon:'🔬', label:'ניתוח מודעה', cost:5 },
+  { id:'variations', href:'/variations', icon:'🔀', label:'וריאציות',    cost:8 },
+  { id:'refine',     href:'/refine',     icon:'🔁', label:'שיפור',       cost:4 },
+  { id:'analytics',  href:'/analytics',  icon:'📈', label:'ביצועים Meta' },
+
+  { sec:'ערוצים' },
+  { id:'messages', href:'/messages', icon:'📧', label:'Email/SMS/WA', cost:3 },
+  { id:'series',   href:'/series',   icon:'🗓', label:'סדרות',        cost:20 },
+  { id:'campaign', href:'/campaign', icon:'🚀', label:'קמפיין Meta',  cost:15 },
+  { id:'pixel',    href:'/pixel',    icon:'📊', label:'Pixel' },
+
+  { sec:'מתקדם', collapsible:true },
+  { id:'lab',        href:'/lab',        icon:'🧪', label:'The Lab' },
+  { id:'competitor', href:'/competitor', icon:'🔍', label:'מחקר מתחרים' },
+  { id:'reports',    href:'/reports',    icon:'📋', label:'דוחות' },
+  { id:'library',    href:'/library',    icon:'📚', label:'ספריית מודעות' },
+  { id:'history',    href:'/history',    icon:'🕒', label:'היסטוריה' },
+  { id:'schedule',   href:'/schedule',   icon:'🗓', label:'לוח תוכן' },
+  { id:'calendar',   href:'/calendar',   icon:'📅', label:'לוח חגים', cost:3 },
+
+  { sec:'ניהול' },
+  { id:'brand',   href:'/brand',   icon:'🧬', label:'Brand DNA' },
+  { id:'team',    href:'/team',    icon:'👤', label:'צוות' },
+  { id:'agency',  href:'/agency',  icon:'🏢', label:'White-Label', badge:'pro' },
+  { id:'credits', href:'/credits', icon:'💎', label:'קרדיטים' },
+  { id:'support', href:'/support', icon:'🎫', label:'תמיכה' },
 ];
 
 interface SidebarProps { name: string; credits: number; plan: Plan; }
@@ -63,6 +73,11 @@ function writeCollapsed(v: boolean) {
   document.cookie = `${COLLAPSE_COOKIE}=${v ? 1 : 0}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
 }
 
+// open all sections by default EXCEPT collapsible ones (e.g. "מתקדם")
+const DEFAULT_OPEN = new Set(
+  NAV.filter((n): n is NavSec => 'sec' in n && !n.collapsible).map((n) => n.sec),
+);
+
 export default function Sidebar({ name, credits, plan }: SidebarProps) {
   const pathname = usePathname();
   const router   = useRouter();
@@ -70,11 +85,19 @@ export default function Sidebar({ name, credits, plan }: SidebarProps) {
   const { t, locale, setLocale } = useI18n();
   const [langOpen, setLangOpen] = useState(false);
   const [collapsed, setCollapsedState] = useState(false);
+  const [openSecs, setOpenSecs] = useState<Set<string>>(DEFAULT_OPEN);
   useEffect(() => { setCollapsedState(readCollapsed()); }, []);
 
   function setCollapsed(v: boolean) {
     writeCollapsed(v);
     setCollapsedState(v);
+  }
+  function toggleSec(label: string) {
+    setOpenSecs((prev) => {
+      const s = new Set(prev);
+      s.has(label) ? s.delete(label) : s.add(label);
+      return s;
+    });
   }
 
   const planConfig = PLAN_CONFIG[plan];
@@ -90,7 +113,6 @@ export default function Sidebar({ name, credits, plan }: SidebarProps) {
     return pathname.startsWith(href);
   }
 
-  // Sidebar side flips based on direction: RTL → right edge; LTR → left edge
   const sideClass = locale === 'en' ? 'left-0 border-r' : 'right-0 border-l';
   const widthClass = collapsed ? 'w-[64px]' : 'w-[230px]';
 
@@ -112,7 +134,7 @@ export default function Sidebar({ name, credits, plan }: SidebarProps) {
         </button>
       </div>
 
-      {/* Quick external links (always visible icons; collapsed-aware) */}
+      {/* Quick external links */}
       <div className={clsx('px-2 py-2 border-b border-[#1E2F42] flex gap-1', collapsed ? 'flex-col' : 'flex-row')}>
         <a href="https://chat.whatsapp.com/" target="_blank" rel="noreferrer"
           title="קהילת WhatsApp"
@@ -127,37 +149,49 @@ export default function Sidebar({ name, credits, plan }: SidebarProps) {
       </div>
 
       <nav className="flex-1 p-1.5">
-        {NAV.map((item, i) => {
-          if ('sec' in item) {
-            if (collapsed) return <div key={i} className="border-t border-[#1E2F42] my-2" />;
-            return <div key={i} className="text-[9px] font-bold text-[#2E4459] uppercase tracking-widest px-2 py-1.5 mt-1">{t.nav[item.sec]}</div>;
-          }
-          const active = isActive(item.href);
-          const label = t.nav[item.labelKey];
-          const badgeText = item.badge === 'new' ? t.common.new : item.badge === 'pro' ? t.common.pro : null;
-          return (
-            <Link key={item.href} href={item.href}
-              title={collapsed ? label : undefined}
-              className={clsx(
-                'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[12.5px] font-medium transition-all mb-0.5',
-                active ? 'bg-[#0A7AFF]/12 text-[#3D9FFF] border border-[#0A7AFF]/18' : 'text-[#6B8FA8] hover:bg-[#162030] hover:text-[#D9E8F5] border border-transparent'
-              )}>
-              <span className={clsx('text-[13px] flex-shrink-0', collapsed ? 'mx-auto' : 'w-4 text-center')}>{item.icon}</span>
-              {!collapsed && <span className="flex-1 truncate">{label}</span>}
-              {!collapsed && item.badge && !active && badgeText && (
-                <span className={clsx('text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0',
-                  item.badge === 'new' ? 'bg-[#059669]/15 text-[#34D399]' :
-                  item.badge === 'pro' ? 'bg-[#6D28D9]/15 text-[#A78BFA]' :
-                  'bg-[#0A7AFF] text-white')}>
-                  {badgeText}
-                </span>
-              )}
-              {!collapsed && 'cost' in item && item.cost !== undefined && !item.badge && !active && (
-                <span className="text-[9px] bg-[#1D2D3E] text-[#6B8FA8] px-1.5 py-0.5 rounded-full flex-shrink-0">{item.cost}⚡</span>
-              )}
-            </Link>
-          );
-        })}
+        {(() => {
+          const out: React.ReactNode[] = [];
+          let hidden = false;
+          NAV.forEach((item, i) => {
+            if ('sec' in item) {
+              const open = openSecs.has(item.sec);
+              hidden = !!item.collapsible && !open;
+              if (collapsed) { out.push(<div key={`s${i}`} className="border-t border-[#1E2F42] my-2" />); return; }
+              if (item.collapsible) {
+                out.push(
+                  <button key={`s${i}`} onClick={() => toggleSec(item.sec)}
+                    className="w-full flex items-center justify-between text-[9px] font-bold text-[#2E4459] hover:text-[#6B8FA8] uppercase tracking-widest px-2 py-1.5 mt-1 transition-colors">
+                    <span>{item.sec}</span><span className="text-[8px]">{open ? '▾' : '▸'}</span>
+                  </button>,
+                );
+              } else {
+                out.push(<div key={`s${i}`} className="text-[9px] font-bold text-[#2E4459] uppercase tracking-widest px-2 py-1.5 mt-1">{item.sec}</div>);
+              }
+              return;
+            }
+            if (hidden) return;
+            const active = isActive(item.href);
+            const badgeText = item.badge === 'pro' ? t.common.pro : null;
+            out.push(
+              <Link key={item.href} href={item.href}
+                title={collapsed ? item.label : undefined}
+                className={clsx(
+                  'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[12.5px] font-medium transition-all mb-0.5',
+                  active ? 'bg-[#0A7AFF]/12 text-[#3D9FFF] border border-[#0A7AFF]/18' : 'text-[#6B8FA8] hover:bg-[#162030] hover:text-[#D9E8F5] border border-transparent',
+                )}>
+                <span className={clsx('text-[13px] flex-shrink-0', collapsed ? 'mx-auto' : 'w-4 text-center')}>{item.icon}</span>
+                {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+                {!collapsed && item.badge === 'pro' && !active && badgeText && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 bg-[#6D28D9]/15 text-[#A78BFA]">{badgeText}</span>
+                )}
+                {!collapsed && item.cost !== undefined && !item.badge && !active && (
+                  <span className="text-[9px] bg-[#1D2D3E] text-[#6B8FA8] px-1.5 py-0.5 rounded-full flex-shrink-0">{item.cost}⚡</span>
+                )}
+              </Link>,
+            );
+          });
+          return out;
+        })()}
       </nav>
 
       <div className="p-2.5 border-t border-[#1E2F42]">
