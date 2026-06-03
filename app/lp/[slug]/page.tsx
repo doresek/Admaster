@@ -12,6 +12,23 @@ interface LPData {
   template: LandingTemplate;
   content:  LandingContent;
   status:   'draft' | 'published' | 'archived';
+  meta_pixel_id?: string | null;
+}
+
+// Inject the Meta Pixel base code + PageView once. Idempotent (guards on window.fbq).
+function injectMetaPixel(pixelId: string) {
+  if (typeof window === 'undefined' || (window as any).fbq) return;
+  /* eslint-disable */
+  // Standard Meta Pixel bootstrap snippet.
+  (function(f:any,b:any,e:string,v:string){
+    if(f.fbq)return; const n:any=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n; n.push=n; n.loaded=!0; n.version='2.0'; n.queue=[];
+    const t=b.createElement(e); t.async=!0; t.src=v;
+    const s=b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t,s);
+  })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+  /* eslint-enable */
+  (window as any).fbq('init', pixelId);
+  (window as any).fbq('track', 'PageView');
 }
 
 function useCountdown(target?: string) {
@@ -103,6 +120,11 @@ export default function PublicLandingPage() {
   const d        = densityFor(design);
   const cd       = useCountdown(c?.countdown_to);
 
+  // Inject the Meta Pixel (PageView) once the page data is loaded.
+  useEffect(() => {
+    if (data?.meta_pixel_id) injectMetaPixel(data.meta_pixel_id);
+  }, [data?.meta_pixel_id]);
+
   // Inject Google Fonts <link> dynamically (once per design)
   useEffect(() => {
     if (!fontPair) return;
@@ -127,6 +149,8 @@ export default function PublicLandingPage() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'שגיאה בשליחה');
+      // Fire the Meta Pixel Lead conversion (if a pixel is attached).
+      if (data.meta_pixel_id && (window as any).fbq) (window as any).fbq('track', 'Lead');
       setSubmitted(true);
     } catch (e: any) {
       setErr(e.message);

@@ -42,6 +42,7 @@ const NAV: NavItem[] = [
   { id:'briefs',     href:'/briefs',      icon:'📝', labelKey:'briefs' },
   { id:'publish',    href:'/publish',     icon:'📤', labelKey:'publish',    cost:2 },
   { id:'campaign',   href:'/campaign',    icon:'🚀', labelKey:'campaign',   cost:15 },
+  { id:'ads_launcher', href:'/ads-launcher', icon:'📣', labelKey:'ads_launcher', cost:15, badge:'new' },
   { id:'pixel',      href:'/pixel',       icon:'📊', labelKey:'pixel',      badge:'new' },
   { sec:'sec_manage' },
   { id:'team',       href:'/team',        icon:'👤', labelKey:'team',       badge:'new' },

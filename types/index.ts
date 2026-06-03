@@ -33,7 +33,10 @@ export type CreditAction =
   | 'recommend'       // AI agent recommendations
   // ── Performance Score (Phase 1) ──────────────
   | 'score'        // predictive performance score on a single copy
-  | 'score_boost'; // rewrite + re-score iteration
+  | 'score_boost'  // rewrite + re-score iteration
+  // ── Meta Ads Launcher ────────────────────────
+  | 'ai_targeting' // AI-suggested Meta targeting + budget for an ad launch
+  | 'ad_insights'; // AI analysis + recommendations on a launched ad's performance
 
 export const CREDIT_COSTS: Record<CreditAction, number> = {
   post:       3,
@@ -65,6 +68,9 @@ export const CREDIT_COSTS: Record<CreditAction, number> = {
   // ── Performance Score (Phase 1) ──────────────
   score:         1,
   score_boost:   1,
+  // ── Meta Ads Launcher ────────────────────────
+  ai_targeting:  2,
+  ad_insights:   2,
 };
 
 export const PLAN_CONFIG = {
@@ -231,4 +237,71 @@ export interface CampaignConfig {
   headline:    string;
   adText:      string;
   cta:         string;
+}
+
+// ── Meta Ads Launcher ─────────────────────────
+export type DestinationType = 'landing_page' | 'external_url' | 'whatsapp' | 'lead_form';
+
+export interface Destination {
+  type:  DestinationType;
+  value: string;   // landing-page slug → built into /lp/{slug}; URL; wa number; or lead_gen_form_id
+  label?: string;  // human label for UI (e.g. landing-page title)
+}
+
+export interface TargetingSuggestion {
+  ageMin:      number;
+  ageMax:      number;
+  genders:     'male' | 'female' | 'all';
+  geo:         { countries: string[]; cities?: string[] };
+  interests:   { id?: string; name: string }[];
+  dailyBudget: number;   // account-currency minor units
+  rationale:   string;   // one paragraph, Hebrew
+}
+
+export interface AdInsights {
+  impressions: number;
+  clicks:      number;
+  spend:       number;   // account currency, major units
+  ctr:         number;   // %
+  cpc:         number;
+  cpm:         number;
+  reach:       number;
+  frequency:   number;
+  results:     number;   // primary action count (leads/link clicks/messaging)
+  costPerResult: number | null;
+}
+
+export interface AdRecommendation {
+  action:   'scale' | 'pause' | 'change_creative' | 'adjust_targeting' | 'adjust_budget' | 'keep';
+  severity: 'high' | 'medium' | 'low';
+  title:    string;   // short Hebrew
+  why:      string;   // Hebrew explanation grounded in the metrics
+}
+
+export interface AdAnalysis {
+  verdict:         'winning' | 'promising' | 'underperforming' | 'too_early';
+  summary:         string;            // one-paragraph Hebrew
+  recommendations: AdRecommendation[];
+}
+
+export interface LaunchedAd {
+  id:            string;
+  user_id:       string;
+  client_id:     string | null;
+  approval_id:   string | null;
+  ad_account_id: string;
+  campaign_id:   string | null;
+  adset_id:      string | null;
+  creative_id:   string | null;
+  ad_id:         string | null;
+  destination:   Destination | null;
+  targeting:     Record<string, unknown> | null;
+  budget:        number | null;
+  objective:     string | null;
+  headline:      string | null;
+  primary_text:  string | null;
+  cta:           string | null;
+  image_url:     string | null;
+  status:        'PAUSED' | 'ACTIVE' | 'failed';
+  created_at:    string;
 }

@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     );
     const { data: adminRow } = await admin
       .from('landing_pages')
-      .select('id, slug, status, title, template, content')
+      .select('id, slug, status, title, template, content, meta_pixel_id')
       .eq('slug', slug)
       .maybeSingle();
 
@@ -69,6 +69,7 @@ export async function GET(req: NextRequest) {
         template: adminRow.template,
         content:  adminRow.content,
         status:   adminRow.status,
+        meta_pixel_id: adminRow.meta_pixel_id,
       }, { status: 200 }); // 200 so the UI renders; warning will be in DevTools
     }
 
@@ -95,7 +96,7 @@ export async function GET(req: NextRequest) {
   // Anon CAN see it (RLS works). Get the full data.
   const { data: full, error: fullErr } = await supabase
     .from('landing_pages')
-    .select('id, slug, title, template, content, status')
+    .select('id, slug, title, template, content, status, meta_pixel_id')
     .eq('slug', slug)
     .eq('status', 'published')
     .single();

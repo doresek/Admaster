@@ -48,8 +48,11 @@ export async function POST(req: NextRequest) {
       meta_user_name:         me.name,
       pages,
       ad_accounts:            adAccounts,
-      selected_page_id:       pages[0]?.id ?? null,
-      selected_ad_account_id: adAccounts[0]?.id ?? null,
+      // Only auto-select when there's exactly one — never blindly pick the first
+      // of many (that caused ads to go out under the wrong page). With multiple,
+      // leave null so the user / launcher must choose explicitly.
+      selected_page_id:       pages.length === 1 ? pages[0].id : null,
+      selected_ad_account_id: adAccounts.length === 1 ? adAccounts[0].id : null,
       status:                 'connected',
     }).select('id, user_id, name, industry, emoji, meta_user_id, meta_user_name, pages, ad_accounts, selected_page_id, selected_ad_account_id, status, posts_published, campaigns_created, connected_at, updated_at').single();
 

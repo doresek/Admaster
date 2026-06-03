@@ -211,6 +211,10 @@ export default function ApprovalsPage() {
                     </div>
                     <div className="flex flex-col gap-1.5 items-end">
                       <CopyBtn text={url} label="🔗 קישור" />
+                      {item.status === 'approved' && (
+                        <a href={`/ads-launcher?approval=${item.id}`}
+                          className="text-[10px] font-bold text-[#3D9FFF] hover:underline whitespace-nowrap">🚀 השק כקמפיין</a>
+                      )}
                       <button onClick={() => remove(item.id)} className="text-[10px] text-[#2E4459] hover:text-red-400">✕ מחק</button>
                     </div>
                   </div>
