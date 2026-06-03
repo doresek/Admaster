@@ -32,4 +32,20 @@ alter table public.meta_clients add column if not exists email   text;
 alter table public.meta_clients add column if not exists phone   text;
 alter table public.meta_clients add column if not exists company text;
 alter table public.meta_clients add column if not exists notes   text;
+
+-- 4) Unique-per-client constraints so the app's brief / brief_codes upserts are
+--    race-safe (autosave fires concurrently). Dedupe any existing rows first
+--    (keep the most-recent), then add the constraints. NULL client_id rows
+--    (legacy code-only briefs) are unaffected (NULLs are distinct in unique).
+delete from public.briefs a using public.briefs b
+  where a.client_id is not null and a.client_id = b.client_id
+    and (a.updated_at, a.id) < (b.updated_at, b.id);
+alter table public.briefs drop constraint if exists briefs_client_uniq;
+alter table public.briefs add constraint briefs_client_uniq unique (client_id);
+
+delete from public.brief_codes a using public.brief_codes b
+  where a.client_id is not null and a.client_id = b.client_id
+    and (a.created_at, a.id) < (b.created_at, b.id);
+alter table public.brief_codes drop constraint if exists brief_codes_client_uniq;
+alter table public.brief_codes add constraint brief_codes_client_uniq unique (client_id);
 -- ============================================================
