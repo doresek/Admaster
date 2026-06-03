@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardLabel, Chip, Textarea, Btn, OutputBox, Tabs, CopyBtn, CostBadge, Alert, PageHeader, Spinner } from '@/components/ui';
 import { FRAMEWORKS, FRAMEWORKS_BY_ID, type FrameworkId } from '@/lib/frameworks';
@@ -33,6 +33,10 @@ export default function CreatePage() {
   const [brief,       setBrief]       = useState('');
   const [masterNotes, setMasterNotes] = useState('');
 
+  // Client brief picker — pass brief_id so generation grounds in a real saved brief.
+  const [briefs,  setBriefs]  = useState<Array<{ id: string; values?: { biz_name?: string }; submitted_at?: string; status?: string }>>([]);
+  const [briefId, setBriefId] = useState('');
+
   const [tab,  setTab]   = useState('post');
   const [out,  setOut]   = useState<MasterV2Output | null>(null);
   const [revealOpen, setRevealOpen] = useState(true);
@@ -45,6 +49,13 @@ export default function CreatePage() {
   const [error,   setError]   = useState<string | null>(null);
   const [stage,   setStage]   = useState<0 | 1 | 2 | 3>(0); // 0 idle, 1 strategist, 2 creators+judge, 3 editor
   const pLabel = PLATFORMS.find(p => p.id === plt)?.l ?? plt;
+
+  useEffect(() => {
+    fetch('/api/briefs')
+      .then(r => (r.ok ? r.json() : []))
+      .then(d => { if (Array.isArray(d)) setBriefs(d); })
+      .catch(() => { /* no briefs is fine */ });
+  }, []);
 
   async function fetchScore(copy: string, sourceId?: string) {
     if (!copy) return;
@@ -85,6 +96,7 @@ export default function CreatePage() {
           framework:   fwOverride ?? undefined,
           hook:        hookOverride ?? undefined,
           locale:      'he',
+          brief_id:    briefId || undefined,
         }),
       });
 
@@ -198,6 +210,30 @@ export default function CreatePage() {
               </div>
             </div>
           </Card>
+
+          {briefs.length > 0 && (
+            <Card className="mb-3">
+              <CardLabel>📋 בריף לקוח (אופציונלי)</CardLabel>
+              <div className="text-[11px] text-[#2E4459] mb-2">
+                בחר בריף לקוח קיים — היצירה תתבסס על הנתונים האמיתיים שבו (מוצר, מחיר, קהל, אווטאר) ולא תמציא. ללא בחירה — היצירה מתבססת על הטקסט למטה בלבד.
+              </div>
+              <select
+                value={briefId}
+                onChange={(e) => setBriefId(e.target.value)}
+                className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2 text-sm text-[#D9E8F5] focus:outline-none focus:border-[#0A7AFF]"
+              >
+                <option value="">— ללא בריף לקוח —</option>
+                {briefs.map(b => (
+                  <option key={b.id} value={b.id}>
+                    {b.values?.biz_name || 'ללא שם'}{b.submitted_at ? ` · ${new Date(b.submitted_at).toLocaleDateString('he')}` : ''}
+                  </option>
+                ))}
+              </select>
+              {briefId && (
+                <div className="text-[10px] text-[#0A7AFF] mt-1.5">✓ היצירה תתבסס על בריף הלקוח הזה</div>
+              )}
+            </Card>
+          )}
 
           <Card className="mb-3">
             <CardLabel>בריף</CardLabel>
