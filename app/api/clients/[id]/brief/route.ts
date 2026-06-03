@@ -64,7 +64,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     // the brief-link route.
     const admin = createAdminClient();
 
-    // Ensure a brief_codes row exists for this client (mirrors brief-link style).
+    // Ensure a brief_codes row exists for this client (so a public link can
+    // later be issued). The unique constraint on brief_codes(client_id)
+    // guarantees ≤1 row, so SELECT-then-INSERT-if-missing is race-safe here.
+    // We must NOT clobber an existing token/expires_at — this path only needs
+    // a `code` to exist — so we only INSERT a fresh row when none exists.
     const { data: existingCode } = await admin
       .from('brief_codes')
       .select('code')
@@ -78,32 +82,47 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       code = randomBytes(4).toString('hex').toUpperCase();
       const { error } = await admin
         .from('brief_codes')
-        .insert({ code, client_id: params.id, user_id: user.id });
+        .upsert(
+          { code, client_id: params.id, user_id: user.id },
+          { onConflict: 'client_id' }
+        );
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     const completion = briefCompletion(values as Record<string, unknown>);
-    const status     = completion >= 100 ? 'complete' : 'new';
 
-    // Upsert the briefs row keyed by client_id.
-    const { data: existing } = await admin
+    // Never downgrade status: read the current status once and only ever move
+    // forward. 'complete' / 'has_avatar' are preserved unless completion drops
+    // below 100 — in which case we keep them (never → 'new').
+    const { data: existingBrief } = await admin
       .from('briefs')
-      .select('id')
+      .select('status')
       .eq('client_id', params.id)
       .maybeSingle();
+    const prev = existingBrief?.status as string | undefined;
+    const status =
+      completion >= 100              ? 'complete'
+      : prev === 'complete'          ? 'complete'
+      : prev === 'has_avatar'        ? 'has_avatar'
+      :                                'new';
 
-    if (existing) {
-      const { error } = await admin
-        .from('briefs')
-        .update({ values, status, updated_at: new Date().toISOString() })
-        .eq('id', existing.id);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    } else {
-      const { error } = await admin
-        .from('briefs')
-        .insert({ code, user_id: user.id, client_id: params.id, values, status });
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    // Race-safe upsert keyed by client_id. `code` + `user_id` are stable, so
+    // including them in the payload is harmless on update and required on
+    // first insert.
+    const { error } = await admin
+      .from('briefs')
+      .upsert(
+        {
+          client_id:  params.id,
+          values,
+          status,
+          updated_at: new Date().toISOString(),
+          code,
+          user_id:    user.id,
+        },
+        { onConflict: 'client_id' }
+      );
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     return NextResponse.json({ ok: true, completion });
   } catch (err: any) {
