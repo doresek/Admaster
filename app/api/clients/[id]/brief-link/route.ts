@@ -37,35 +37,24 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     // to avoid RLS friction.
     const admin = createAdminClient();
 
-    // Create-or-rotate: one brief_codes row per client_id.
-    const { data: existing } = await admin
+    // Create-or-rotate: one brief_codes row per client_id. Race-safe upsert
+    // keyed by client_id (the unique constraint guarantees ≤1 row). Generating
+    // a fresh `code` on every rotate is acceptable.
+    const code = randomBytes(4).toString('hex').toUpperCase();
+    const { error } = await admin
       .from('brief_codes')
-      .select('code')
-      .eq('client_id', clientId)
-      .maybeSingle();
-
-    let code: string;
-    if (existing) {
-      code = existing.code;
-      const { error } = await admin
-        .from('brief_codes')
-        .update({ token, expires_at })
-        .eq('client_id', clientId);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    } else {
-      code = randomBytes(4).toString('hex').toUpperCase();
-      const { error } = await admin
-        .from('brief_codes')
-        .insert({
+      .upsert(
+        {
           code,
           token,
           expires_at,
           client_id:   clientId,
           user_id:     user.id,
           agency_name: profile?.name ?? null,
-        });
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+        },
+        { onConflict: 'client_id' }
+      );
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     return NextResponse.json({ url: `/brief/${token}`, token, expires_at });
   } catch (err: any) {
