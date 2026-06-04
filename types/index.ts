@@ -59,7 +59,7 @@ export const CREDIT_COSTS: Record<CreditAction, number> = {
   analyze_weak:  3,
   offer_stack:   6,
   img_adapt:     1,
-  master_post:   4,
+  master_post:   6,   // best-of-N: strategist + 3 creators + judge + optional editor
   lp_variants:   3,
   recommend:     0,
   // ── Performance Score (Phase 1) ──────────────
