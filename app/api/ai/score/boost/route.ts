@@ -57,12 +57,10 @@ export async function POST(req: NextRequest) {
   }
 
   // 4. Re-score (Haiku, same path as /api/ai/score)
-  const { data: userRow } = await supabase.from('users').select('brand').eq('id', user.id).single();
   const { system, user: userPrompt } = composeScorePrompt({
     copy:    rewritten,
     channel: prior.channel,
     locale:  prior.locale,
-    brand:   userRow?.brand,
     audience_segment: prior.audience_segment,
   });
   let scoreText: string;

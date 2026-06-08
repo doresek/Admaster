@@ -5,9 +5,8 @@
 // client matching / Brand-DNA merge path.
 //
 // Covered:
-//   1. buildAiContext brief→client matching by biz_name substring (lib/ai-context.ts)
-//      — including the ambiguous two-similar-clients case.
-//   2. buildAiContext Brand-DNA merge from users.brand.
+//   1. buildAiContext brief→client matching by client_id (lib/ai-context.ts).
+//   2. buildAiContext AI context = client + brief only (Brand DNA removed).
 //   3. The brief status derivation new / has_avatar / complete.
 //      (NOTE: this lives in a SQL BEFORE-UPDATE trigger — update_brief_status in
 //       supabase/migrations/001_schema.sql — so it is not importable JS. The
@@ -136,64 +135,43 @@ describe('buildAiContext: brief→client matching by client_id', () => {
 });
 
 // ════════════════════════════════════════════════════════════════
-// 2. Brand DNA merge from users.brand
+// 2. AI context = client + brief only (Brand DNA removed from the path)
 // ════════════════════════════════════════════════════════════════
-describe('buildAiContext: Brand DNA merge', () => {
-  it('formats present brand fields into the BRAND DNA block', async () => {
+describe('buildAiContext: no Brand DNA in the AI context', () => {
+  it('combined is client + brief only, in that order — no brand block', async () => {
     const supabase = makeSupabase({
-      users: { data: { brand: {
-        name: 'AdMaster', tagline: 'We scale', tone: 'bold', audience: 'SMBs', usp: 'AI-first',
-      } } },
-    });
-
-    const ctx = await buildAiContext(supabase, { userId: USER_ID });
-    expect(ctx.brand).toEqual({ name: 'AdMaster', tagline: 'We scale', tone: 'bold', audience: 'SMBs', usp: 'AI-first' });
-    expect(ctx.brandText).toContain("MARKETER'S BRAND DNA");
-    expect(ctx.brandText).toContain('Brand name: AdMaster');
-    expect(ctx.brandText).toContain('Brand voice/tone: bold');
-    expect(ctx.brandText).toContain('Primary audience: SMBs');
-  });
-
-  it('omits fields that are absent (only present keys render lines)', async () => {
-    const supabase = makeSupabase({
-      users: { data: { brand: { name: 'AdMaster', website: 'x.co' } } },
-    });
-
-    const ctx = await buildAiContext(supabase, { userId: USER_ID });
-    expect(ctx.brandText).toContain('Brand name: AdMaster');
-    expect(ctx.brandText).toContain('Website: x.co');
-    expect(ctx.brandText).not.toContain('Tagline:');
-    expect(ctx.brandText).not.toContain('Phone:');
-  });
-
-  it('null brand → empty brandText and null brand', async () => {
-    const supabase = makeSupabase({ users: { data: { brand: null } } });
-    const ctx = await buildAiContext(supabase, { userId: USER_ID });
-    expect(ctx.brand).toBeNull();
-    expect(ctx.brandText).toBe('');
-  });
-
-  it('brand object with no usable values → empty brandText (no DNA header)', async () => {
-    const supabase = makeSupabase({ users: { data: { brand: { name: '', tagline: '' } } } });
-    const ctx = await buildAiContext(supabase, { userId: USER_ID });
-    expect(ctx.brandText).toBe('');
-  });
-
-  it('combined merges brand + client + brief in that order, joined by blank lines', async () => {
-    const supabase = makeSupabase({
-      users:        { data: { brand: { name: 'AdMaster' } } },
       meta_clients: { data: { id: CLIENT_ID, name: 'Bloom', industry: 'florist', emoji: '🌸' } },
       briefs:       { data: [
-        { values: { biz_name: 'Bloom', biz_what: 'fresh flowers' }, avatar: null, ads: null, funnel: null, status: 'new', submitted_at: '2026-02-01' },
+        { values: { biz_name: 'Bloom', biz_what: 'fresh flowers' }, avatar: null, ads: null, funnel: null, status: 'new' },
       ] },
     });
 
     const ctx = await buildAiContext(supabase, { userId: USER_ID, clientId: CLIENT_ID });
-    expect(ctx.combined).toBe([ctx.brandText, ctx.clientText, ctx.briefText].join('\n\n'));
-    // sanity: all three segments are non-empty here
-    expect(ctx.brandText).not.toBe('');
+    expect(ctx.combined).toBe([ctx.clientText, ctx.briefText].join('\n\n'));
     expect(ctx.clientText).toContain('Bloom');
     expect(ctx.briefText).toContain('fresh flowers');
+    // brand DNA must never appear in the assembled prompt
+    expect(ctx.combined).not.toMatch(/BRAND DNA|MARKETER'S/i);
+  });
+
+  it('does not expose brand / brandText fields on the context object', async () => {
+    const supabase = makeSupabase({
+      meta_clients: { data: { id: CLIENT_ID, name: 'Bloom', industry: null, emoji: null } },
+      briefs:       { data: [] },
+    });
+    const ctx = await buildAiContext(supabase, { userId: USER_ID, clientId: CLIENT_ID });
+    expect('brand' in ctx).toBe(false);
+    expect('brandText' in ctx).toBe(false);
+  });
+
+  it('client with no brief → combined is just the client block (no brand)', async () => {
+    const supabase = makeSupabase({
+      meta_clients: { data: { id: CLIENT_ID, name: 'Bloom', industry: null, emoji: null } },
+      briefs:       { data: [] },
+    });
+    const ctx = await buildAiContext(supabase, { userId: USER_ID, clientId: CLIENT_ID });
+    expect(ctx.combined).toBe(ctx.clientText);
+    expect(ctx.briefText).toBe('');
   });
 });
 
