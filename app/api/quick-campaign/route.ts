@@ -132,7 +132,7 @@ ${sysParts}
           v.image_url = d?.data?.[0]?.url ?? null;
           if (v.image_url) {
             await supabase.from('generated_images').insert({
-              user_id: user.id, prompt: v.image_prompt, image_url: v.image_url,
+              user_id: user.id, client_id: activeClientId ?? null, prompt: v.image_prompt, image_url: v.image_url,
               provider: 'ideogram', style: 'REALISTIC', aspect_ratio: 'ASPECT_1_1',
             });
           }

@@ -269,6 +269,7 @@ Rules:
           // Save the generated image to history for the user
           await supabase.from('generated_images').insert({
             user_id:      user.id,
+            client_id:    activeClientId ?? null,
             prompt:       `[landing-bg] ${bgPrompt}`,
             image_url:    imgUrl,
             provider:     'ideogram',
