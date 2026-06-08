@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { advanceJourneyOnBrief } from '@/lib/journey';
 import type { BriefValues } from '@/types';
 
 // POST /api/briefs/submit
@@ -25,10 +26,11 @@ export async function POST(req: NextRequest) {
 
     const admin = createAdminClient();
 
-    // Verify code exists and get the marketer's user_id
+    // Verify code exists and get the marketer's user_id + the client the code
+    // was issued for. The brief deterministically inherits that client_id.
     const { data: briefCode, error: codeErr } = await admin
       .from('brief_codes')
-      .select('user_id')
+      .select('user_id, client_id')
       .eq('code', code.toUpperCase())
       .single();
 
@@ -36,19 +38,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'קוד בריף לא קיים' }, { status: 404 });
     }
 
-    // Insert brief submission
+    // Insert brief submission — client_id inherited from the brief code.
     const { data, error } = await admin
       .from('briefs')
       .insert({
-        code:    code.toUpperCase(),
-        user_id: briefCode.user_id,
+        code:      code.toUpperCase(),
+        user_id:   briefCode.user_id,
+        client_id: briefCode.client_id ?? null,
         values,
-        status:  'new',
+        status:    'new',
       })
       .select()
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Advance the client's journey to brief_in (audit-logged). Skips gracefully
+    // when the brief has no client_id; never throws back to the submitter.
+    await advanceJourneyOnBrief(admin, briefCode.user_id, data.client_id ?? null, data.id);
 
     return NextResponse.json({ success: true, id: data.id });
   } catch (err: any) {

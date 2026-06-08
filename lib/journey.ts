@@ -104,6 +104,30 @@ export async function logEvent(
   if (error) console.error('[journey.logEvent] insert failed:', error.message);
 }
 
+/**
+ * Advance a client's journey to `brief_in` when a brief is submitted.
+ * - No-op when `clientId` is null (a brief from a legacy code with no client).
+ * - Resilient: never throws — a journey hiccup must not fail the brief submission
+ *   itself (the brief row is already saved by the time this runs).
+ */
+export async function advanceJourneyOnBrief(
+  supabase: SupabaseClient,
+  userId: string,
+  clientId: string | null,
+  briefId: string,
+): Promise<void> {
+  if (!clientId) return;
+  try {
+    const journey = await ensureJourney(supabase, userId, clientId);
+    await transition(supabase, journey, 'brief_in', {
+      step: 'brief_submitted',
+      patch: { brief_id: briefId },
+    });
+  } catch (err) {
+    console.error('[journey.advanceJourneyOnBrief] failed:', (err as Error).message);
+  }
+}
+
 /** Transition a journey to a new state, patch pointers, and log the event. */
 export async function transition(
   supabase: SupabaseClient,

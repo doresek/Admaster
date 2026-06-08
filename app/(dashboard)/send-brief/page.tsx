@@ -1,11 +1,14 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardLabel, Btn, Alert, PageHeader, CopyBtn } from '@/components/ui';
+import { Card, CardLabel, Btn, Alert, PageHeader, CopyBtn, Select } from '@/components/ui';
+import { useMetaClients } from '@/lib/hooks/useMetaClients';
 
 export default function SendBriefPage() {
-  const [codes,   setCodes]   = useState<string[]>([]);
-  const [newCode, setNewCode] = useState('');
+  const [codes,    setCodes]    = useState<string[]>([]);
+  const [newCode,  setNewCode]  = useState('');
+  const [clientId, setClientId] = useState('');
+  const clients = useMetaClients();
   const supabase = createClient();
 
   useEffect(() => {
@@ -17,11 +20,14 @@ export default function SendBriefPage() {
   }, []);
 
   async function create() {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data: profile } = await supabase.from('users').select('name').eq('id', user.id).single();
-    await supabase.from('brief_codes').insert({ code, user_id: user.id, agency_name: profile?.name });
+    if (!clientId) return;
+    const res = await fetch('/api/briefs/code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: clientId }),
+    });
+    if (!res.ok) return;
+    const { code } = await res.json();
     setCodes(p => [...p, code]);
     setNewCode(code);
     navigator.clipboard.writeText(code);
@@ -34,7 +40,25 @@ export default function SendBriefPage() {
     <div>
       <PageHeader eyebrow="שיתוף" title="שלח בריף ללקוח"
         sub="הלקוח ממלא → אתה מקבל אווטאר + מודעות + משפך"
-        right={<Btn variant="primary" onClick={create}>+ צור קישור חדש</Btn>} />
+        right={<Btn variant="primary" onClick={create} disabled={!clientId}>+ צור קישור חדש</Btn>} />
+
+      <Card className="mb-4">
+        <CardLabel>לאיזה לקוח הבריף?</CardLabel>
+        {clients.length === 0 ? (
+          <Alert type="amber">
+            אין לקוחות שמורים — <a href="/clients" className="underline">הוסף לקוח</a> כדי ליצור קוד בריף
+          </Alert>
+        ) : (
+          <Select
+            value={clientId}
+            onChange={setClientId}
+            options={[
+              { value: '', label: '— בחר לקוח —' },
+              ...clients.map(c => ({ value: c.id, label: `${c.emoji ?? ''} ${c.name}` })),
+            ]}
+          />
+        )}
+      </Card>
 
       {newCode && (
         <Card className="mb-4" style={{ borderColor: 'rgba(184,149,58,.3)' }}>

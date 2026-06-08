@@ -1,8 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardLabel, Btn, CopyBtn, Tabs, OutputBox, Alert, PageHeader, CostBadge } from '@/components/ui';
+import { Card, CardLabel, Btn, CopyBtn, Tabs, OutputBox, Alert, PageHeader, CostBadge, Select } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
+import { useMetaClients } from '@/lib/hooks/useMetaClients';
 import type { Brief } from '@/types';
 import { clsx } from 'clsx';
 
@@ -252,6 +253,8 @@ export default function BriefsPage() {
   const [sel,    setSel]    = useState<Brief|null>(null);
   const [loading, setLoading] = useState(true);
   const [newCode, setNewCode] = useState('');
+  const [clientId, setClientId] = useState('');
+  const clients = useMetaClients();
   const supabase = createClient();
 
   useEffect(() => {
@@ -270,11 +273,14 @@ export default function BriefsPage() {
   }, []);
 
   async function createCode() {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data: profile } = await supabase.from('users').select('name').eq('id', user.id).single();
-    await supabase.from('brief_codes').insert({ code, user_id: user.id, agency_name: profile?.name });
+    if (!clientId) return;
+    const res = await fetch('/api/briefs/code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: clientId }),
+    });
+    if (!res.ok) return;
+    const { code } = await res.json();
     setCodes(p => [...p, code]);
     setNewCode(code);
   }
@@ -304,7 +310,25 @@ export default function BriefsPage() {
   return (
     <div>
       <PageHeader eyebrow="בריפים" title="בריפי לקוחות" sub={`${briefs.length} בריפים התקבלו`}
-        right={<Btn variant="primary" onClick={createCode}>+ צור קישור בריף</Btn>} />
+        right={<Btn variant="primary" onClick={createCode} disabled={!clientId}>+ צור קישור בריף</Btn>} />
+
+      <Card className="mb-4">
+        <CardLabel>לאיזה לקוח הבריף?</CardLabel>
+        {clients.length === 0 ? (
+          <Alert type="amber">
+            אין לקוחות שמורים — <a href="/clients" className="underline">הוסף לקוח</a> כדי ליצור קוד בריף
+          </Alert>
+        ) : (
+          <Select
+            value={clientId}
+            onChange={setClientId}
+            options={[
+              { value: '', label: '— בחר לקוח —' },
+              ...clients.map(c => ({ value: c.id, label: `${c.emoji ?? ''} ${c.name}` })),
+            ]}
+          />
+        )}
+      </Card>
 
       {newCode && (
         <Card className="mb-4" style={{borderColor:'rgba(184,149,58,.3)'}}>
@@ -338,7 +362,7 @@ export default function BriefsPage() {
           <div className="text-4xl mb-3 opacity-30">📋</div>
           <div className="text-base font-semibold mb-2">אין בריפים עדיין</div>
           <div className="text-sm mb-4">צור קישור ושלח ללקוח שלך</div>
-          <Btn variant="primary" onClick={createCode}>+ צור קישור ראשון</Btn>
+          <Btn variant="primary" onClick={createCode} disabled={!clientId}>+ צור קישור ראשון</Btn>
         </div>
       )}
 

@@ -85,16 +85,18 @@ export async function buildAiContext(
       .maybeSingle();
     brief = data ?? null;
   } else if (client) {
-    // No explicit brief — find the most-recent brief whose biz_name matches client.name
-    const { data: briefs } = await supabase
+    // No explicit brief — deterministic lookup by client_id. The brief is linked
+    // to its client at submit time (briefs.client_id ← brief_codes.client_id), so
+    // we take the most-recent brief for this exact client. No name matching.
+    const { data } = await supabase
       .from('briefs')
-      .select('values, avatar, ads, funnel, status, submitted_at')
+      .select('values, avatar, ads, funnel, status')
       .eq('user_id', userId)
+      .eq('client_id', clientId)
       .order('submitted_at', { ascending: false })
-      .limit(10);
-    if (briefs && briefs.length > 0 && client.name) {
-      brief = briefs.find(b => (b.values as any)?.biz_name?.includes(client.name) || client.name?.includes((b.values as any)?.biz_name)) ?? null;
-    }
+      .limit(1)
+      .maybeSingle();
+    brief = data ?? null;
   }
 
   // ─── Format blocks ───────────────────────────────
