@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { TEMPLATES_BY_ID, type LandingTemplate } from '@/lib/landing-templates';
+import { readActiveClientCookie } from '@/lib/active-client';
 
 function slugify(s: string): string {
   return s
@@ -67,11 +68,15 @@ export async function POST(req: NextRequest) {
 
   const finalContent = content ?? def.defaultContent;
 
+  // Link the page to a client: explicit body client_id wins; otherwise fall
+  // back to the active client (cookie). Mirrors the posts writers.
+  const activeClientId = readActiveClientCookie(req.headers.get('cookie') ?? undefined);
+
   const { data, error } = await supabase
     .from('landing_pages')
     .insert({
       user_id:   user.id,
-      client_id: client_id ?? null,
+      client_id: client_id ?? activeClientId ?? null,
       slug,
       title,
       template,

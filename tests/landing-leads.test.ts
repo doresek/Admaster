@@ -179,23 +179,37 @@ describe('POST /api/landing/lead — lead insert shape (real handler)', () => {
 //    (real handler: app/api/landing/route.ts POST)
 // ════════════════════════════════════════════════════════════════════
 describe('POST /api/landing — page insert shape (real handler)', () => {
-  it('client_id defaults to NULL when the body omits it (the dashboard create flow path)', async () => {
-    // The dashboard UI (app/(dashboard)/landing-pages/page.tsx:88-92) posts only
-    // { template, title, content } — never client_id. So pages created in the
-    // product are born with NO client link.
+  // A valid active-client cookie value (readActiveClientCookie requires a 36-char id).
+  const ACTIVE = '11111111-1111-1111-1111-111111111111';
+
+  it('client_id is persisted from the ACTIVE client when the body omits it (dashboard create flow)', async () => {
+    // The dashboard UI posts only { template, title, content } — never client_id.
+    // The route now falls back to the active-client cookie, so product-created
+    // pages are born linked to the active client (mirrors the posts writers).
     const { POST } = await import('@/app/api/landing/route');
-    const res = await POST(fakeReq({ template: 'squeeze', title: 'השקת קורס', content: { hero_title: 'x' } }));
+    const res = await POST(fakeReq(
+      { template: 'squeeze', title: 'השקת קורס', content: { hero_title: 'x' } },
+      { cookie: `admaster_active_client=${ACTIVE}` },
+    ));
     expect(res.status).toBe(200);
-    expect(H.captured.pageInsert.client_id).toBeNull();
+    expect(H.captured.pageInsert.client_id).toBe(ACTIVE);
     expect(H.captured.pageInsert.user_id).toBe('owner-1');
     expect(H.captured.pageInsert.status).toBe('draft');
     expect(H.captured.pageInsert.template).toBe('squeeze');
   });
 
-  it('client_id IS persisted when the body provides it (latent, API-only capability)', async () => {
-    // The column + API accept a client link; only the UI never sends one.
+  it('client_id is NULL only when neither the body nor an active client is present', async () => {
     const { POST } = await import('@/app/api/landing/route');
-    await POST(fakeReq({ template: 'squeeze', title: 'T', client_id: 'client-7', content: {} }));
+    await POST(fakeReq({ template: 'squeeze', title: 'T', content: {} })); // no body client_id, no cookie
+    expect(H.captured.pageInsert.client_id).toBeNull();
+  });
+
+  it('explicit body client_id wins over the active-client cookie', async () => {
+    const { POST } = await import('@/app/api/landing/route');
+    await POST(fakeReq(
+      { template: 'squeeze', title: 'T', client_id: 'client-7', content: {} },
+      { cookie: `admaster_active_client=${ACTIVE}` },
+    ));
     expect(H.captured.pageInsert.client_id).toBe('client-7');
   });
 
@@ -240,9 +254,10 @@ describe('GET /api/landing — list is scoped to the owner', () => {
 //    There is NO production function that counts leads per client today.
 //    The ONLY chain available is:
 //        lead.landing_page_id → landing_pages.id → landing_pages.client_id
-//    a TWO-HOP join whose middle column (client_id) is nullable and, via the
-//    product UI, always null. This block characterizes that data reality so a
-//    future "leads per client" card is built against a known starting point.
+//    a TWO-HOP join whose middle column (client_id) is nullable. As of this
+//    slice, product-created pages carry the active client_id, so leads now
+//    attribute through the page; only pages predating the change (or created
+//    with no active client) land in the unattributed bucket.
 // ════════════════════════════════════════════════════════════════════
 type Lead = { id: string; landing_page_id: string };
 type Page = { id: string; client_id: string | null };
@@ -260,7 +275,7 @@ function leadsPerClient(leads: Lead[], pages: Page[]): Record<string, number> {
 }
 
 describe('attribution model: leads → landing_page → client (two-hop, nullable middle)', () => {
-  it('TODAY: pages created via the UI have client_id=null → every lead is unattributed', () => {
+  it('LEGACY: pages with client_id=null (pre-slice / no active client) → leads unattributed', () => {
     const pages: Page[] = [{ id: 'lp1', client_id: null }, { id: 'lp2', client_id: null }];
     const leads: Lead[] = [
       { id: 'L1', landing_page_id: 'lp1' },
@@ -270,7 +285,7 @@ describe('attribution model: leads → landing_page → client (two-hop, nullabl
     expect(leadsPerClient(leads, pages)).toEqual({ __unattributed__: 3 });
   });
 
-  it('LATENT: once a page carries client_id, leads attribute to that client', () => {
+  it('NOW: product pages carry client_id, so leads attribute to that client', () => {
     const pages: Page[] = [{ id: 'lp1', client_id: 'client-A' }, { id: 'lp2', client_id: 'client-B' }];
     const leads: Lead[] = [
       { id: 'L1', landing_page_id: 'lp1' },
