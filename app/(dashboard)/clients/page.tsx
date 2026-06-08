@@ -1,5 +1,6 @@
 'use client';
 // Shared by clients.tsx, publish.tsx, campaign.tsx
+import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Input, Textarea, Btn, Alert, PageHeader, CostBadge, Tabs } from '@/components/ui';
@@ -115,8 +116,8 @@ export default function ClientsPage() {
 
       <div className="grid grid-cols-3 gap-3">
         {clients.map(c => (
-          <div key={c.id} onClick={() => setSelC(c)}
-            className="bg-[#111A24] border border-[#1E2F42] rounded-xl overflow-hidden cursor-pointer hover:border-[#0A7AFF] hover:-translate-y-0.5 transition-all">
+          <Link key={c.id} href={`/clients/${c.id}`}
+            className="block bg-[#111A24] border border-[#1E2F42] rounded-xl overflow-hidden cursor-pointer hover:border-[#0A7AFF] hover:-translate-y-0.5 transition-all">
             <div className="p-3.5 flex items-start gap-2.5">
               <div className="w-9 h-9 rounded-lg bg-[#1D2D3E] border border-[#2A4158] flex items-center justify-center text-lg flex-shrink-0">{c.emoji}</div>
               <div className="flex-1 min-w-0">
@@ -124,9 +125,13 @@ export default function ClientsPage() {
                 <div className="text-[11px] text-[#6B8FA8] truncate">{c.industry}</div>
                 <div className="text-[10px] text-[#2E4459] mt-0.5">{c.meta_user_name}</div>
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-1.5 flex-shrink-0">
                 <div className={`w-1.5 h-1.5 rounded-full ${c.status==='connected'?'bg-[#059669]':'bg-red-500'}`} />
                 <span className={`text-[10px] font-bold ${c.status==='connected'?'text-[#059669]':'text-red-400'}`}>{c.status==='connected'?'פעיל':'שגיאה'}</span>
+                {/* Secondary: Meta pages/ad-accounts picker (kept in-page) without leaving the grid */}
+                <button title="הגדרות Meta (דפים/חשבונות)"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelC(c); }}
+                  className="text-[#2E4459] hover:text-[#3D9FFF] transition-colors text-xs">⚙</button>
               </div>
             </div>
             <div className="flex gap-3 px-3.5 py-2 border-t border-[#1E2F42]">
@@ -134,7 +139,7 @@ export default function ClientsPage() {
               <div className="text-[10px] text-[#6B8FA8]"><strong className="text-[#D9E8F5] text-xs">{c.ad_accounts.length}</strong> חשבונות</div>
               <div className="text-[10px] text-[#6B8FA8]"><strong className="text-[#D9E8F5] text-xs">{c.posts_published}</strong> פוסטים</div>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>
