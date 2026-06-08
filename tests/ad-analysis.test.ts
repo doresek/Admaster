@@ -186,6 +186,56 @@ describe('POST /api/tools analyze_weak — weak_ad_analyses insert shape', () =>
 });
 
 // ════════════════════════════════════════════════════════════════════
+// 2c. offer_stack → offer_stacks (real handler) — active-client attribution
+//     Unlike the two analysis tables above, offer_stacks HAS a client_id
+//     column, and the route now defaults it to the active client (cookie),
+//     mirroring the landing-page writer.
+// ════════════════════════════════════════════════════════════════════
+describe('POST /api/tools offer_stack — offer_stacks insert carries the active client', () => {
+  // readActiveClientCookie only accepts a 36-char UUID-format value.
+  const ACTIVE = '22222222-2222-2222-2222-222222222222';
+
+  it('client_id defaults to the ACTIVE client (cookie) when the input omits it', async () => {
+    // The offer-stack UI posts only { product, audience, outcome, current_price } —
+    // never client_id. The route falls back to the active-client cookie, so offers
+    // are born linked to the active client.
+    const { POST } = await import('@/app/api/tools/route');
+    const res = await POST(fakeReq(
+      { tool: 'offer_stack', input: { product: 'קורס דיגיטל' } },
+      `admaster_active_client=${ACTIVE}`,
+    ));
+    expect(res.status).toBe(200);
+    expect(H.captured.insert!.table).toBe('offer_stacks');
+    expect(H.captured.insert!.payload.client_id).toBe(ACTIVE);
+    expect(H.captured.insert!.payload.user_id).toBe('owner-1');
+    expect(H.captured.insert!.payload.brief_id).toBeNull();
+  });
+
+  it('explicit input client_id wins over the active-client cookie', async () => {
+    const { POST } = await import('@/app/api/tools/route');
+    await POST(fakeReq(
+      { tool: 'offer_stack', input: { product: 'X', client_id: 'client-7' } },
+      `admaster_active_client=${ACTIVE}`,
+    ));
+    expect(H.captured.insert!.payload.client_id).toBe('client-7');
+  });
+
+  it('client_id is NULL when neither the input nor an active client is present', async () => {
+    const { POST } = await import('@/app/api/tools/route');
+    await POST(fakeReq({ tool: 'offer_stack', input: { product: 'X' } })); // no cookie
+    expect(H.captured.insert!.payload.client_id).toBeNull();
+  });
+
+  it('WART: missing product → 400, no insert (credits already deducted, not refunded)', async () => {
+    const { POST } = await import('@/app/api/tools/route');
+    const res = await POST(fakeReq({ tool: 'offer_stack', input: { product: '  ' } }));
+    expect(res.status).toBe(400);
+    expect(H.captured.insert).toBeUndefined();
+    expect(H.captured.refundCalls.length).toBe(0);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
 // 3. Guards
 // ════════════════════════════════════════════════════════════════════
 describe('POST /api/tools — guards', () => {
@@ -280,9 +330,10 @@ describe('attribution: ad_performance is client-scoped but account-level (no spe
 // (b) ad_performance READ: reports/route.ts:17 selects by client_id + date range;
 //     analytics/route.ts requires a ?clientId param (404s without a matching client).
 //     Both are strictly client-scoped reads.
-// (c) The offer_stack tool (same route, table 'offer_stacks') is out of scope here;
-//     note for contrast it DOES insert client_id + brief_id (both '?? null') —
-//     i.e. that sibling table has the client column the two analysis tables lack.
+// (c) The offer_stack tool (same route, table 'offer_stacks') IS now driven here
+//     (section 2c): unlike the two analysis tables, offer_stacks has a client_id
+//     column, and the route defaults it to the active client (cookie) —
+//     client_id ?? activeClientId ?? null — mirroring the landing-page writer.
 // (d) analyze_brief / analyze_weak history readers: the dashboards re-run analyses
 //     rather than list saved rows; persisted analyses are owner-scoped via the
 //     "own" RLS policy (no per-client read path exists for them).

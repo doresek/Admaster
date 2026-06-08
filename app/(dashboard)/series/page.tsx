@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Chip, Input, Btn, Alert, PageHeader, CostBadge, Tabs } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
+import { readActiveClientFromDocument } from '@/lib/active-client';
 import type { MetaClient } from '@/types';
 
 type Channel = 'email' | 'sms' | 'whatsapp';
@@ -54,7 +55,17 @@ export default function SeriesPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from('meta_clients').select('*').eq('user_id', user.id).then(({ data }) => setClients(data ?? []));
+      supabase.from('meta_clients').select('*').eq('user_id', user.id).then(({ data }) => {
+        const list = data ?? [];
+        setClients(list);
+        // Default the client selector to the active client (cookie) so blasts
+        // attribute by default. User can still change it.
+        const activeId = readActiveClientFromDocument();
+        if (activeId) {
+          const active = list.find(c => c.id === activeId);
+          if (active) setSelC(active);
+        }
+      });
       supabase.from('message_series').select('id, name, duration_days, created_at, goal').eq('user_id', user.id).order('created_at', { ascending: false })
         .then(({ data }) => setSeries(data ?? []));
     });

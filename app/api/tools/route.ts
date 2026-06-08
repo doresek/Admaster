@@ -210,9 +210,11 @@ NAME: שם בונוס 4||VALUE: ...||WHY: ...
         full_pitch:     xt(text, 'PITCH'),
       };
 
+      // Link to a client: explicit input client_id wins; otherwise fall back to
+      // the active client (cookie). Mirrors the landing-page writer.
       const { data: row } = await supabase.from('offer_stacks').insert({
         user_id:   user.id,
-        client_id: client_id ?? null,
+        client_id: client_id ?? activeClientId ?? null,
         brief_id:  brief_id ?? null,
         ...result,
       }).select().single();
