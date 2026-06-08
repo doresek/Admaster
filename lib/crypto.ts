@@ -28,3 +28,28 @@ export function decrypt(encoded: string): string {
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(ct), decipher.final()]).toString('utf8');
 }
+
+// Backward-compat read helper: decrypt() a value produced by encrypt(), but if
+// the value is NOT in our AES-GCM format (e.g. a token written before
+// encryption rolled out), return it unchanged as plaintext. The GCM auth tag
+// makes a false-positive decrypt essentially impossible — a plaintext value
+// fails authentication and throws, so we safely fall through to plaintext.
+export function decryptOrPlaintext(value: string): string {
+  try {
+    return decrypt(value);
+  } catch {
+    return value;
+  }
+}
+
+// True iff `value` is in our AES-GCM format (i.e. produced by encrypt()).
+// Used by the backfill to skip already-encrypted rows idempotently. Relies on
+// the GCM auth tag: a plaintext value fails authentication and throws.
+export function isEncrypted(value: string): boolean {
+  try {
+    decrypt(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
