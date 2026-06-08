@@ -100,8 +100,9 @@ ${sysParts}
     if (variants.length > 0) {
       await supabase.from('generated_content').insert(
         variants.map(v => ({
-          user_id:  user.id,
-          type:     'campaign',
+          user_id:   user.id,
+          client_id: activeClientId ?? null,
+          type:      'campaign',
           platform,
           input:    { brief: brief.substring(0, 500), framework: v.framework },
           output:   { post: v.post, hashtags: v.hashtags, wa: v.wa, image_prompt: v.image_prompt },

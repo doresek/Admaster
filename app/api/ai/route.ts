@@ -77,9 +77,10 @@ export async function POST(req: NextRequest) {
 
   // 3. Save to generated_content (best-effort)
   const { error: insertErr } = await supabase.from('generated_content').insert({
-    user_id:  user.id,
-    type:     action,
-    platform: body.platform ?? null,
+    user_id:   user.id,
+    client_id: activeClientId ?? null,
+    type:      action,
+    platform:  body.platform ?? null,
     input:    { prompt: prompt.substring(0, 500) },
     output:   { text: text.substring(0, 2000) },
   });
