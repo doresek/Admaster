@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Chip, Textarea, Input, Btn, OutputBox, CopyBtn, CostBadge, Alert, PageHeader, Tabs } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
 import { FRAMEWORKS, FRAMEWORKS_BY_ID, type FrameworkId } from '@/lib/frameworks';
+import { readActiveClientFromDocument } from '@/lib/active-client';
 import type { MetaClient, CreditAction } from '@/types';
 
 type Channel = 'email' | 'sms' | 'whatsapp';
@@ -39,7 +40,17 @@ export default function MessagesPage() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
       supabase.from('meta_clients').select('*').eq('user_id', user.id)
-        .then(({ data }) => setClients(data ?? []));
+        .then(({ data }) => {
+          const list = data ?? [];
+          setClients(list);
+          // Default the client selector to the active client (cookie) so blasts
+          // attribute by default. User can still change it.
+          const activeId = readActiveClientFromDocument();
+          if (activeId) {
+            const active = list.find(c => c.id === activeId);
+            if (active) setSelC(active);
+          }
+        });
       supabase.from('messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20)
         .then(({ data }) => setHistory(data ?? []));
     });
