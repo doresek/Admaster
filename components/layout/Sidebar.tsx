@@ -53,7 +53,6 @@ const NAV: NavItem[] = [
   { id:'calendar',   href:'/calendar',   icon:'📅', label:'לוח חגים', cost:3 },
 
   { sec:'ניהול' },
-  { id:'brand',   href:'/brand',   icon:'🧬', label:'Brand DNA' },
   { id:'team',    href:'/team',    icon:'👤', label:'צוות' },
   { id:'agency',  href:'/agency',  icon:'🏢', label:'White-Label', badge:'pro' },
   { id:'credits', href:'/credits', icon:'💎', label:'קרדיטים' },
