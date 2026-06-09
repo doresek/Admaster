@@ -1,9 +1,11 @@
 'use client';
 // Shared by clients.tsx, publish.tsx, campaign.tsx
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Input, Textarea, Btn, Alert, PageHeader, CostBadge, Tabs } from '@/components/ui';
 import { useAI, useMeta } from '@/lib/hooks/useAI';
+import ConnectFacebookButton from '@/components/meta/ConnectFacebookButton';
 import type { MetaClient } from '@/types';
 import { clsx } from 'clsx';
 
@@ -50,6 +52,17 @@ export default function ClientsPage() {
   const [err, setErr]      = useState('');
   const [selC, setSelC]    = useState<MetaClient|null>(null);
   const uf = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
+  const searchParams = useSearchParams();
+
+  // Returning from the Meta OAuth callback (/clients?meta=...&client=<id>):
+  // re-open that client's workspace so the ConnectFacebookButton status banner
+  // is shown right where the user started the connect.
+  useEffect(() => {
+    const id = searchParams?.get('client');
+    if (!id || selC) return;
+    const match = clients.find(c => c.id === id);
+    if (match) setSelC(match);
+  }, [searchParams, clients]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function connect() {
     if (!form.name || !form.token) { setErr('מלא שם וToken'); return; }
@@ -152,6 +165,8 @@ function ClientWorkspace({ client, onBack, onUpdate }: { client: MetaClient; onB
           <div className="text-[11px] font-bold text-[#2E4459] uppercase">לקוח Meta</div>
           <div className="font-bold text-lg">{client.emoji} {client.name}</div>
         </div>
+        {/* Per-client OAuth connect/reconnect — uses this client's id. */}
+        <div className="ml-auto"><ConnectFacebookButton clientId={client.id} /></div>
       </div>
       <div className="grid grid-cols-4 gap-3 mb-4">
         {[{i:'📄',v:client.pages.length,l:'דפים'},{i:'💰',v:client.ad_accounts.length,l:'חשבונות'},{i:'📤',v:client.posts_published,l:'פוסטים'},{i:'🚀',v:client.campaigns_created,l:'קמפיינים'}].map(s=>(
