@@ -3,13 +3,11 @@
 // ════════════════════════════════════════════
 import type { MarketerId } from '@/lib/marketers';
 import type { FrameworkId } from '@/lib/frameworks';
-import type { BrandDNA } from '@/types';
 
 export const MASTER_NOTES_MAX = 2000;
 
 export interface MasterStudioInput {
   brief:        string;
-  brand?:       BrandDNA;
   masterNotes?: string;
   platform:     string;
   tone?:        string;

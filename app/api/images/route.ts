@@ -167,6 +167,10 @@ export async function POST(req: NextRequest) {
     const { mode, prompt, aspectRatio = 'ASPECT_1_1', style = 'REALISTIC', provider = defaultProvider,
             parentImageId, parentImageUrl, editPrompt } = body;
 
+    // Link every generated image to a client: explicit body client_id wins,
+    // else the active-client cookie, else null. Mirrors the posts/landing writers.
+    const activeClientId = body.client_id ?? readActiveClientCookie(req.headers.get('cookie') ?? '');
+
     const isEdit  = mode === 'edit';
     const isAdapt = mode === 'adapt';
     const action  = isAdapt ? 'img_adapt' : isEdit ? 'img_edit' : 'post';
@@ -192,12 +196,10 @@ export async function POST(req: NextRequest) {
       });
       if (!deduct?.success) return NextResponse.json({ error: 'insufficient_credits' }, { status: 402 });
 
-      const clientId = body.client_id ?? readActiveClientCookie(req.headers.get('cookie') ?? '');
-
       try {
         const result = await runImagePipeline({
           supabase, userId: user.id, source,
-          aspectRatio, style, clientId, briefId: body.brief_id ?? null,
+          aspectRatio, style, clientId: activeClientId, briefId: body.brief_id ?? null,
         });
 
         const losers = result.candidates
@@ -209,6 +211,7 @@ export async function POST(req: NextRequest) {
 
         const { error: insertErr } = await supabase.from('generated_images').insert({
           user_id:         user.id,
+          client_id:       activeClientId ?? null,
           prompt:          result.winner.prompt,
           image_url:       result.winner.url,
           provider:        'gemini',
@@ -314,6 +317,7 @@ export async function POST(req: NextRequest) {
     const promptTag = isAdapt ? `[adapt:${aspectRatio}]` : isEdit ? '[edit]' : '';
     const { error: insertErr } = await supabase.from('generated_images').insert({
       user_id:         user.id,
+      client_id:       activeClientId ?? null,
       prompt:          promptTag ? `${promptTag} ${finalPrompt}` : finalPrompt,
       image_url:       imageUrl,
       provider:        fallbackProvider ?? provider,

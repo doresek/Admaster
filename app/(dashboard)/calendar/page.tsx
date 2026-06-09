@@ -1,6 +1,5 @@
 'use client';
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { Card, Textarea, Btn, OutputBox, Tabs, CopyBtn, CostBadge, Alert, PageHeader } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
 
@@ -26,11 +25,10 @@ export default function CalendarPage() {
 
   async function gen(h: {name:string;emoji:string}) {
     setSel(h); setOut(null); setTab('post');
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data: profile } = await supabase.from('users').select('brand').eq('id', user.id).single();
-    const biz = (profile?.brand as any)?.name || 'תפילין ומזוזות';
+    // Business name comes from the globally-selected active client (falls back to a generic Judaica default).
+    const data = await fetch('/api/active-client').then(r => r.json()).catch(() => ({}));
+    const activeClient = data.clients?.find((c: any) => c.id === data.active);
+    const biz = activeClient?.name || 'תפילין ומזוזות';
 
     const text = await call('holiday',
       `שיווק דיגיטלי לעסקי יודאיקה — ${biz}.

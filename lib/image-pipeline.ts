@@ -169,10 +169,10 @@ export async function expandBrief(
     parsed = { subject: args.source.text.slice(0, 200) };
   }
 
-  // Prefer brand colors detected by Claude; else any color-ish hint from Brand DNA.
+  // Brand colors come only from what Claude detects in the brief/copy now.
   const brandColors = (parsed.brandColors && parsed.brandColors.length)
     ? parsed.brandColors
-    : extractBrandColors(ctx.brand);
+    : undefined;
 
   return {
     subject:     parsed.subject || args.source.text.slice(0, 200),
@@ -187,15 +187,6 @@ export async function expandBrief(
       : null,
     aspectRatio: args.aspectRatio,
   };
-}
-
-/** Pull any explicit color hint from Brand DNA (defensive — field may not exist). */
-function extractBrandColors(brand: Record<string, string> | null): string[] | undefined {
-  if (!brand) return undefined;
-  const raw = brand.colors || brand.color || brand.palette || '';
-  if (!raw) return undefined;
-  const parts = raw.split(/[,/|]/).map(s => s.trim()).filter(Boolean);
-  return parts.length ? parts : undefined;
 }
 
 // ─── 2. Prompt variations ────────────────────────────────

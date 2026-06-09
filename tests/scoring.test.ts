@@ -19,13 +19,9 @@ describe('composeScorePrompt', () => {
     expect(system).toMatch(/English/);
   });
 
-  it('appends brand DNA block when brand provided', () => {
-    const { system } = composeScorePrompt({
-      copy: 'x', channel: 'meta_feed', locale: 'he',
-      brand: { name: 'MyShop', audience: 'בעלות עסקים' },
-    });
-    expect(system).toContain('MyShop');
-    expect(system).toContain('בעלות עסקים');
+  it('never emits a Brand DNA block (Brand DNA was removed from the score path)', () => {
+    const { system } = composeScorePrompt({ copy: 'x', channel: 'meta_feed', locale: 'he' });
+    expect(system).not.toMatch(/BRAND CONTEXT|BRAND DNA/i);
   });
 });
 

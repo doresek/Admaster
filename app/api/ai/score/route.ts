@@ -39,13 +39,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: deduct.error, credits: deduct.credits ?? 0 }, { status: deduct.status });
   }
 
-  // 2. Pull brand DNA for prompt context
-  const { data: userRow } = await supabase.from('users').select('brand').eq('id', user.id).single();
+  // 2. Compose the score prompt (client/brief context only — no Brand DNA)
   const input: ScoreInput = {
     copy:    body.copy,
     channel: body.channel as ScoreChannel,
     locale:  body.locale ?? 'he',
-    brand:   userRow?.brand,
     audience_segment: body.audience_segment,
   };
 

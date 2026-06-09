@@ -2,8 +2,6 @@
 // Performance Score — prompt composition & parsing
 // ════════════════════════════════════════════
 
-import type { BrandDNA } from '@/types';
-
 export type ScoreChannel =
   | 'meta_feed' | 'meta_story' | 'meta_reel'
   | 'google_search' | 'google_display'
@@ -15,7 +13,6 @@ export interface ScoreInput {
   copy:     string;
   channel:  ScoreChannel;
   locale?:  'he' | 'en' | 'ar';
-  brand?:   BrandDNA;
   audience_segment?: {
     age_range?: string;
     gender?:    'm' | 'f' | 'all';
@@ -40,17 +37,6 @@ const LANG_ANCHOR: Record<NonNullable<ScoreInput['locale']>, string> = {
   ar: 'The copy is in Arabic (العربية). Score using Arabic-specific norms.',
 };
 
-function brandBlock(brand?: BrandDNA): string {
-  if (!brand) return '';
-  const bits: string[] = [];
-  if (brand.name)     bits.push(`Brand: ${brand.name}`);
-  if (brand.audience) bits.push(`Audience: ${brand.audience}`);
-  if (brand.tone)     bits.push(`Tone: ${brand.tone}`);
-  if (brand.usp)      bits.push(`USP: ${brand.usp}`);
-  if (brand.pains)    bits.push(`Audience pains: ${brand.pains}`);
-  return bits.length ? `\n\n═══ BRAND CONTEXT ═══\n${bits.join('\n')}` : '';
-}
-
 export function composeScorePrompt(input: ScoreInput): { system: string; user: string } {
   const locale = input.locale ?? 'he';
   const langLine = LANG_ANCHOR[locale];
@@ -58,7 +44,6 @@ export function composeScorePrompt(input: ScoreInput): { system: string; user: s
   const system = `You are a Hebrew-native performance copywriter who has graded 250,000 Israeli ads. Score each piece of ad copy on a 0-100 scale based on predicted CTR + conversion potential for the given channel and (if provided) audience.
 
 ${langLine}
-${brandBlock(input.brand)}
 
 ═══ OUTPUT CONTRACT — return ONE valid JSON object, nothing else, no markdown, no commentary ═══
 {
