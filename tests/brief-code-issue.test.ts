@@ -4,7 +4,7 @@
 // Supabase is mocked.
 
 import { describe, it, expect } from 'vitest';
-import { issueBriefCode, generateBriefCode, BriefCodeError } from '@/app/api/briefs/code/issue';
+import { issueBriefCode, generateBriefCode, generateBriefToken, BriefCodeError } from '@/app/api/briefs/code/issue';
 
 // ── Mock Supabase ───────────────────────────────────────────────
 // meta_clients: from('meta_clients').select('id').eq('id',_).eq('user_id',_).maybeSingle()
@@ -56,7 +56,7 @@ function makeSupabase(opts: {
             const outcome = outcomes.shift();
             if (outcome?.error) return Promise.resolve({ data: null, error: outcome.error });
             return Promise.resolve({
-              data: { code: row.code, client_id: row.client_id ?? null },
+              data: { code: row.code, client_id: row.client_id ?? null, token: row.token ?? null },
               error: null,
             });
           },
@@ -82,7 +82,26 @@ describe('generateBriefCode', () => {
   });
 });
 
+describe('generateBriefToken', () => {
+  it('produces a 64-char lowercase hex CSPRNG token', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 50; i++) {
+      const token = generateBriefToken();
+      expect(token).toMatch(/^[a-f0-9]{64}$/);
+      seen.add(token);
+    }
+    expect(seen.size).toBe(50); // no collisions
+  });
+});
+
 describe('issueBriefCode', () => {
+  it('generates + persists + returns a 64-hex token alongside the code', async () => {
+    const supabase = makeSupabase({ profileName: 'Acme', ownedClients: [CLIENT] });
+    const result = await issueBriefCode(supabase, 'user-1', CLIENT, { genCode: () => 'ABC123' });
+    expect(result.token).toMatch(/^[a-f0-9]{64}$/);
+    expect(supabase._inserted[0].token).toBe(result.token);
+  });
+
   it('returns a 6-char-style uppercase code from the default generator', async () => {
     const supabase = makeSupabase({ profileName: 'Acme', ownedClients: [CLIENT] });
     const { code } = await issueBriefCode(supabase, 'user-1', CLIENT);

@@ -4,8 +4,13 @@ import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Btn, CopyBtn, Tabs, OutputBox, Alert, PageHeader, CostBadge, Select } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
 import { useMetaClients } from '@/lib/hooks/useMetaClients';
+import { briefLink, whatsappShareLink } from '@/lib/share';
 import type { Brief } from '@/types';
 import { clsx } from 'clsx';
+
+type BriefCode = { code: string; token: string | null };
+const WA_MSG = (link: string) =>
+  `היי! כדי שנבנה לך מודעות שמביאות תוצאות, מלא בבקשה את הבריף הקצר הזה (כ-5 דקות):\n\n${link}`;
 
 const xt = (raw:string,t:string)=>{const m=raw.match(new RegExp(`\\[${t}\\]([\\s\\S]*?)\\[\\/${t}\\]`));return m?m[1].trim():'';};
 
@@ -249,10 +254,10 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
 // ─── BRIEFS LIST ─────────────────────────────────────────────
 export default function BriefsPage() {
   const [briefs, setBriefs] = useState<Brief[]>([]);
-  const [codes,  setCodes]  = useState<string[]>([]);
+  const [codes,  setCodes]  = useState<BriefCode[]>([]);
   const [sel,    setSel]    = useState<Brief|null>(null);
   const [loading, setLoading] = useState(true);
-  const [newCode, setNewCode] = useState('');
+  const [newCode, setNewCode] = useState<BriefCode | null>(null);
   const [clientId, setClientId] = useState('');
   const clients = useMetaClients();
   const supabase = createClient();
@@ -263,10 +268,10 @@ export default function BriefsPage() {
       if (!user) return;
       const [bRes, cRes] = await Promise.all([
         supabase.from('briefs').select('*').eq('user_id', user.id).order('submitted_at', { ascending: false }),
-        supabase.from('brief_codes').select('code').eq('user_id', user.id),
+        supabase.from('brief_codes').select('code, token').eq('user_id', user.id),
       ]);
       setBriefs(bRes.data ?? []);
-      setCodes(cRes.data?.map(r=>r.code) ?? []);
+      setCodes((cRes.data as BriefCode[]) ?? []);
       setLoading(false);
     }
     load();
@@ -280,9 +285,11 @@ export default function BriefsPage() {
       body: JSON.stringify({ client_id: clientId }),
     });
     if (!res.ok) return;
-    const { code } = await res.json();
-    setCodes(p => [...p, code]);
-    setNewCode(code);
+    const { code, token } = await res.json() as { code: string; token: string };
+    const created = { code, token };
+    setCodes(p => [...p, created]);
+    setNewCode(created);
+    if (token) navigator.clipboard.writeText(briefLink(token));
   }
 
   const statusStyle = {
@@ -330,26 +337,55 @@ export default function BriefsPage() {
         )}
       </Card>
 
-      {newCode && (
+      {newCode && newCode.token && (
         <Card className="mb-4" style={{borderColor:'rgba(184,149,58,.3)'}}>
-          <CardLabel>🔗 קישור חדש נוצר</CardLabel>
-          <div className="flex items-center justify-between bg-[#070A0E] border border-[#2A4158] rounded-lg px-4 py-3 mb-3">
-            <span className="font-mono text-2xl text-[#D4AF55] tracking-widest">{newCode}</span>
-            <CopyBtn text={newCode} label="📋 העתק קוד" />
+          <CardLabel>🔗 הקישור נוצר — הועתק ללוח!</CardLabel>
+
+          {/* PRIMARY: the full shareable link */}
+          <button
+            onClick={() => navigator.clipboard.writeText(briefLink(newCode.token!))}
+            title="לחץ להעתקה"
+            className="w-full text-right flex items-center justify-between gap-3 bg-[#070A0E] border border-[#2A4158] rounded-lg px-4 py-3 mb-3 hover:border-[#D4AF55] transition-colors">
+            <span className="font-mono text-sm text-[#D9E8F5] truncate" dir="ltr">{briefLink(newCode.token)}</span>
+            <span className="text-[#6B8FA8] text-lg flex-shrink-0">📋</span>
+          </button>
+
+          <div className="flex flex-wrap gap-2 mb-3">
+            <CopyBtn text={briefLink(newCode.token)} label="📋 העתק קישור" />
+            <a
+              href={whatsappShareLink(WA_MSG(briefLink(newCode.token)))}
+              target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#059669] hover:brightness-110 text-white text-sm font-semibold px-3 py-1.5 transition-all">
+              💬 שלח ב-WhatsApp
+            </a>
           </div>
-          <Alert type="blue">💡 שלח את הקוד <strong>{newCode}</strong> ללקוח. הוא ייכנס לדף הבריף וימלא את השאלון.</Alert>
+
+          {/* FALLBACK: manual short code */}
+          <Alert type="blue">
+            או הזן קוד ידני: <strong className="font-mono tracking-widest">{newCode.code}</strong>
+          </Alert>
         </Card>
       )}
 
       {codes.length > 0 && (
         <Card className="mb-4">
-          <CardLabel>קודים פעילים</CardLabel>
-          <div className="flex flex-wrap gap-2">
+          <CardLabel>קישורים פעילים</CardLabel>
+          <div className="flex flex-col gap-2">
             {codes.map(c => (
-              <button key={c} onClick={()=>navigator.clipboard.writeText(c)}
-                className="font-mono text-sm bg-[#162030] border border-[#1E2F42] text-[#6B8FA8] px-3 py-1.5 rounded-lg hover:border-[#2A4158] hover:text-[#D9E8F5] transition-colors">
-                {c}
-              </button>
+              <div key={c.code} className="flex items-center justify-between gap-2 py-1">
+                <span className="font-mono text-xs text-[#6B8FA8]">{c.code}</span>
+                <div className="flex gap-2 flex-shrink-0">
+                  {c.token && <CopyBtn text={briefLink(c.token)} label="🔗 קישור" />}
+                  {c.token && (
+                    <a
+                      href={whatsappShareLink(WA_MSG(briefLink(c.token)))}
+                      target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center rounded-lg bg-[#162030] border border-[#1E2F42] text-[#6B8FA8] hover:text-white hover:border-[#2A4158] text-xs font-medium px-2.5 py-1.5 transition-colors">
+                      💬
+                    </a>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         </Card>
