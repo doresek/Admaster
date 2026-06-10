@@ -13,6 +13,7 @@ const WA_MSG = (link: string) =>
 export default function SendBriefPage() {
   const [codes,    setCodes]    = useState<BriefCode[]>([]);
   const [newCode,  setNewCode]  = useState<BriefCode | null>(null);
+  const [createErr, setCreateErr] = useState('');
   const [clientId, setClientId] = useState('');
   const clients = useMetaClients();
   const supabase = createClient();
@@ -27,17 +28,26 @@ export default function SendBriefPage() {
 
   async function create() {
     if (!clientId) return;
-    const res = await fetch('/api/briefs/code', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_id: clientId }),
-    });
-    if (!res.ok) return;
-    const { code, token } = await res.json() as { code: string; token: string };
-    const created = { code, token };
-    setCodes(p => [...p, created]);
-    setNewCode(created);
-    if (token) navigator.clipboard.writeText(briefLink(token));
+    setCreateErr('');
+    try {
+      const res = await fetch('/api/briefs/code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'יצירת הקישור נכשלה');
+      const { code, token } = data as { code: string; token?: string };
+      // A code with no token can't produce a magic link — surface it loudly
+      // instead of silently rendering nothing.
+      if (!token) throw new Error('הקישור נוצר ללא טוקן — ודא שמיגרציה 018 הורצה על מסד הנתונים');
+      const created = { code, token };
+      setCodes(p => [...p, created]);
+      setNewCode(created);
+      navigator.clipboard.writeText(briefLink(token));
+    } catch (e: any) {
+      setCreateErr(e.message);
+    }
   }
 
   return (
@@ -63,6 +73,8 @@ export default function SendBriefPage() {
           />
         )}
       </Card>
+
+      {createErr && <Alert type="red" className="mb-4">❌ {createErr}</Alert>}
 
       {newCode && newCode.token && (
         <Card className="mb-4" style={{ borderColor: 'rgba(184,149,58,.3)' }}>
