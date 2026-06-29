@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Btn, Alert, PageHeader, CopyBtn, Select } from '@/components/ui';
 import { useMetaClients } from '@/lib/hooks/useMetaClients';
@@ -17,6 +18,14 @@ export default function SendBriefPage() {
   const [clientId, setClientId] = useState('');
   const clients = useMetaClients();
   const supabase = createClient();
+  const searchParams = useSearchParams();
+
+  // Pre-select the client when arriving from the post-create CTA on /clients
+  // (/send-brief?client=<id>), once that client appears in the loaded list.
+  useEffect(() => {
+    const id = searchParams?.get('client');
+    if (id && !clientId && clients.some(c => c.id === id)) setClientId(id);
+  }, [searchParams, clients]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {

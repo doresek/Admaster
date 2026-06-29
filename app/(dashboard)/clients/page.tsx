@@ -71,10 +71,10 @@ function useClients() {
     });
   }, []);
 
-  // Adds a new Meta client via the secure server endpoint. The token is
-  // verified, encrypted and stored server-side — never sent to the DB
-  // in plaintext from the browser.
-  async function addClient(input: { name: string; industry?: string; emoji?: string; token: string }) {
+  // Adds a new client via the secure server endpoint. Brief-first: only `name`
+  // is required. When a token is supplied it is verified, encrypted and stored
+  // server-side — never sent to the DB in plaintext from the browser.
+  async function addClient(input: { name: string; industry?: string; emoji?: string; token?: string }) {
     const res  = await fetch('/api/meta/clients', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -113,6 +113,7 @@ export default function ClientsPage() {
   const [showForm, setShowForm] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [err, setErr]      = useState('');
+  const [created, setCreated] = useState<MetaClient|null>(null);
   const [selC, setSelC]    = useState<MetaClient|null>(null);
   const uf = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
   const searchParams = useSearchParams();
@@ -128,14 +129,18 @@ export default function ClientsPage() {
   }, [searchParams, clients]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function connect() {
-    if (!form.name || !form.token) { setErr('מלא שם וToken'); return; }
+    if (!form.name) { setErr('מלא שם לקוח'); return; }
     setConnecting(true); setErr('');
     try {
-      await addClient(form);
+      // Token is optional — sent only when filled (brief-first). The server
+      // inserts an identity-only client when no token is provided.
+      const payload = form.token ? form : { name: form.name, industry: form.industry, emoji: form.emoji };
+      const newClient = await addClient(payload);
       setShowForm(false);
       setForm({ name:'', industry:'', emoji:'🏢', token:'' });
+      setCreated(newClient);
     } catch (e: any) {
-      setErr('שגיאת חיבור: ' + e.message);
+      setErr('שגיאה ביצירת לקוח: ' + e.message);
     } finally {
       setConnecting(false); }
   }
@@ -144,13 +149,31 @@ export default function ClientsPage() {
 
   return (
     <div>
-      <PageHeader eyebrow="Meta API" title="לקוחות Meta" sub={`${clients.length} לקוחות מחוברים`}
+      <PageHeader eyebrow="Meta API" title="לקוחות Meta" sub={`${clients.length} לקוחות`}
         right={<Btn variant="primary" onClick={() => setShowForm(!showForm)}>+ הוסף לקוח</Btn>} />
+
+      {created && (
+        <Card className="mb-4" style={{ borderColor: 'rgba(184,149,58,.3)' }}>
+          <CardLabel>🎉 הלקוח {created.emoji} {created.name} נוצר!</CardLabel>
+          <div className="text-sm text-[#6B8FA8] mb-3">
+            השלב הבא: שלח ללקוח בריף קצר — מילוי הבריף בונה אוטומטית אווטאר, מודעות ומשפך.
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <a href={`/send-brief?client=${created.id}`}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#0A7AFF] hover:brightness-110 text-white text-sm font-semibold px-4 py-2 transition-all">
+              📋 צור בריף ללקוח
+            </a>
+            <Btn variant="ghost" size="sm" onClick={() => { setSelC(created); setCreated(null); }}>
+              🔗 חבר חשבון Meta עכשיו
+            </Btn>
+            <Btn variant="ghost" size="sm" onClick={() => setCreated(null)}>סגור</Btn>
+          </div>
+        </Card>
+      )}
 
       {showForm && (
         <Card className="mb-4">
-          <CardLabel>🔌 חיבור Meta חדש</CardLabel>
-          <Alert type="blue">הToken נשמר מאובטח בDB ומעולם לא נחשף ללקוח</Alert>
+          <CardLabel>➕ לקוח חדש</CardLabel>
           <div className="flex flex-wrap gap-2 mb-3">
             {['🏢','✡️','🕍','🛍','💎','📚','🏋','🎨'].map(e => (
               <button key={e} onClick={() => uf('emoji', e)}
@@ -163,29 +186,35 @@ export default function ClientsPage() {
             <Input label="שם לקוח *"  value={form.name}     onChange={v=>uf('name',v)}     placeholder="שם העסק" />
             <Input label="תחום"        value={form.industry} onChange={v=>uf('industry',v)} placeholder="תחום עיסוק" />
           </div>
-          <div className="mb-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-medium text-[#6B8FA8]">Meta Access Token *</label>
-              <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noreferrer"
-                className="text-[11px] text-[#3D9FFF] hover:underline">❓ איך מקבלים?</a>
+          <details className="mt-3 mb-3 group">
+            <summary className="cursor-pointer text-xs font-medium text-[#6B8FA8] hover:text-[#D9E8F5] select-none">
+              🔌 חבר חשבון Meta (אפשר גם מאוחר יותר)
+            </summary>
+            <div className="mt-3">
+              <Alert type="blue">הToken נשמר מאובטח בDB ומעולם לא נחשף ללקוח. אפשר גם לחבר דרך כפתור ההתחברות בכרטיס הלקוח.</Alert>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-medium text-[#6B8FA8]">Meta Access Token (אופציונלי)</label>
+                <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noreferrer"
+                  className="text-[11px] text-[#3D9FFF] hover:underline">❓ איך מקבלים?</a>
+              </div>
+              <input type="password" value={form.token} onChange={e=>uf('token',e.target.value)} placeholder="EAAxxxxxxxx..."
+                className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]"
+                dir="ltr" />
             </div>
-            <input type="password" value={form.token} onChange={e=>uf('token',e.target.value)} placeholder="EAAxxxxxxxx..."
-              className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]"
-              dir="ltr" />
-          </div>
+          </details>
           {err && <Alert type="red">{err}</Alert>}
-          <Btn variant="primary" loading={connecting} onClick={connect} disabled={!form.name||!form.token}>
-            🔗 חבר לקוח
+          <Btn variant="primary" loading={connecting} onClick={connect} disabled={!form.name}>
+            צור לקוח
           </Btn>
         </Card>
       )}
 
       {clients.length === 0 && !showForm && (
         <div className="text-center py-14 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
-          <div className="text-4xl mb-3 opacity-30">🔌</div>
-          <div className="text-base font-semibold mb-2">אין לקוחות מחוברים</div>
-          <div className="text-sm mb-4">חבר לקוח עם Meta Access Token</div>
-          <Btn variant="primary" onClick={() => setShowForm(true)}>+ חבר לקוח ראשון</Btn>
+          <div className="text-4xl mb-3 opacity-30">📋</div>
+          <div className="text-base font-semibold mb-2">אין לקוחות עדיין</div>
+          <div className="text-sm mb-4">צור לקוח בשם בלבד — את חשבון ה-Meta אפשר לחבר מאוחר יותר</div>
+          <Btn variant="primary" onClick={() => setShowForm(true)}>+ צור לקוח ראשון</Btn>
         </div>
       )}
 
