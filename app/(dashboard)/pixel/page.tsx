@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Input, Btn, Alert, PageHeader, CopyBtn } from '@/components/ui';
 import type { MetaClient } from '@/types';
+import { clientToMetaClient } from '@/lib/clients';
 
 export default function PixelPage() {
   const [clients, setClients] = useState<MetaClient[]>([]);
@@ -19,8 +20,8 @@ export default function PixelPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from('meta_clients').select('*').eq('user_id', user.id)
-        .then(({ data }) => { setClients(data??[]); if(data?.[0]) { setSelC(data[0].id); loadPixels(data[0].id); } });
+      supabase.from('clients').select('id, name, owner_user_id, created_at, updated_at').eq('owner_user_id', user.id)
+        .then(({ data }) => { const list = (data ?? []).map(clientToMetaClient); setClients(list); if(list[0]) { setSelC(list[0].id); loadPixels(list[0].id); } });
     });
   }, []);
 

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Input, Textarea, Btn, Alert, PageHeader, CopyBtn } from '@/components/ui';
 import { reportLink, whatsappShareLink } from '@/lib/share';
 import type { MetaClient } from '@/types';
+import { clientToMetaClient } from '@/lib/clients';
 
 // Pre-filled WhatsApp message for sharing a client-facing ROI report link.
 const WA_REPORT_MSG = (link: string) =>
@@ -31,8 +32,8 @@ export default function ReportsPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from('meta_clients').select('*').eq('user_id', user.id)
-        .then(({ data }) => { setClients(data??[]); if(data?.[0]) setSelC(data[0].id); });
+      supabase.from('clients').select('id, name, owner_user_id, created_at, updated_at').eq('owner_user_id', user.id)
+        .then(({ data }) => { const list = (data ?? []).map(clientToMetaClient); setClients(list); if(list[0]) setSelC(list[0].id); });
       fetch('/api/reports').then(r=>r.json()).then(d=>setReports(Array.isArray(d)?d:[]));
     });
   }, []);

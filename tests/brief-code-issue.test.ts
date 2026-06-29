@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { issueBriefCode, generateBriefCode, generateBriefToken, BriefCodeError } from '@/app/api/briefs/code/issue';
 
 // ── Mock Supabase ───────────────────────────────────────────────
-// meta_clients: from('meta_clients').select('id').eq('id',_).eq('user_id',_).maybeSingle()
+// clients: from('clients').select('id').eq('id',_).eq('owner_user_id',_).maybeSingle()
 // users:        from('users').select('name').eq('id',_).maybeSingle()
 // brief_codes:  from('brief_codes').insert(row).select('code, client_id').single()
 //
@@ -26,7 +26,7 @@ function makeSupabase(opts: {
   const supabase: any = {
     _inserted: inserted,
     from(table: string) {
-      if (table === 'meta_clients') {
+      if (table === 'clients') {
         const filters: any = {};
         const b: any = {
           select: () => b,

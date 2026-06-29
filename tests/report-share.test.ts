@@ -25,7 +25,7 @@ const VALID_INPUT = {
 };
 
 // ── Mint mock ───────────────────────────────────────────────────
-// meta_clients: from('meta_clients').select('id').eq('id',_).eq('user_id',_).maybeSingle()
+// clients: from('clients').select('id').eq('id',_).eq('owner_user_id',_).maybeSingle()
 // report_shares: from('report_shares').insert(row).select('token').single()
 function makeMintSupabase(opts: {
   ownedClients?: string[];
@@ -37,7 +37,7 @@ function makeMintSupabase(opts: {
   const supabase: any = {
     _inserted: inserted,
     from(table: string) {
-      if (table === 'meta_clients') {
+      if (table === 'clients') {
         const filters: any = {};
         const b: any = {
           select: () => b,
@@ -209,7 +209,7 @@ describe('resolveReportShare', () => {
         period_end: '2026-06-30',
         report: SNAPSHOT,
         expires_at: '2026-01-01T00:00:00.000Z',
-        meta_clients: { name: 'Acme' },
+        clients: { name: 'Acme' },
       },
     });
     const res = await resolveReportShare(supabase, TOKEN_A, { now: () => new Date('2026-06-29') });
@@ -224,7 +224,7 @@ describe('resolveReportShare', () => {
         period_end: '2026-06-30',
         report: SNAPSHOT,
         expires_at: '2026-12-31T00:00:00.000Z',
-        meta_clients: { name: 'Acme' },
+        clients: { name: 'Acme' },
       },
     });
     const res = await resolveReportShare(supabase, TOKEN_A, { now: () => new Date('2026-06-29') });
@@ -244,7 +244,7 @@ describe('resolveReportShare', () => {
         period_end: '2026-06-30',
         report: SNAPSHOT,
         expires_at: null,
-        meta_clients: [{ name: 'Acme Array' }],
+        clients: [{ name: 'Acme Array' }],
       },
     });
     const res = await resolveReportShare(supabase, TOKEN_A);

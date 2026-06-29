@@ -69,10 +69,10 @@ export async function mintReportShare(
 
   // Ownership check: the client must belong to the authenticated user.
   const { data: ownedClient } = await supabase
-    .from('meta_clients')
+    .from('clients')
     .select('id')
     .eq('id', input.clientId)
-    .eq('user_id', userId)
+    .eq('owner_user_id', userId)
     .maybeSingle();
   if (!ownedClient) {
     throw new ReportShareError(400, 'clientId does not belong to this user');

@@ -6,6 +6,7 @@ import { useAI } from '@/lib/hooks/useAI';
 import { FRAMEWORKS, FRAMEWORKS_BY_ID, type FrameworkId } from '@/lib/frameworks';
 import { readActiveClientFromDocument } from '@/lib/active-client';
 import type { MetaClient, CreditAction } from '@/types';
+import { clientToMetaClient } from '@/lib/clients';
 
 type Channel = 'email' | 'sms' | 'whatsapp';
 
@@ -39,9 +40,9 @@ export default function MessagesPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from('meta_clients').select('*').eq('user_id', user.id)
+      supabase.from('clients').select('id, name, owner_user_id, created_at, updated_at').eq('owner_user_id', user.id)
         .then(({ data }) => {
-          const list = data ?? [];
+          const list = (data ?? []).map(clientToMetaClient);
           setClients(list);
           // Default the client selector to the active client (cookie) so blasts
           // attribute by default. User can still change it.

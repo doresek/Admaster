@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Input, Btn, PageHeader, Chip, CopyBtn } from '@/components/ui';
 import type { MetaClient } from '@/types';
+import { clientToMetaClient } from '@/lib/clients';
 import { clsx } from 'clsx';
 
 interface Item {
@@ -41,10 +42,10 @@ export default function LibraryPage() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(500),
-      supabase.from('meta_clients').select('*').eq('user_id', user.id),
+      supabase.from('clients').select('id, name, owner_user_id, created_at, updated_at').eq('owner_user_id', user.id),
     ]);
     setItems(contentRes.data ?? []);
-    setClients(clientsRes.data ?? []);
+    setClients((clientsRes.data ?? []).map(clientToMetaClient));
     setLoading(false);
   }
   useEffect(() => { load(); }, []);

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Client, ClientStrategy } from '@/types';
+import type { Client, ClientStrategy, MetaClient } from '@/types';
 
 // ════════════════════════════════════════════
 // lib/clients — the single read/write path for the clean client model (v2).
@@ -118,6 +118,39 @@ export async function updateClient(
 
   if (error) throw new Error(error.message);
   return data as Client;
+}
+
+// Adapt a v2 `clients` identity row to the legacy `MetaClient` shape that many
+// dashboard surfaces still render (dropdowns/chips keyed on id+name+emoji).
+// The clean model keeps NO Meta assets, emoji, or activity counts on the
+// identity record, so those are filled with safe placeholders:
+//   • emoji → '🏢' (clients has no emoji column)
+//   • pages / ad_accounts → [] and selected_* → null (assets live on
+//     meta_connections now; resolve real values via getActiveConnection)
+//   • posts_published / campaigns_created → 0 (TODO: compute from content later)
+// NEVER trust these placeholders for anything Meta-related.
+export function clientToMetaClient(
+  c: { id: string; name: string; owner_user_id?: string; created_at?: string; updated_at?: string },
+): MetaClient {
+  return {
+    id:                     c.id,
+    user_id:                c.owner_user_id ?? '',
+    name:                   c.name,
+    industry:               null,
+    emoji:                  '🏢',
+    token:                  '',
+    meta_user_id:           null,
+    meta_user_name:         null,
+    pages:                  [],
+    ad_accounts:            [],
+    selected_page_id:       null,
+    selected_ad_account_id: null,
+    status:                 'connected',
+    posts_published:        0,
+    campaigns_created:      0,
+    connected_at:           c.created_at ?? '',
+    updated_at:             c.updated_at ?? '',
+  };
 }
 
 // Read the strategy core for a client. Returns null when none generated yet.

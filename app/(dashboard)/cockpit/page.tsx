@@ -22,7 +22,7 @@ export default async function CockpitPage() {
 
   let clientName: string | null = null;
   if (clientId) {
-    const { data } = await supabase.from('meta_clients').select('name').eq('id', clientId).eq('user_id', user.id).maybeSingle();
+    const { data } = await supabase.from('clients').select('name').eq('id', clientId).eq('owner_user_id', user.id).maybeSingle();
     clientName = data?.name ?? null;
   }
 

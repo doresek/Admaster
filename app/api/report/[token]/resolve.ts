@@ -35,7 +35,7 @@ export async function resolveReportShare(
 
   const { data, error } = await supabase
     .from('report_shares')
-    .select('client_id, period_start, period_end, report, expires_at, meta_clients(name)')
+    .select('client_id, period_start, period_end, report, expires_at, clients(name)')
     .eq('token', token)
     .maybeSingle();
 
@@ -48,10 +48,10 @@ export async function resolveReportShare(
     return { valid: false, expired: true };
   }
 
-  // The meta_clients join may surface as an object or a single-element array
+  // The clients join may surface as an object or a single-element array
   // depending on the PostgREST embedding shape; handle both defensively.
-  const mc = Array.isArray(data.meta_clients) ? data.meta_clients[0] : data.meta_clients;
-  const clientName = (mc as { name?: string } | null)?.name ?? null;
+  const cl = Array.isArray(data.clients) ? data.clients[0] : data.clients;
+  const clientName = (cl as { name?: string } | null)?.name ?? null;
 
   return {
     valid:      true,

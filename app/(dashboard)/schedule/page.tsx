@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Textarea, Btn, Alert, PageHeader } from '@/components/ui';
 import type { MetaClient } from '@/types';
+import { clientToMetaClient } from '@/lib/clients';
 import { clsx } from 'clsx';
 
 const DAYS_HE = ['א','ב','ג','ד','ה','ו','ש'];
@@ -27,8 +28,8 @@ export default function SchedulePage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from('meta_clients').select('*').eq('user_id', user.id)
-        .then(({ data }) => { setClients(data ?? []); if (data?.[0]) setSelC(data[0]); });
+      supabase.from('clients').select('id, name, owner_user_id, created_at, updated_at').eq('owner_user_id', user.id)
+        .then(({ data }) => { const list = (data ?? []).map(clientToMetaClient); setClients(list); if (list[0]) setSelC(list[0]); });
     });
   }, []);
 

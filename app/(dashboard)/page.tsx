@@ -21,7 +21,7 @@ export default async function DashboardPage() {
   // focused call-to-action — "add your first client" — instead of the full
   // feature dashboard. Cheap count query gates this before the heavy queries.
   const { count: clientCount } = await supabase
-    .from('meta_clients').select('id', { count: 'exact', head: true }).eq('user_id', user!.id);
+    .from('clients').select('id', { count: 'exact', head: true }).eq('owner_user_id', user!.id);
 
   if (isNewUser(clientCount)) {
     const { data: newProfile } = await supabase
@@ -44,7 +44,7 @@ export default async function DashboardPage() {
     supabase.from('users').select('name, credits, plan').eq('id', user!.id).single(),
     supabase.from('credit_history').select('action, cost, created_at').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(8),
     supabase.from('briefs').select('id, status').eq('user_id', user!.id),
-    supabase.from('meta_clients').select('id').eq('user_id', user!.id),
+    supabase.from('clients').select('id').eq('owner_user_id', user!.id),
     supabase.from('generated_content').select('type').eq('user_id', user!.id),
     supabase.from('messages').select('id, channel').eq('user_id', user!.id),
     supabase.from('message_series').select('id').eq('user_id', user!.id),

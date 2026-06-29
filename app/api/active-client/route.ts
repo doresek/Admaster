@@ -8,11 +8,15 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: clients } = await supabase
-    .from('meta_clients')
-    .select('id, name, industry, emoji')
-    .eq('user_id', user.id)
+  // Identity-only list from the v2 `clients` table. `clients` has no emoji /
+  // industry columns, so surface stable placeholders (emoji '🏢') for the few
+  // UI surfaces that still read them; they no longer drive any Meta behavior.
+  const { data: rows } = await supabase
+    .from('clients')
+    .select('id, name')
+    .eq('owner_user_id', user.id)
     .order('name');
+  const clients = (rows ?? []).map(c => ({ id: c.id, name: c.name, industry: null, emoji: '🏢' }));
 
   const active = readActiveClientCookie(req.headers.get('cookie') ?? '');
   // Verify the active client still belongs to this user
@@ -55,10 +59,10 @@ export async function POST(req: NextRequest) {
   // Verify ownership
   if (id) {
     const { data } = await supabase
-      .from('meta_clients')
+      .from('clients')
       .select('id')
       .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('owner_user_id', user.id)
       .maybeSingle();
     if (!data) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
