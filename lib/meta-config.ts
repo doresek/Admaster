@@ -2,24 +2,12 @@
 // Central, env-driven Meta Graph / OAuth configuration.
 //
 // This is the single source of truth for the Graph API version, the OAuth
-// scopes we request, and the redirect URI. The new OAuth routes use it.
-//
-// FOLLOW-UP (not done here, intentionally): there are still ~6 hardcoded
-// `const GRAPH = 'https://graph.facebook.com/v19.0'` callsites that predate
-// this module and should be migrated to import META_GRAPH_BASE from here:
-//   app/api/meta/clients/route.ts
-//   app/api/meta/route.ts
-//   app/api/analytics/route.ts
-//   app/api/competitor/route.ts
-//   app/api/pixel/route.ts
-//   app/api/schedule/route.ts
-// (and ~9 more on feat/meta-ads-launcher). Left untouched so this branch stays
-// scoped to the OAuth connect flow and easy to review.
+// scopes we request, and the redirect URI. All Graph callsites import
+// META_GRAPH_BASE from here instead of hardcoding a version.
 // ════════════════════════════════════════════
 
 // Graph API version. Defaults to a current, supported version; override per
-// environment with META_GRAPH_VERSION (e.g. "v21.0"). The legacy hardcoded
-// callsites still pin v19.0 — see the follow-up note above.
+// environment with META_GRAPH_VERSION (e.g. "v21.0").
 export const META_GRAPH_VERSION = (process.env.META_GRAPH_VERSION || 'v21.0').trim();
 
 export const META_GRAPH_BASE = `https://graph.facebook.com/${META_GRAPH_VERSION}`;
