@@ -172,6 +172,29 @@ describe('POST /api/landing/lead — lead insert shape (real handler)', () => {
     const notify = H.captured.rpcCalls.find(r => r.name === 'notify_landing_lead');
     expect(notify!.args.p_href).toBe('/landing-pages/edit/lp1');
   });
+
+  // ── Attribution capture (W5.1a) ──────────────────────────────────────
+  // landing_page_leads has NO client_id column (schema gap, see file header),
+  // so the lead ROW cannot carry it without a separate migration. We still
+  // RESOLVE the owning client from landing_pages.client_id and surface it on
+  // the notify_landing_lead meta so the client is captured at submit time.
+  it('resolves the owning client_id from the page and includes it in the notify meta', async () => {
+    H.cfg.page = { ...H.cfg.page, client_id: 'client-A' };
+    const { POST } = await import('@/app/api/landing/lead/route');
+    await POST(fakeReq({ slug: 's', fields: { name: 'דנה' } }));
+    const notify = H.captured.rpcCalls.find(r => r.name === 'notify_landing_lead');
+    expect(notify!.args.p_meta.client_id).toBe('client-A');
+    // The lead row itself still has no client_id (no column) — the gap is documented.
+    expect('client_id' in H.captured.leadInsert).toBe(false);
+  });
+
+  it('notify meta client_id is null when the page has no client', async () => {
+    H.cfg.page = { ...H.cfg.page, client_id: null };
+    const { POST } = await import('@/app/api/landing/lead/route');
+    await POST(fakeReq({ slug: 's', fields: { name: 'x' } }));
+    const notify = H.captured.rpcCalls.find(r => r.name === 'notify_landing_lead');
+    expect(notify!.args.p_meta.client_id).toBeNull();
+  });
 });
 
 // ════════════════════════════════════════════════════════════════════

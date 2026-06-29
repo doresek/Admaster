@@ -16,13 +16,21 @@ export async function POST(req: NextRequest) {
 
   const { data: page } = await supabase
     .from('landing_pages')
-    .select('id, user_id, status, title, slug')
+    .select('id, user_id, status, title, slug, client_id')
     .eq('slug', slug)
     .maybeSingle();
 
   if (!page || page.status !== 'published') {
     return NextResponse.json({ error: 'Page not found or not published' }, { status: 404 });
   }
+
+  // Owning client for this lead = the page's client_id (the page is the only
+  // place attribution lives; the anonymous submitter has no active-client cookie).
+  // SCHEMA GAP: landing_page_leads has NO client_id column (004_phase_b.sql:40-48),
+  // so we cannot persist it on the row without a separate human-applied migration.
+  // Until then attribution is reachable two-hop (lead → landing_page → client_id),
+  // and we surface the resolved client_id in the lead notification meta below.
+  const clientId: string | null = page.client_id ?? null;
 
   const { error } = await supabase.from('landing_page_leads').insert({
     landing_page_id: page.id,
@@ -72,6 +80,7 @@ export async function POST(req: NextRequest) {
       p_href:    `/landing-pages/edit/${page.id}`,
       p_meta:    {
         landing_page_id: page.id,
+        client_id:       clientId,
         slug:            page.slug,
         wa_link:         waLink || null,
         email:           settings?.support_email || null,
