@@ -73,6 +73,9 @@ export async function POST(req: NextRequest) {
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/credits?success=true`,
       cancel_url:  `${process.env.NEXT_PUBLIC_APP_URL}/credits?cancelled=true`,
       metadata: { userId: user.id, plan, type: 'subscription' },
+      // Propagate identity onto the Subscription so invoice.paid (renewals) can resolve the user.
+      subscription_data: { metadata: { userId: user.id, plan } },
+      client_reference_id: user.id,
       customer_email: user.email,
     });
 
