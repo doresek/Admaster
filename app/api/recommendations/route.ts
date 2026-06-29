@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { resolveClientSelection } from '@/lib/meta-connections';
 
 interface Rec {
   kind:         'quick_win' | 'growth' | 'retention' | 'warning' | 'tip';
@@ -35,6 +36,15 @@ export async function GET() {
     ? Math.floor((Date.now() - new Date(profile.data.created_at).getTime()) / 86400000)
     : 0;
   const cl         = clients.data ?? [];
+  // Resolve each client's effective page / ad-account selection from its active
+  // meta_connection (agency model), falling back to the legacy meta_clients
+  // columns when no connection row exists. Client identity stays from meta_clients.
+  const clientsWithSelection = await Promise.all(
+    cl.map(async c => ({
+      ...c,
+      ...(await resolveClientSelection(supabase, c, user.id)),
+    })),
+  );
   const br         = briefs.data ?? [];
   const co         = content.data ?? [];
   const lp         = landing.data ?? [];
@@ -86,7 +96,7 @@ export async function GET() {
   }
 
   // ─────────── CLIENT WITHOUT META PAGE ───────────
-  const unconfigured = cl.find(c => !c.selected_page_id || !c.selected_ad_account_id);
+  const unconfigured = clientsWithSelection.find(c => !c.selected_page_id || !c.selected_ad_account_id);
   if (unconfigured) {
     recs.push({
       kind: 'warning', priority: 70,

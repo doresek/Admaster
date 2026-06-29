@@ -44,3 +44,37 @@ export async function getActiveConnection(
 
   return data ?? null;
 }
+
+// The effective page / ad-account selection for a client. Agency-model clients
+// keep this on their active meta_connections row; legacy (pre-backfill) clients
+// still carry it on meta_clients.selected_*.
+export interface ClientSelection {
+  selected_page_id: string | null;
+  selected_ad_account_id: string | null;
+}
+
+// Resolve a client's effective selection: prefer the active connection, and
+// fall back to the legacy meta_clients.selected_* columns when no connection
+// row exists. Returns nulls when the client has neither (treated as "not
+// selected" by callers).
+export async function resolveClientSelection(
+  supabase: SupabaseClient,
+  client: {
+    id: string;
+    selected_page_id?: string | null;
+    selected_ad_account_id?: string | null;
+  },
+  agencyUserId: string,
+): Promise<ClientSelection> {
+  const connection = await getActiveConnection(supabase, client.id, agencyUserId);
+  if (connection) {
+    return {
+      selected_page_id: connection.selected_page_id ?? null,
+      selected_ad_account_id: connection.selected_ad_account_id ?? null,
+    };
+  }
+  return {
+    selected_page_id: client.selected_page_id ?? null,
+    selected_ad_account_id: client.selected_ad_account_id ?? null,
+  };
+}
