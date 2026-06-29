@@ -99,6 +99,31 @@ export function extractConversions(
   }, 0);
 }
 
+// Build the GET {ad_account}/insights URL with only non-secret query params.
+// The access token is intentionally NOT included here — it must be sent via the
+// Authorization header so it never leaks into URLs, logs, or proxies.
+export interface InsightsUrlParams {
+  graphBase: string;
+  adAccountId: string;
+  since: string; // YYYY-MM-DD
+  until: string; // YYYY-MM-DD
+  fields?: string;
+  limit?: number;
+}
+
+export function buildInsightsUrl(p: InsightsUrlParams): string {
+  const fields =
+    p.fields ?? 'impressions,clicks,spend,reach,frequency,ctr,cpc,cpm,actions';
+  const params = new URLSearchParams({
+    fields,
+    level: 'account',
+    time_increment: '1',
+    time_range: JSON.stringify({ since: p.since, until: p.until }),
+    limit: String(p.limit ?? 500),
+  });
+  return `${p.graphBase}/${p.adAccountId}/insights?${params.toString()}`;
+}
+
 // Map one daily Graph insights row to an ad_performance upsert record.
 export function mapInsightsRowToPerformance(
   row: GraphInsightsRow,

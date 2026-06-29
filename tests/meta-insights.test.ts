@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildInsightsUrl,
   mapInsightsRowToPerformance,
   extractConversions,
   type GraphInsightsRow,
@@ -92,6 +93,39 @@ describe('mapInsightsRowToPerformance', () => {
   it('falls back to date_stop when date_start is absent', () => {
     const rec = mapInsightsRowToPerformance({ date_stop: '2026-06-04' }, ctx);
     expect(rec.date).toBe('2026-06-04');
+  });
+});
+
+describe('buildInsightsUrl', () => {
+  const url = buildInsightsUrl({
+    graphBase: 'https://graph.facebook.com/v21.0',
+    adAccountId: 'act_123',
+    since: '2026-06-01',
+    until: '2026-06-29',
+  });
+
+  it('builds the insights endpoint with the expected non-secret params', () => {
+    const parsed = new URL(url);
+    expect(parsed.pathname).toBe('/v21.0/act_123/insights');
+    expect(parsed.searchParams.get('level')).toBe('account');
+    expect(parsed.searchParams.get('time_increment')).toBe('1');
+    expect(parsed.searchParams.get('limit')).toBe('500');
+    expect(parsed.searchParams.get('time_range')).toBe(
+      JSON.stringify({ since: '2026-06-01', until: '2026-06-29' }),
+    );
+  });
+
+  it('NEVER includes the access token in the URL', () => {
+    const secret = 'EAATESTTOKEN_super_secret_value';
+    const u = buildInsightsUrl({
+      graphBase: 'https://graph.facebook.com/v21.0',
+      adAccountId: 'act_123',
+      since: '2026-06-01',
+      until: '2026-06-29',
+    });
+    expect(u).not.toContain('access_token');
+    expect(u).not.toContain(secret);
+    expect(new URL(u).searchParams.has('access_token')).toBe(false);
   });
 });
 
