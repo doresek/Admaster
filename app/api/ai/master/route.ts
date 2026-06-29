@@ -6,7 +6,13 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { buildAiContext } from '@/lib/ai-context';
 import { readActiveClientCookie } from '@/lib/active-client';
 import { runMasterPipeline, type StageRunner } from '@/lib/master-studio/pipeline';
+import { withRetry, classifyError } from '@/lib/master-studio/retry';
 import { type MasterStudioInput } from '@/lib/master-studio';
+
+// Best-of-N runs 5-6 sequential Anthropic calls; the default 10s/60s function
+// budget is not enough. Vercel Fluid Compute allows up to 300s on Node.
+export const runtime = 'nodejs';
+export const maxDuration = 300;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
@@ -49,7 +55,9 @@ export async function POST(req: NextRequest) {
   }
 
   // Anthropic-backed stage runner. Brand context is prepended to each stage's system prompt.
-  const run: StageRunner = async (system, userPrompt, maxTokens) => {
+  // Wrapped in withRetry: each stage retries ONCE on a transient provider error
+  // (429 / 5xx / network) with a short backoff before giving up.
+  const run: StageRunner = withRetry(async (system, userPrompt, maxTokens) => {
     const msg = await anthropic.messages.create({
       model:      MODEL,
       max_tokens: maxTokens,
@@ -58,7 +66,7 @@ export async function POST(req: NextRequest) {
     });
     const block = msg.content.find(b => b.type === 'text');
     return block && block.type === 'text' ? block.text : '';
-  };
+  });
 
   const input: MasterStudioInput = { brief, masterNotes, platform, tone, type, framework, hook, locale };
 
@@ -66,9 +74,12 @@ export async function POST(req: NextRequest) {
   try {
     result = await runMasterPipeline(input, run);
   } catch (e) {
+    // Refund first — never swallow it, regardless of how we classify the error.
     await refundCredits(supabase, user.id, 'master_post', deduct.cost);
+    const kind = classifyError(e);
+    console.error(`[master route] pipeline failed (${kind}):`, e);
     return NextResponse.json(
-      { error: 'נכשל ביצירה — נסה שוב', detail: String(e).slice(0, 200) },
+      { error: 'נכשל ביצירה — נסה שוב', kind, detail: `${kind}: ${String(e).slice(0, 200)}` },
       { status: 502 }
     );
   }
