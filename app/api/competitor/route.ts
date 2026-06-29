@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { META_GRAPH_BASE } from '@/lib/meta-config';
 
-const GRAPH  = 'https://graph.facebook.com/v19.0';
+const GRAPH  = META_GRAPH_BASE;
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 // GET /api/competitor?query=תפילין&country=IL&limit=20

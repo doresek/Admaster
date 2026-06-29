@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getDecryptedMetaToken } from '@/lib/meta';
+import { META_GRAPH_BASE } from '@/lib/meta-config';
 
-const GRAPH = 'https://graph.facebook.com/v19.0';
+const GRAPH = META_GRAPH_BASE;
 
 async function fetchInsights(adAccountId: string, token: string, datePreset: string) {
   const fields = 'impressions,clicks,spend,reach,frequency,ctr,cpc,cpm,actions,action_values,cost_per_action_type';
