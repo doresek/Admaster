@@ -23,7 +23,8 @@ function back(req: NextRequest, returnTo: string, params: Record<string, string>
 //   2. code → short-lived token → long-lived token.
 //   3. Fetch identity (Pages + ad accounts).
 //   4. ENCRYPT the long-lived token (exact lib/crypto AES-256-GCM format) and
-//      store it on the existing meta_clients row keyed by client_id.
+//      INSERT a new meta_connections child row (one client can own many
+//      connections — agency model). meta_clients stays pure identity.
 //   5. Redirect back to returnTo with a status flag.
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
@@ -75,27 +76,30 @@ export async function GET(req: NextRequest) {
     // 3. Identity (Pages + ad accounts), same shape as the manual flow.
     const identity = await fetchMetaIdentity(long.access_token);
 
-    // 4. Encrypt with the EXACT lib/crypto format and store on the client row.
+    // 4. Encrypt with the EXACT lib/crypto format and INSERT a meta_connections
+    //    child row. meta_clients is pure identity now — no credential/asset
+    //    columns are written there. RLS (meta_connections_own) restricts the
+    //    row to agency_user_id = the authenticated user.
     const token_encrypted = encrypt(long.access_token);
+    const pages = identity.pages;
+    const adAccounts = identity.adAccounts;
 
-    const { error: updErr } = await supabase
-      .from('meta_clients')
-      .update({
+    const { error: insErr } = await supabase
+      .from('meta_connections')
+      .insert({
+        client_id: state.clientId,
+        agency_user_id: user.id,
         token_encrypted,
-        token: null, // clear any legacy plaintext now that we hold an encrypted token
         meta_user_id: identity.metaUserId,
         meta_user_name: identity.metaUserName,
-        pages: identity.pages,
-        ad_accounts: identity.adAccounts,
-        selected_page_id: identity.pages[0]?.id ?? null,
-        selected_ad_account_id: identity.adAccounts[0]?.id ?? null,
+        pages,
+        ad_accounts: adAccounts,
+        selected_page_id: pages[0]?.id ?? null,
+        selected_ad_account_id: adAccounts[0]?.id ?? null,
         status: 'connected',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', state.clientId)
-      .eq('user_id', user.id); // RLS-safe: only the owner's row
+      });
 
-    if (updErr) return back(req, returnTo, { meta: 'error', reason: 'store_failed' });
+    if (insErr) return back(req, returnTo, { meta: 'error', reason: 'store_failed' });
 
     return back(req, returnTo, {
       meta: 'connected',

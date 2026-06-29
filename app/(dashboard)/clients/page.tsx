@@ -6,17 +6,68 @@ import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Input, Textarea, Btn, Alert, PageHeader, CostBadge, Tabs } from '@/components/ui';
 import { useAI, useMeta } from '@/lib/hooks/useAI';
 import ConnectFacebookButton from '@/components/meta/ConnectFacebookButton';
-import type { MetaClient } from '@/types';
+import type { MetaClient, MetaConnection, MetaPage, MetaAdAccount } from '@/types';
 import { clsx } from 'clsx';
+
+// meta_clients is pure identity now; the credential + assets (pages, ad
+// accounts, active selection, live status) live on the active meta_connections
+// child row. This view merges the active connection over the client so the UI
+// renders from the connection when one exists, and falls back to the legacy
+// meta_clients fields for clients connected before the meta_connections backfill.
+interface ClientView {
+  pages: MetaPage[];
+  ad_accounts: MetaAdAccount[];
+  selected_page_id: string | null;
+  selected_ad_account_id: string | null;
+  status: string;
+  meta_user_name: string | null;
+}
+
+function clientView(client: MetaClient, conn?: MetaConnection): ClientView {
+  if (conn) {
+    return {
+      pages: conn.pages ?? [],
+      ad_accounts: conn.ad_accounts ?? [],
+      selected_page_id: conn.selected_page_id,
+      selected_ad_account_id: conn.selected_ad_account_id,
+      status: conn.status,
+      meta_user_name: conn.meta_user_name ?? client.meta_user_name,
+    };
+  }
+  return {
+    pages: client.pages ?? [],
+    ad_accounts: client.ad_accounts ?? [],
+    selected_page_id: client.selected_page_id,
+    selected_ad_account_id: client.selected_ad_account_id,
+    status: client.status,
+    meta_user_name: client.meta_user_name,
+  };
+}
 
 function useClients() {
   const [clients, setClients] = useState<MetaClient[]>([]);
+  // clientId → active (most-recently-connected) connection.
+  const [connections, setConnections] = useState<Record<string, MetaConnection>>({});
   const supabase = createClient();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
-      supabase.from('meta_clients').select('*').eq('user_id', user.id).then(({ data }) => setClients(data ?? []));
+      const { data: cls } = await supabase.from('meta_clients').select('*').eq('user_id', user.id);
+      setClients(cls ?? []);
+
+      // Active connections for this agency user, newest first; keep the first
+      // (most recent) per client. RLS (meta_connections_own) scopes to the user.
+      const { data: conns } = await supabase
+        .from('meta_connections')
+        .select('id, client_id, token_encrypted, meta_user_id, meta_user_name, pages, ad_accounts, selected_page_id, selected_ad_account_id, status, connected_at')
+        .eq('agency_user_id', user.id)
+        .eq('status', 'connected')
+        .order('connected_at', { ascending: false });
+
+      const map: Record<string, MetaConnection> = {};
+      for (const c of (conns ?? []) as MetaConnection[]) if (!map[c.client_id]) map[c.client_id] = c;
+      setConnections(map);
     });
   }, []);
 
@@ -35,17 +86,29 @@ function useClients() {
     return data;
   }
 
-  async function updateClient(id: string, updates: Partial<MetaClient>) {
-    await supabase.from('meta_clients').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id);
-    setClients(p => p.map(c => c.id === id ? { ...c, ...updates } : c));
+  // Update the active page / ad-account selection. Writes to the active
+  // meta_connections row when one exists (.eq('id', connection.id)); otherwise
+  // falls back to the legacy meta_clients columns for pre-backfill clients.
+  async function updateSelection(
+    clientId: string,
+    updates: { selected_page_id?: string; selected_ad_account_id?: string },
+  ) {
+    const conn = connections[clientId];
+    if (conn) {
+      await supabase.from('meta_connections').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', conn.id);
+      setConnections(p => ({ ...p, [clientId]: { ...p[clientId], ...updates } }));
+    } else {
+      await supabase.from('meta_clients').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', clientId);
+      setClients(p => p.map(c => c.id === clientId ? { ...c, ...updates } : c));
+    }
   }
 
-  return { clients, setClients, addClient, updateClient };
+  return { clients, connections, setClients, addClient, updateSelection };
 }
 
 // ─── CLIENTS PAGE ────────────────────────────────────────────
 export default function ClientsPage() {
-  const { clients, addClient, updateClient } = useClients();
+  const { clients, connections, addClient, updateSelection } = useClients();
   const [form, setForm]    = useState({ name:'', industry:'', emoji:'🏢', token:'' });
   const [showForm, setShowForm] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -77,7 +140,7 @@ export default function ClientsPage() {
       setConnecting(false); }
   }
 
-  if (selC) return <ClientWorkspace client={selC} onBack={() => setSelC(null)} onUpdate={(u) => updateClient(selC.id, u)} />;
+  if (selC) return <ClientWorkspace client={selC} connection={connections[selC.id]} onBack={() => setSelC(null)} onUpdate={(u) => updateSelection(selC.id, u)} />;
 
   return (
     <div>
@@ -127,7 +190,9 @@ export default function ClientsPage() {
       )}
 
       <div className="grid grid-cols-3 gap-3">
-        {clients.map(c => (
+        {clients.map(c => {
+          const v = clientView(c, connections[c.id]);
+          return (
           <div key={c.id} onClick={() => setSelC(c)}
             className="bg-[#111A24] border border-[#1E2F42] rounded-xl overflow-hidden cursor-pointer hover:border-[#0A7AFF] hover:-translate-y-0.5 transition-all">
             <div className="p-3.5 flex items-start gap-2.5">
@@ -135,28 +200,32 @@ export default function ClientsPage() {
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm">{c.name}</div>
                 <div className="text-[11px] text-[#6B8FA8] truncate">{c.industry}</div>
-                <div className="text-[10px] text-[#2E4459] mt-0.5">{c.meta_user_name}</div>
+                <div className="text-[10px] text-[#2E4459] mt-0.5">{v.meta_user_name}</div>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
-                <div className={`w-1.5 h-1.5 rounded-full ${c.status==='connected'?'bg-[#059669]':'bg-red-500'}`} />
-                <span className={`text-[10px] font-bold ${c.status==='connected'?'text-[#059669]':'text-red-400'}`}>{c.status==='connected'?'פעיל':'שגיאה'}</span>
+                <div className={`w-1.5 h-1.5 rounded-full ${v.status==='connected'?'bg-[#059669]':'bg-red-500'}`} />
+                <span className={`text-[10px] font-bold ${v.status==='connected'?'text-[#059669]':'text-red-400'}`}>{v.status==='connected'?'פעיל':'שגיאה'}</span>
               </div>
             </div>
             <div className="flex gap-3 px-3.5 py-2 border-t border-[#1E2F42]">
-              <div className="text-[10px] text-[#6B8FA8]"><strong className="text-[#D9E8F5] text-xs">{c.pages.length}</strong> דפים</div>
-              <div className="text-[10px] text-[#6B8FA8]"><strong className="text-[#D9E8F5] text-xs">{c.ad_accounts.length}</strong> חשבונות</div>
+              <div className="text-[10px] text-[#6B8FA8]"><strong className="text-[#D9E8F5] text-xs">{v.pages.length}</strong> דפים</div>
+              <div className="text-[10px] text-[#6B8FA8]"><strong className="text-[#D9E8F5] text-xs">{v.ad_accounts.length}</strong> חשבונות</div>
               <div className="text-[10px] text-[#6B8FA8]"><strong className="text-[#D9E8F5] text-xs">{c.posts_published}</strong> פוסטים</div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
 }
 
 // ─── CLIENT WORKSPACE ────────────────────────────────────────
-function ClientWorkspace({ client, onBack, onUpdate }: { client: MetaClient; onBack: ()=>void; onUpdate: (u: Partial<MetaClient>)=>void }) {
+function ClientWorkspace({ client, connection, onBack, onUpdate }: { client: MetaClient; connection?: MetaConnection; onBack: ()=>void; onUpdate: (u: { selected_page_id?: string; selected_ad_account_id?: string })=>void }) {
   const [tab, setTab] = useState('pages');
+  // Pages / ad accounts / selection come from the active connection when one
+  // exists, else from the legacy meta_clients fields (pre-backfill clients).
+  const v = clientView(client, connection);
   return (
     <div>
       <div className="flex items-center gap-3 mb-5">
@@ -169,7 +238,7 @@ function ClientWorkspace({ client, onBack, onUpdate }: { client: MetaClient; onB
         <div className="ml-auto"><ConnectFacebookButton clientId={client.id} /></div>
       </div>
       <div className="grid grid-cols-4 gap-3 mb-4">
-        {[{i:'📄',v:client.pages.length,l:'דפים'},{i:'💰',v:client.ad_accounts.length,l:'חשבונות'},{i:'📤',v:client.posts_published,l:'פוסטים'},{i:'🚀',v:client.campaigns_created,l:'קמפיינים'}].map(s=>(
+        {[{i:'📄',v:v.pages.length,l:'דפים'},{i:'💰',v:v.ad_accounts.length,l:'חשבונות'},{i:'📤',v:client.posts_published,l:'פוסטים'},{i:'🚀',v:client.campaigns_created,l:'קמפיינים'}].map(s=>(
           <div key={s.l} className="bg-[#111A24] border border-[#1E2F42] rounded-lg p-3"><div className="font-mono text-xl">{s.v}</div><div className="text-[11px] text-[#6B8FA8]">{s.l}</div></div>
         ))}
       </div>
@@ -178,13 +247,13 @@ function ClientWorkspace({ client, onBack, onUpdate }: { client: MetaClient; onB
         {tab==='pages' && (
           <div>
             <div className="text-xs text-[#6B8FA8] mb-3">בחר דף פעיל לפרסום</div>
-            {client.pages.length===0?<Alert type="amber">לא נמצאו דפים — בדוק הרשאות Token</Alert>:
-              client.pages.map(p=>(
+            {v.pages.length===0?<Alert type="amber">לא נמצאו דפים — בדוק הרשאות Token</Alert>:
+              v.pages.map(p=>(
                 <div key={p.id} onClick={()=>onUpdate({selected_page_id:p.id})}
-                  className={`flex items-center gap-3 p-3 rounded-lg border mb-2 cursor-pointer transition-all ${client.selected_page_id===p.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]'}`}>
+                  className={`flex items-center gap-3 p-3 rounded-lg border mb-2 cursor-pointer transition-all ${v.selected_page_id===p.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]'}`}>
                   <div className="w-8 h-8 rounded-lg bg-[#1D2D3E] flex items-center justify-center">📘</div>
                   <div><div className="text-sm font-medium">{p.name}</div><div className="text-[11px] text-[#6B8FA8]">{p.fan_count?.toLocaleString()||0} עוקבים · {p.id}</div></div>
-                  <div className={`w-4 h-4 rounded-full border ml-auto ${client.selected_page_id===p.id?'border-[#3D9FFF] text-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[10px]':'border-[#2A4158]'}`}>{client.selected_page_id===p.id?'✓':''}</div>
+                  <div className={`w-4 h-4 rounded-full border ml-auto ${v.selected_page_id===p.id?'border-[#3D9FFF] text-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[10px]':'border-[#2A4158]'}`}>{v.selected_page_id===p.id?'✓':''}</div>
                 </div>
               ))}
           </div>
@@ -192,13 +261,13 @@ function ClientWorkspace({ client, onBack, onUpdate }: { client: MetaClient; onB
         {tab==='ads' && (
           <div>
             <div className="text-xs text-[#6B8FA8] mb-3">בחר חשבון מודעות לקמפיינים</div>
-            {client.ad_accounts.length===0?<Alert type="amber">לא נמצאו חשבונות — בדוק הרשאות Token</Alert>:
-              client.ad_accounts.map(a=>(
+            {v.ad_accounts.length===0?<Alert type="amber">לא נמצאו חשבונות — בדוק הרשאות Token</Alert>:
+              v.ad_accounts.map(a=>(
                 <div key={a.id} onClick={()=>onUpdate({selected_ad_account_id:a.id})}
-                  className={`flex items-center gap-3 p-3 rounded-lg border mb-2 cursor-pointer transition-all ${client.selected_ad_account_id===a.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]'}`}>
+                  className={`flex items-center gap-3 p-3 rounded-lg border mb-2 cursor-pointer transition-all ${v.selected_ad_account_id===a.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]'}`}>
                   <div className="w-8 h-8 rounded-lg bg-[#1D2D3E] flex items-center justify-center">💰</div>
                   <div><div className="text-sm font-medium">{a.name}</div><div className="text-[11px] text-[#6B8FA8]">{a.currency} · {a.id}</div></div>
-                  <div className={`w-4 h-4 rounded-full border ml-auto ${client.selected_ad_account_id===a.id?'border-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[#3D9FFF] text-[10px]':'border-[#2A4158]'}`}>{client.selected_ad_account_id===a.id?'✓':''}</div>
+                  <div className={`w-4 h-4 rounded-full border ml-auto ${v.selected_ad_account_id===a.id?'border-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[#3D9FFF] text-[10px]':'border-[#2A4158]'}`}>{v.selected_ad_account_id===a.id?'✓':''}</div>
                 </div>
               ))}
           </div>
