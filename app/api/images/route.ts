@@ -36,6 +36,26 @@ if (typeof setInterval !== 'undefined') {
   }, 60_000).unref?.();
 }
 
+// Build a compact visual-direction prefix from a client-core avatar (Avatar v2).
+// Pulls recommended_creative_angles + key visual cues; returns '' when absent so
+// callers can no-op. Caps the angle list to keep the prompt budget in check.
+function buildAvatarImageGrounding(avatar: any): string {
+  if (!avatar || typeof avatar !== 'object') return '';
+  const angles = Array.isArray(avatar.recommended_creative_angles)
+    ? avatar.recommended_creative_angles.map((x: unknown) => String(x).trim()).filter(Boolean).slice(0, 5)
+    : [];
+  const parts: string[] = [];
+  if (angles.length) parts.push(`Creative angles: ${angles.join('; ')}`);
+  if (typeof avatar.recommended_angle === 'string' && avatar.recommended_angle.trim()) {
+    parts.push(`Primary angle: ${avatar.recommended_angle.trim()}`);
+  }
+  if (typeof avatar.occupation === 'string' && avatar.occupation.trim()) {
+    parts.push(`Target audience: ${avatar.occupation.trim()}`);
+  }
+  if (!parts.length) return '';
+  return `Visual direction for this client's audience — ${parts.join('. ')}.`;
+}
+
 async function generateGemini(
   supabase: SupabaseClient,
   userId: string,
@@ -248,6 +268,23 @@ export async function POST(req: NextRequest) {
     if (finalPrompt.length > 2000) return NextResponse.json({ error: 'Prompt ארוך מדי (מקסימום 2000 תווים)' }, { status: 400 });
     if ((isEdit || isAdapt) && !parentImageUrl) return NextResponse.json({ error: 'Missing parentImageUrl' }, { status: 400 });
 
+    // ── Simple-mode avatar grounding (W2.4b) ──────────────────────────
+    // For plain prompt→image (not edit/adapt, not smart) ground the generation
+    // in the active client's stored avatar: prepend its recommended creative
+    // angles + key visual cues. No-op when there's no active client or no avatar.
+    // (Smart mode already routes through buildAiContext, so it is untouched.)
+    let genPrompt = finalPrompt;
+    if (!isEdit && !isAdapt && activeClientId) {
+      const { data: clientRow } = await supabase
+        .from('meta_clients')
+        .select('avatar')
+        .eq('id', activeClientId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      const grounding = buildAvatarImageGrounding(clientRow?.avatar);
+      if (grounding) genPrompt = `${grounding}\n\n${finalPrompt}`;
+    }
+
     // Deduct credits
     const { data: deductResult } = await supabase.rpc('deduct_credits', {
       p_user_id: user.id, p_action: action, p_cost: cost,
@@ -280,13 +317,13 @@ export async function POST(req: NextRequest) {
         throw new Error('לא מוגדר API key לעריכת תמונות — הוסף GOOGLE_SERVICE_ACCOUNT_JSON, IDEOGRAM_API_KEY או OPENAI_API_KEY');
       }
       if (p === 'gemini' && process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-        return { url: await generateGemini(supabase, user.id, finalPrompt, aspectRatio) };
+        return { url: await generateGemini(supabase, user.id, genPrompt, aspectRatio) };
       }
       if (p === 'ideogram' && process.env.IDEOGRAM_API_KEY) {
-        return { url: await generateIdeogram(finalPrompt, aspectRatio, style) };
+        return { url: await generateIdeogram(genPrompt, aspectRatio, style) };
       }
       if (process.env.OPENAI_API_KEY) {
-        return { url: await generateDallE(finalPrompt, dalleSize[aspectRatio] || '1024x1024') };
+        return { url: await generateDallE(genPrompt, dalleSize[aspectRatio] || '1024x1024') };
       }
       throw new Error('לא מוגדר API key לייצור תמונות — הוסף GOOGLE_SERVICE_ACCOUNT_JSON, IDEOGRAM_API_KEY או OPENAI_API_KEY');
     };

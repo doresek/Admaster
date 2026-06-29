@@ -33,10 +33,12 @@ const H = vi.hoisted(() => ({
     rateOk:        true,
     deductSuccess: true,
     listRows:      [] as any[],
+    clientRow:     null as any,
   },
   captured: {
     imageInsert:   undefined as any,
     pipelineInput: undefined as any,
+    vertexPrompt:  undefined as any,
     rpcCalls:      [] as Array<{ name: string; args: any }>,
   },
   // Canned best-of-N pipeline result the smart path consumes.
@@ -68,6 +70,9 @@ vi.mock('@/lib/supabase/server', () => ({
         select: () => builder,
         eq:     () => builder,
         order:  () => builder,
+        // Simple-mode avatar grounding fetches meta_clients.avatar via maybeSingle;
+        // default to null so grounding is a no-op (prompt passes through unchanged).
+        maybeSingle: async () => ({ data: H.cfg.clientRow }),
         // GET list terminates on .limit(n)
         limit:  async () => ({ data: H.cfg.listRows }),
         // POST inserts are awaited directly (no .select() chain)
@@ -81,7 +86,7 @@ vi.mock('@/lib/supabase/server', () => ({
 // Image-gen libs — keep all generation off the network.
 vi.mock('@/lib/rate-limit', () => ({ checkRateLimit: () => ({ ok: H.cfg.rateOk, retryAfter: 30 }) }));
 vi.mock('@/lib/vertex-ai', () => ({
-  callVertexImageGen: async () => ({ base64: 'AAAA', mimeType: 'image/png' }),
+  callVertexImageGen: async (input: any) => { H.captured.vertexPrompt = input?.prompt; return { base64: 'AAAA', mimeType: 'image/png' }; },
   GEMINI_ASPECT: { ASPECT_1_1: '1:1', ASPECT_16_9: '16:9', ASPECT_9_16: '9:16' } as Record<string, string>,
 }));
 vi.mock('@/lib/image-storage', () => ({ uploadToStorage: async () => 'https://stored/img.png' }));
@@ -108,8 +113,10 @@ beforeEach(() => {
   H.cfg.rateOk        = true;
   H.cfg.deductSuccess = true;
   H.cfg.listRows      = [];
+  H.cfg.clientRow     = null;
   H.captured.imageInsert   = undefined;
   H.captured.pipelineInput = undefined;
+  H.captured.vertexPrompt  = undefined;
   H.captured.rpcCalls      = [];
 });
 
@@ -141,6 +148,31 @@ describe('POST /api/images — single-shot insert shape (real handler)', () => {
       parent_image_id: null,
       edit_prompt:     null,
     });
+  });
+
+  it('simple-mode grounds generation in the active client avatar (W2.4b): prompt to model is prefixed, DB row keeps the raw prompt', async () => {
+    H.cfg.clientRow = { avatar: { recommended_creative_angles: ['soft pastels', 'natural light'], occupation: 'event planner' } };
+    const { POST } = await import('@/app/api/images/route');
+    const res = await POST(fakeReq(
+      { smart: false, prompt: 'a cat in a hat', aspectRatio: 'ASPECT_1_1' },
+      { cookie: `admaster_active_client=${ACTIVE}` },
+    ));
+    expect(res.status).toBe(200);
+    // prompt sent to the image model is grounded
+    expect(H.captured.vertexPrompt).toContain('soft pastels');
+    expect(H.captured.vertexPrompt).toContain('a cat in a hat');
+    // but the DB history keeps the user's raw prompt (no avatar bloat)
+    expect(H.captured.imageInsert.prompt).toBe('a cat in a hat');
+  });
+
+  it('simple-mode grounding is a no-op when the active client has no avatar', async () => {
+    H.cfg.clientRow = { avatar: null };
+    const { POST } = await import('@/app/api/images/route');
+    await POST(fakeReq(
+      { smart: false, prompt: 'a cat in a hat' },
+      { cookie: `admaster_active_client=${ACTIVE}` },
+    ));
+    expect(H.captured.vertexPrompt).toBe('a cat in a hat');
   });
 
   it('client_id is null when no active client (and body omits it)', async () => {

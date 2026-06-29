@@ -56,7 +56,7 @@ export async function buildAiContext(
   if (clientId) {
     const { data } = await supabase
       .from('meta_clients')
-      .select('id, name, industry, emoji')
+      .select('id, name, industry, emoji, business_analysis, avatar, core_generated_at')
       .eq('id', clientId)
       .eq('user_id', userId)
       .maybeSingle();
@@ -103,13 +103,91 @@ Client: ${client.emoji ?? ''} ${client.name}${client.industry ? ` (industry: ${c
 
     let block = `═══ CLIENT BRIEF (full Hormozi×Schwartz form) ═══
 ${lines.join('\n')}`;
-    if (brief.avatar) {
+    // Legacy avatar fallback: only when the client core has no structured avatar.
+    // When meta_clients.avatar exists, the structured CLIENT AVATAR block below
+    // supersedes this 1500-char text slice (no duplicate avatars in the prompt).
+    if (brief.avatar && !client?.avatar) {
       block += `\n\n--- Saved customer avatar ---\n${String(brief.avatar).slice(0, 1500)}`;
     }
     return block;
   })();
 
-  const combined = [clientText, briefText].filter(Boolean).join('\n\n');
+  // ─── 3. Client-core BUSINESS ANALYSIS (only when present) ─────────
+  const businessAnalysisText = formatBusinessAnalysis(client?.business_analysis);
+
+  // ─── 4. Client-core CLIENT AVATAR (Avatar v2 structured, or v1 shim) ─
+  const avatarText = formatClientAvatar(client?.avatar);
+
+  const combined = [clientText, briefText, businessAnalysisText, avatarText]
+    .filter(Boolean)
+    .join('\n\n');
 
   return { clientText, briefText, combined, client };
+}
+
+// ─── Client-core formatters ──────────────────────────────────────
+// Both cap arrays to the first 5 items to respect the prompt budget, and
+// return '' when their source is absent so they drop out of `combined`.
+
+// Coerce a JSONB value into a clean, capped string[] (handles string | string[]).
+function asCappedList(v: unknown, cap = 5): string[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((x) => (typeof x === 'string' ? x : x == null ? '' : String(x)))
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, cap);
+}
+
+function formatBusinessAnalysis(analysis: any): string {
+  if (!analysis || typeof analysis !== 'object') return '';
+  const lines: string[] = ['═══ BUSINESS ANALYSIS ═══'];
+  if (analysis.completeness_score != null && analysis.completeness_score !== '') {
+    lines.push(`completeness_score: ${analysis.completeness_score}`);
+  }
+  const strengths   = asCappedList(analysis.strengths);
+  const gaps        = asCappedList(analysis.gaps);
+  const refinements = asCappedList(analysis.refinements);
+  if (strengths.length)   lines.push(`strengths: ${strengths.join(' | ')}`);
+  if (gaps.length)        lines.push(`gaps: ${gaps.join(' | ')}`);
+  if (refinements.length) lines.push(`refinements: ${refinements.join(' | ')}`);
+  // Nothing but the header → no useful content, drop the block.
+  if (lines.length === 1) return '';
+  return lines.join('\n');
+}
+
+function formatClientAvatar(avatar: any): string {
+  if (!avatar || typeof avatar !== 'object') return '';
+
+  // Transitional shim: { v1_text: "..." } — emit the raw text instead of fields.
+  if (typeof avatar.v1_text === 'string' && avatar.v1_text.trim()) {
+    return `═══ CLIENT AVATAR ═══\n${avatar.v1_text.trim().slice(0, 1500)}`;
+  }
+
+  const lines: string[] = ['═══ CLIENT AVATAR ═══'];
+  const scalar = (label: string, v: unknown) => {
+    if (v == null) return;
+    const s = String(v).trim();
+    if (s) lines.push(`${label}: ${s}`);
+  };
+  const list = (label: string, v: unknown) => {
+    const items = asCappedList(v);
+    if (items.length) lines.push(`${label}: ${items.join(' | ')}`);
+  };
+
+  scalar('name', avatar.name);
+  scalar('age', avatar.age);
+  scalar('occupation', avatar.occupation);
+  list('pains', avatar.pains);
+  list('desires', avatar.desires);
+  list('fears', avatar.fears);
+  list('objections', avatar.objections);
+  scalar('awareness_level', avatar.awareness_level);
+  scalar('recommended_angle', avatar.recommended_angle);
+  list('voice_quotes', avatar.voice_quotes);
+  list('buying_triggers', avatar.buying_triggers);
+  list('recommended_creative_angles', avatar.recommended_creative_angles);
+
+  if (lines.length === 1) return '';
+  return lines.join('\n');
 }
