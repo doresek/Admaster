@@ -5,6 +5,7 @@ import { Card, CardLabel, Chip, Input, Btn, Alert, PageHeader, CostBadge, Tabs }
 import { useAI } from '@/lib/hooks/useAI';
 import { readActiveClientFromDocument } from '@/lib/active-client';
 import type { MetaClient } from '@/types';
+import { clientToMetaClient } from '@/lib/clients';
 
 type Channel = 'email' | 'sms' | 'whatsapp';
 type Goal    = 'lead_nurture' | 'onboarding' | 'reengagement' | 'launch';
@@ -55,8 +56,8 @@ export default function SeriesPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from('meta_clients').select('*').eq('user_id', user.id).then(({ data }) => {
-        const list = data ?? [];
+      supabase.from('clients').select('id, name, owner_user_id, created_at, updated_at').eq('owner_user_id', user.id).then(({ data }) => {
+        const list = (data ?? []).map(clientToMetaClient);
         setClients(list);
         // Default the client selector to the active client (cookie) so blasts
         // attribute by default. User can still change it.

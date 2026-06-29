@@ -39,7 +39,7 @@ export interface IssuedBriefCode {
 /**
  * Resolve agency_name from users.name (unchanged), generate a code, and insert
  * a brief_codes row for `userId`. `clientId` is now REQUIRED and must belong to
- * the user's meta_clients — issuance is client-scoped.
+ * the user's `clients` — issuance is client-scoped.
  *
  * ROBUSTNESS IMPROVEMENT: the original client code inserted a single random
  * code with no collision handling. Here we retry on the unique(code) constraint
@@ -62,10 +62,10 @@ export async function issueBriefCode(
 
   // Ownership check: the client must belong to the authenticated user.
   const { data: ownedClient } = await supabase
-    .from('meta_clients')
+    .from('clients')
     .select('id')
     .eq('id', clientId)
-    .eq('user_id', userId)
+    .eq('owner_user_id', userId)
     .maybeSingle();
   if (!ownedClient) {
     throw new BriefCodeError(400, 'client_id does not belong to this user');

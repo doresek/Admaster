@@ -25,7 +25,7 @@ const VALID_INPUT = {
 };
 
 // ── Mint mock ───────────────────────────────────────────────────
-// meta_clients: from('meta_clients').select('id').eq('id',_).eq('user_id',_).maybeSingle()
+// clients: from('clients').select('id').eq('id',_).eq('owner_user_id',_).maybeSingle()
 // report_shares: from('report_shares').insert(row).select('token').single()
 function makeMintSupabase(opts: {
   ownedClients?: string[];
@@ -37,7 +37,7 @@ function makeMintSupabase(opts: {
   const supabase: any = {
     _inserted: inserted,
     from(table: string) {
-      if (table === 'meta_clients') {
+      if (table === 'clients') {
         const filters: any = {};
         const b: any = {
           select: () => b,
@@ -67,17 +67,33 @@ function makeMintSupabase(opts: {
 }
 
 // ── Resolve mock ────────────────────────────────────────────────
-// report_shares: from('report_shares').select(...).eq('token',_).maybeSingle()
+// Two explicit queries (FK-agnostic; no PostgREST embed):
+//   report_shares: from('report_shares').select(...).eq('token',_).maybeSingle()
+//   clients:       from('clients').select('name').eq('id', client_id).maybeSingle()
 function makeResolveSupabase(rowByToken: Record<string, any>) {
+  // Derive a client_id -> name map from the fixtures so the explicit second
+  // query (clients by id) resolves the same name the old embed produced.
+  const nameByClientId: Record<string, string> = {};
+  for (const row of Object.values(rowByToken)) {
+    const c = Array.isArray(row.clients) ? row.clients[0] : row.clients;
+    if (row.client_id && c?.name) nameByClientId[row.client_id] = c.name;
+  }
   return {
     from(table: string) {
-      if (table !== 'report_shares') throw new Error(`unexpected table ${table}`);
       const lookup: any = {};
       const b: any = {
         select: () => b,
         eq: (col: string, val: any) => { lookup.col = col; lookup.val = val; return b; },
-        maybeSingle: () =>
-          Promise.resolve({ data: rowByToken[lookup.val] ?? null, error: null }),
+        maybeSingle: () => {
+          if (table === 'report_shares') {
+            return Promise.resolve({ data: rowByToken[lookup.val] ?? null, error: null });
+          }
+          if (table === 'clients') {
+            const name = nameByClientId[lookup.val];
+            return Promise.resolve({ data: name ? { name } : null, error: null });
+          }
+          throw new Error(`unexpected table ${table}`);
+        },
       };
       return b;
     },
@@ -209,7 +225,7 @@ describe('resolveReportShare', () => {
         period_end: '2026-06-30',
         report: SNAPSHOT,
         expires_at: '2026-01-01T00:00:00.000Z',
-        meta_clients: { name: 'Acme' },
+        clients: { name: 'Acme' },
       },
     });
     const res = await resolveReportShare(supabase, TOKEN_A, { now: () => new Date('2026-06-29') });
@@ -224,7 +240,7 @@ describe('resolveReportShare', () => {
         period_end: '2026-06-30',
         report: SNAPSHOT,
         expires_at: '2026-12-31T00:00:00.000Z',
-        meta_clients: { name: 'Acme' },
+        clients: { name: 'Acme' },
       },
     });
     const res = await resolveReportShare(supabase, TOKEN_A, { now: () => new Date('2026-06-29') });
@@ -244,7 +260,7 @@ describe('resolveReportShare', () => {
         period_end: '2026-06-30',
         report: SNAPSHOT,
         expires_at: null,
-        meta_clients: [{ name: 'Acme Array' }],
+        clients: [{ name: 'Acme Array' }],
       },
     });
     const res = await resolveReportShare(supabase, TOKEN_A);

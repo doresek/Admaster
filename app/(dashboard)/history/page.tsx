@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Input, Btn, Alert, PageHeader, Chip, CopyBtn } from '@/components/ui';
 import type { MetaClient } from '@/types';
+import { clientToMetaClient } from '@/lib/clients';
 import { clsx } from 'clsx';
 
 interface Item {
@@ -55,10 +56,10 @@ export default function HistoryPage() {
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(500),
-        supabase.from('meta_clients').select('*').eq('user_id', user.id),
+        supabase.from('clients').select('id, name, owner_user_id, created_at, updated_at').eq('owner_user_id', user.id),
       ]).then(([cRes, clRes]) => {
         setItems(cRes.data ?? []);
-        setClients(clRes.data ?? []);
+        setClients((clRes.data ?? []).map(clientToMetaClient));
         setLoading(false);
       });
     });

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Textarea, Input, Btn, CopyBtn, Alert, PageHeader, Tabs, Chip } from '@/components/ui';
 import type { MetaClient } from '@/types';
+import { clientToMetaClient } from '@/lib/clients';
 import { clsx } from 'clsx';
 
 interface Approval {
@@ -47,8 +48,8 @@ export default function ApprovalsPage() {
     load();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from('meta_clients').select('*').eq('user_id', user.id)
-        .then(({ data }) => setClients(data ?? []));
+      supabase.from('clients').select('id, name, owner_user_id, created_at, updated_at').eq('owner_user_id', user.id)
+        .then(({ data }) => setClients((data ?? []).map(clientToMetaClient)));
     });
   }, []);
 

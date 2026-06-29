@@ -20,7 +20,7 @@ export async function GET() {
   // Pull data needed for rule-based scoring
   const [profile, clients, briefs, content, landing, msgSeries, approvals, dismissedRes, lp_leads] = await Promise.all([
     supabase.from('users').select('credits, plan, created_at').eq('id', user.id).single(),
-    supabase.from('meta_clients').select('id, name, selected_page_id, selected_ad_account_id').eq('user_id', user.id),
+    supabase.from('clients').select('id, name').eq('owner_user_id', user.id),
     supabase.from('briefs').select('id, values, status').eq('user_id', user.id),
     supabase.from('generated_content').select('type, favorite, created_at').eq('user_id', user.id),
     supabase.from('landing_pages').select('id, status, views, conversions').eq('user_id', user.id),
@@ -37,8 +37,9 @@ export async function GET() {
     : 0;
   const cl         = clients.data ?? [];
   // Resolve each client's effective page / ad-account selection from its active
-  // meta_connection (agency model), falling back to the legacy meta_clients
-  // columns when no connection row exists. Client identity stays from meta_clients.
+  // meta_connection (agency model); a clients row carries no selected_* columns,
+  // so resolveClientSelection returns null when no connection exists. Client
+  // identity now comes from the v2 `clients` table (id, name).
   const clientsWithSelection = await Promise.all(
     cl.map(async c => ({
       ...c,

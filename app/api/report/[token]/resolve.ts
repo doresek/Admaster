@@ -35,7 +35,7 @@ export async function resolveReportShare(
 
   const { data, error } = await supabase
     .from('report_shares')
-    .select('client_id, period_start, period_end, report, expires_at, meta_clients(name)')
+    .select('client_id, period_start, period_end, report, expires_at')
     .eq('token', token)
     .maybeSingle();
 
@@ -48,10 +48,20 @@ export async function resolveReportShare(
     return { valid: false, expired: true };
   }
 
-  // The meta_clients join may surface as an object or a single-element array
-  // depending on the PostgREST embedding shape; handle both defensively.
-  const mc = Array.isArray(data.meta_clients) ? data.meta_clients[0] : data.meta_clients;
-  const clientName = (mc as { name?: string } | null)?.name ?? null;
+  // Resolve the client name with an explicit second query rather than a
+  // PostgREST embed. This is intentionally FK-agnostic: report_shares.client_id
+  // still references meta_clients until the M3 FK swap, but `clients` is
+  // backfilled 1:1 with the same ids, so a direct id lookup works today and
+  // after the swap. (No embed → no dependency on a clients FK existing yet.)
+  let clientName: string | null = null;
+  if (data.client_id) {
+    const { data: cl } = await supabase
+      .from('clients')
+      .select('name')
+      .eq('id', data.client_id)
+      .maybeSingle();
+    clientName = (cl as { name?: string } | null)?.name ?? null;
+  }
 
   return {
     valid:      true,

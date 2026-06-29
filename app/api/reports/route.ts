@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     .lte('date', periodEnd);
 
   const { data: client } = await supabase
-    .from('meta_clients').select('name, industry').eq('id', clientId).single();
+    .from('clients').select('name').eq('id', clientId).single();
 
   const { data: posts } = await supabase
     .from('scheduled_posts').select('*')
