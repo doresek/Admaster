@@ -26,6 +26,14 @@ export function connectLink(token: string): string {
   return `${getAppOrigin()}/connect/${token}`;
 }
 
+// Session-less client-facing ROI report link. Like briefLink/connectLink, the
+// 64-hex token IS the authorization: a client opens this to view the immutable
+// report snapshot the agency minted, without ever logging into AdMaster. Must
+// point at the canonical production origin (NEXT_PUBLIC_APP_URL), not a preview.
+export function reportLink(token: string): string {
+  return `${getAppOrigin()}/report/${token}`;
+}
+
 // Pre-filled WhatsApp share. With a phone, normalizes IL numbers (0xx -> 972xx)
 // and opens a chat with that contact; without one, opens the share sheet so the
 // agency can pick the recipient.
