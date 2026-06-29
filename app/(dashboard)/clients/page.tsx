@@ -1,160 +1,115 @@
 'use client';
-// Shared by clients.tsx, publish.tsx, campaign.tsx
+// Clients (v2) — contact-first client list over the clean `clients` model.
+// Identity ONLY: name + contact fields. Meta connect is NOT here — it stays an
+// optional card on the client workspace (ConnectFacebookButton). Creation posts
+// to /api/clients (never /api/meta/clients), which never touches Meta/Graph.
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { Card, CardLabel, Input, Textarea, Btn, Alert, PageHeader, CostBadge, Tabs } from '@/components/ui';
-import { useAI, useMeta } from '@/lib/hooks/useAI';
-import ConnectFacebookButton from '@/components/meta/ConnectFacebookButton';
-import type { MetaClient, MetaConnection, MetaPage, MetaAdAccount } from '@/types';
-import { clsx } from 'clsx';
+import { createClient as createSupabaseClient } from '@/lib/supabase/client';
+import { Card, CardLabel, Input, Textarea, Btn, Alert, PageHeader } from '@/components/ui';
+import { canCreateClient } from '@/lib/clients';
+import type { Client } from '@/types';
 
-// meta_clients is pure identity now; the credential + assets (pages, ad
-// accounts, active selection, live status) live on the active meta_connections
-// child row. This view merges the active connection over the client so the UI
-// renders from the connection when one exists, and falls back to the legacy
-// meta_clients fields for clients connected before the meta_connections backfill.
-interface ClientView {
-  pages: MetaPage[];
-  ad_accounts: MetaAdAccount[];
-  selected_page_id: string | null;
-  selected_ad_account_id: string | null;
-  status: string;
-  meta_user_name: string | null;
+// Initials avatar from the client name (first letters of up to two words).
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2);
+  return (parts[0][0] + parts[1][0]);
 }
 
-function clientView(client: MetaClient, conn?: MetaConnection): ClientView {
-  if (conn) {
-    return {
-      pages: conn.pages ?? [],
-      ad_accounts: conn.ad_accounts ?? [],
-      selected_page_id: conn.selected_page_id,
-      selected_ad_account_id: conn.selected_ad_account_id,
-      status: conn.status,
-      meta_user_name: conn.meta_user_name ?? client.meta_user_name,
-    };
-  }
-  return {
-    pages: client.pages ?? [],
-    ad_accounts: client.ad_accounts ?? [],
-    selected_page_id: client.selected_page_id,
-    selected_ad_account_id: client.selected_ad_account_id,
-    status: client.status,
-    meta_user_name: client.meta_user_name,
-  };
+interface NewClientForm {
+  name: string; phone: string; email: string; company: string; notes: string;
 }
+const EMPTY_FORM: NewClientForm = { name: '', phone: '', email: '', company: '', notes: '' };
 
 function useClients() {
-  const [clients, setClients] = useState<MetaClient[]>([]);
-  // clientId → active (most-recently-connected) connection.
-  const [connections, setConnections] = useState<Record<string, MetaConnection>>({});
-  const supabase = createClient();
+  const [clients, setClients] = useState<Client[]>([]);
+  // clientId → has a generated strategy core (brief completed). Best-effort:
+  // the new client_strategy table may not exist yet, so failures are ignored.
+  const [briefed, setBriefed] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/clients');
+      const data = await res.json();
+      if (res.ok && Array.isArray(data)) setClients(data);
+    } catch { /* surfaced as empty list */ }
+    setLoading(false);
+
+    // Brief-status overlay — tolerant of a missing/empty strategy table.
+    try {
+      const supabase = createSupabaseClient();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: cls } = await supabase.from('meta_clients').select('*').eq('user_id', user.id);
-      setClients(cls ?? []);
+      const { data: rows } = await supabase
+        .from('client_strategy')
+        .select('client_id, core_generated_at')
+        .eq('owner_user_id', user.id);
+      const map: Record<string, boolean> = {};
+      for (const r of (rows ?? []) as { client_id: string; core_generated_at: string | null }[]) {
+        map[r.client_id] = !!r.core_generated_at;
+      }
+      setBriefed(map);
+    } catch { /* table not present yet — treat all as un-briefed */ }
+  }
 
-      // Active connections for this agency user, newest first; keep the first
-      // (most recent) per client. RLS (meta_connections_own) scopes to the user.
-      const { data: conns } = await supabase
-        .from('meta_connections')
-        .select('id, client_id, token_encrypted, meta_user_id, meta_user_name, pages, ad_accounts, selected_page_id, selected_ad_account_id, status, connected_at')
-        .eq('agency_user_id', user.id)
-        .eq('status', 'connected')
-        .order('connected_at', { ascending: false });
+  useEffect(() => { load(); }, []);
 
-      const map: Record<string, MetaConnection> = {};
-      for (const c of (conns ?? []) as MetaConnection[]) if (!map[c.client_id]) map[c.client_id] = c;
-      setConnections(map);
-    });
-  }, []);
-
-  // Adds a new client via the secure server endpoint. Brief-first: only `name`
-  // is required. When a token is supplied it is verified, encrypted and stored
-  // server-side — never sent to the DB in plaintext from the browser.
-  async function addClient(input: { name: string; industry?: string; emoji?: string; token?: string }) {
-    const res  = await fetch('/api/meta/clients', {
+  async function addClient(input: NewClientForm): Promise<Client> {
+    const res = await fetch('/api/clients', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+      body: JSON.stringify({
+        name: input.name,
+        phone: input.phone || undefined,
+        email: input.email || undefined,
+        company: input.company || undefined,
+        notes: input.notes || undefined,
+      }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'שגיאה בחיבור');
-    setClients(p => [...p, data]);
+    if (!res.ok) throw new Error(data.error || 'שגיאה ביצירת לקוח');
+    setClients(p => [data, ...p]);
     return data;
   }
 
-  // Update the active page / ad-account selection. Writes to the active
-  // meta_connections row when one exists (.eq('id', connection.id)); otherwise
-  // falls back to the legacy meta_clients columns for pre-backfill clients.
-  async function updateSelection(
-    clientId: string,
-    updates: { selected_page_id?: string; selected_ad_account_id?: string },
-  ) {
-    const conn = connections[clientId];
-    if (conn) {
-      await supabase.from('meta_connections').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', conn.id);
-      setConnections(p => ({ ...p, [clientId]: { ...p[clientId], ...updates } }));
-    } else {
-      await supabase.from('meta_clients').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', clientId);
-      setClients(p => p.map(c => c.id === clientId ? { ...c, ...updates } : c));
+  return { clients, briefed, loading, addClient };
+}
+
+export default function ClientsPage() {
+  const { clients, briefed, loading, addClient } = useClients();
+  const [form, setForm] = useState<NewClientForm>(EMPTY_FORM);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const [created, setCreated] = useState<Client | null>(null);
+  const uf = (k: keyof NewClientForm, v: string) => setForm(p => ({ ...p, [k]: v }));
+
+  async function submit() {
+    if (!canCreateClient(form.name)) { setErr('מלא שם לקוח'); return; }
+    setSaving(true); setErr('');
+    try {
+      const c = await addClient(form);
+      setShowForm(false);
+      setForm(EMPTY_FORM);
+      setCreated(c);
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setSaving(false);
     }
   }
 
-  return { clients, connections, setClients, addClient, updateSelection };
-}
-
-// ─── CLIENTS PAGE ────────────────────────────────────────────
-export default function ClientsPage() {
-  const { clients, connections, addClient, updateSelection } = useClients();
-  const [form, setForm]    = useState({ name:'', industry:'', emoji:'🏢', token:'' });
-  const [showForm, setShowForm] = useState(false);
-  const [connecting, setConnecting] = useState(false);
-  const [err, setErr]      = useState('');
-  const [created, setCreated] = useState<MetaClient|null>(null);
-  const [selC, setSelC]    = useState<MetaClient|null>(null);
-  const uf = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
-  const searchParams = useSearchParams();
-
-  // Returning from the Meta OAuth callback (/clients?meta=...&client=<id>):
-  // re-open that client's workspace so the ConnectFacebookButton status banner
-  // is shown right where the user started the connect.
-  useEffect(() => {
-    const id = searchParams?.get('client');
-    if (!id || selC) return;
-    const match = clients.find(c => c.id === id);
-    if (match) setSelC(match);
-  }, [searchParams, clients]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function connect() {
-    if (!form.name) { setErr('מלא שם לקוח'); return; }
-    setConnecting(true); setErr('');
-    try {
-      // Token is optional — sent only when filled (brief-first). The server
-      // inserts an identity-only client when no token is provided.
-      const payload = form.token ? form : { name: form.name, industry: form.industry, emoji: form.emoji };
-      const newClient = await addClient(payload);
-      setShowForm(false);
-      setForm({ name:'', industry:'', emoji:'🏢', token:'' });
-      setCreated(newClient);
-    } catch (e: any) {
-      setErr('שגיאה ביצירת לקוח: ' + e.message);
-    } finally {
-      setConnecting(false); }
-  }
-
-  if (selC) return <ClientWorkspace client={selC} connection={connections[selC.id]} onBack={() => setSelC(null)} onUpdate={(u) => updateSelection(selC.id, u)} />;
-
   return (
     <div>
-      <PageHeader eyebrow="Meta API" title="לקוחות Meta" sub={`${clients.length} לקוחות`}
-        right={<Btn variant="primary" onClick={() => setShowForm(!showForm)}>+ הוסף לקוח</Btn>} />
+      <PageHeader title="לקוחות" sub={`${clients.length} לקוחות`}
+        right={<Btn variant="primary" onClick={() => { setShowForm(s => !s); setErr(''); }}>+ לקוח חדש</Btn>} />
 
       {created && (
-        <Card className="mb-4" style={{ borderColor: 'rgba(184,149,58,.3)' }}>
-          <CardLabel>🎉 הלקוח {created.emoji} {created.name} נוצר!</CardLabel>
+        <Card className="mb-4" style={{ borderColor: 'rgba(10,122,255,.3)' }}>
+          <CardLabel>🎉 הלקוח {created.name} נוצר!</CardLabel>
           <div className="text-sm text-[#6B8FA8] mb-3">
             השלב הבא: שלח ללקוח בריף קצר — מילוי הבריף בונה אוטומטית אווטאר, מודעות ומשפך.
           </div>
@@ -163,9 +118,6 @@ export default function ClientsPage() {
               className="inline-flex items-center gap-2 rounded-lg bg-[#0A7AFF] hover:brightness-110 text-white text-sm font-semibold px-4 py-2 transition-all">
               📋 צור בריף ללקוח
             </a>
-            <Btn variant="ghost" size="sm" onClick={() => { setSelC(created); setCreated(null); }}>
-              🔗 חבר חשבון Meta עכשיו
-            </Btn>
             <Btn variant="ghost" size="sm" onClick={() => setCreated(null)}>סגור</Btn>
           </div>
         </Card>
@@ -174,134 +126,62 @@ export default function ClientsPage() {
       {showForm && (
         <Card className="mb-4">
           <CardLabel>➕ לקוח חדש</CardLabel>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {['🏢','✡️','🕍','🛍','💎','📚','🏋','🎨'].map(e => (
-              <button key={e} onClick={() => uf('emoji', e)}
-                className={clsx('w-9 h-9 rounded-lg text-lg transition-all', form.emoji===e ? 'bg-[#0A7AFF]/20 border border-[#0A7AFF]' : 'bg-[#162030] border border-[#1E2F42] hover:border-[#2A4158]')}>
-                {e}
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-x-3">
+            <Input label="שם *"   value={form.name}    onChange={v => uf('name', v)}    placeholder="שם הלקוח / העסק" />
+            <Input label="טלפון"  value={form.phone}   onChange={v => uf('phone', v)}   placeholder="050-0000000" type="tel" />
+            <Input label="אימייל" value={form.email}   onChange={v => uf('email', v)}   placeholder="name@example.com" type="email" />
+            <Input label="חברה"   value={form.company} onChange={v => uf('company', v)} placeholder="שם החברה" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="שם לקוח *"  value={form.name}     onChange={v=>uf('name',v)}     placeholder="שם העסק" />
-            <Input label="תחום"        value={form.industry} onChange={v=>uf('industry',v)} placeholder="תחום עיסוק" />
-          </div>
-          <details className="mt-3 mb-3 group">
-            <summary className="cursor-pointer text-xs font-medium text-[#6B8FA8] hover:text-[#D9E8F5] select-none">
-              🔌 חבר חשבון Meta (אפשר גם מאוחר יותר)
-            </summary>
-            <div className="mt-3">
-              <Alert type="blue">הToken נשמר מאובטח בDB ומעולם לא נחשף ללקוח. אפשר גם לחבר דרך כפתור ההתחברות בכרטיס הלקוח.</Alert>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-medium text-[#6B8FA8]">Meta Access Token (אופציונלי)</label>
-                <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noreferrer"
-                  className="text-[11px] text-[#3D9FFF] hover:underline">❓ איך מקבלים?</a>
-              </div>
-              <input type="password" value={form.token} onChange={e=>uf('token',e.target.value)} placeholder="EAAxxxxxxxx..."
-                className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]"
-                dir="ltr" />
-            </div>
-          </details>
+          <Textarea label="הערות" value={form.notes} onChange={v => uf('notes', v)} placeholder="הערות פנימיות על הלקוח" rows={3} />
           {err && <Alert type="red">{err}</Alert>}
-          <Btn variant="primary" loading={connecting} onClick={connect} disabled={!form.name}>
+          <Btn variant="primary" loading={saving} onClick={submit} disabled={!canCreateClient(form.name)}>
             צור לקוח
           </Btn>
         </Card>
       )}
 
-      {clients.length === 0 && !showForm && (
+      {!loading && clients.length === 0 && !showForm && (
         <div className="text-center py-14 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
           <div className="text-4xl mb-3 opacity-30">📋</div>
           <div className="text-base font-semibold mb-2">אין לקוחות עדיין</div>
-          <div className="text-sm mb-4">צור לקוח בשם בלבד — את חשבון ה-Meta אפשר לחבר מאוחר יותר</div>
+          <div className="text-sm mb-4">צור לקוח בשם בלבד — את חשבון ה-Meta אפשר לחבר מאוחר יותר מתוך כרטיס הלקוח</div>
           <Btn variant="primary" onClick={() => setShowForm(true)}>+ צור לקוח ראשון</Btn>
         </div>
       )}
 
       <div className="grid grid-cols-3 gap-3">
         {clients.map(c => {
-          const v = clientView(c, connections[c.id]);
+          const hasBrief = briefed[c.id];
           return (
-          <div key={c.id} onClick={() => setSelC(c)}
-            className="bg-[#111A24] border border-[#1E2F42] rounded-xl overflow-hidden cursor-pointer hover:border-[#0A7AFF] hover:-translate-y-0.5 transition-all">
-            <div className="p-3.5 flex items-start gap-2.5">
-              <div className="w-9 h-9 rounded-lg bg-[#1D2D3E] border border-[#2A4158] flex items-center justify-center text-lg flex-shrink-0">{c.emoji}</div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm">{c.name}</div>
-                <div className="text-[11px] text-[#6B8FA8] truncate">{c.industry}</div>
-                <div className="text-[10px] text-[#2E4459] mt-0.5">{v.meta_user_name}</div>
+            <a key={c.id} href={`/clients/${c.id}`}
+              className="bg-[#111A24] border border-[#1E2F42] rounded-xl overflow-hidden cursor-pointer hover:border-[#0A7AFF] hover:-translate-y-0.5 transition-all">
+              <div className="p-3.5 flex items-start gap-2.5">
+                <div className="w-10 h-10 rounded-full bg-[#1D2D3E] border border-[#2A4158] flex items-center justify-center text-sm font-bold text-[#7AC0FF] flex-shrink-0 uppercase">
+                  {initials(c.name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-sm truncate">{c.name}</div>
+                  {c.company && <div className="text-[11px] text-[#6B8FA8] truncate">{c.company}</div>}
+                  <div className="text-[11px] text-[#6B8FA8] truncate" dir="ltr">{c.phone || c.email || ''}</div>
+                </div>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#1D2D3E] text-[#6B8FA8] flex-shrink-0">לא מחובר</span>
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <div className={`w-1.5 h-1.5 rounded-full ${v.status==='connected'?'bg-[#059669]':'bg-red-500'}`} />
-                <span className={`text-[10px] font-bold ${v.status==='connected'?'text-[#059669]':'text-red-400'}`}>{v.status==='connected'?'פעיל':'שגיאה'}</span>
+              <div className="flex items-center gap-2 px-3.5 py-2 border-t border-[#1E2F42]">
+                <span className={`text-[10px] font-semibold ${hasBrief ? 'text-[#34D399]' : 'text-[#6B8FA8]'}`}>
+                  {hasBrief ? '✓ בריף הושלם' : '○ ממתין לבריף'}
+                </span>
+                <span className="ml-auto flex gap-2">
+                  <span className="text-[11px] text-[#7AC0FF]">פתח</span>
+                  <span className="text-[11px] text-[#6B8FA8]"
+                    onClick={(e) => { e.preventDefault(); window.location.href = `/send-brief?client=${c.id}`; }}>
+                    בריפינג
+                  </span>
+                </span>
               </div>
-            </div>
-            <div className="flex gap-3 px-3.5 py-2 border-t border-[#1E2F42]">
-              <div className="text-[10px] text-[#6B8FA8]"><strong className="text-[#D9E8F5] text-xs">{v.pages.length}</strong> דפים</div>
-              <div className="text-[10px] text-[#6B8FA8]"><strong className="text-[#D9E8F5] text-xs">{v.ad_accounts.length}</strong> חשבונות</div>
-              <div className="text-[10px] text-[#6B8FA8]"><strong className="text-[#D9E8F5] text-xs">{c.posts_published}</strong> פוסטים</div>
-            </div>
-          </div>
+            </a>
           );
         })}
       </div>
-    </div>
-  );
-}
-
-// ─── CLIENT WORKSPACE ────────────────────────────────────────
-function ClientWorkspace({ client, connection, onBack, onUpdate }: { client: MetaClient; connection?: MetaConnection; onBack: ()=>void; onUpdate: (u: { selected_page_id?: string; selected_ad_account_id?: string })=>void }) {
-  const [tab, setTab] = useState('pages');
-  // Pages / ad accounts / selection come from the active connection when one
-  // exists, else from the legacy meta_clients fields (pre-backfill clients).
-  const v = clientView(client, connection);
-  return (
-    <div>
-      <div className="flex items-center gap-3 mb-5">
-        <Btn variant="ghost" size="sm" onClick={onBack}>←</Btn>
-        <div>
-          <div className="text-[11px] font-bold text-[#2E4459] uppercase">לקוח Meta</div>
-          <div className="font-bold text-lg">{client.emoji} {client.name}</div>
-        </div>
-        {/* Per-client OAuth connect/reconnect — uses this client's id. */}
-        <div className="ml-auto"><ConnectFacebookButton clientId={client.id} /></div>
-      </div>
-      <div className="grid grid-cols-4 gap-3 mb-4">
-        {[{i:'📄',v:v.pages.length,l:'דפים'},{i:'💰',v:v.ad_accounts.length,l:'חשבונות'},{i:'📤',v:client.posts_published,l:'פוסטים'},{i:'🚀',v:client.campaigns_created,l:'קמפיינים'}].map(s=>(
-          <div key={s.l} className="bg-[#111A24] border border-[#1E2F42] rounded-lg p-3"><div className="font-mono text-xl">{s.v}</div><div className="text-[11px] text-[#6B8FA8]">{s.l}</div></div>
-        ))}
-      </div>
-      <Card>
-        <Tabs tabs={[{id:'pages',label:'📄 דפים'},{id:'ads',label:'💰 חשבונות מודעות'}]} active={tab} onChange={setTab} />
-        {tab==='pages' && (
-          <div>
-            <div className="text-xs text-[#6B8FA8] mb-3">בחר דף פעיל לפרסום</div>
-            {v.pages.length===0?<Alert type="amber">לא נמצאו דפים — בדוק הרשאות Token</Alert>:
-              v.pages.map(p=>(
-                <div key={p.id} onClick={()=>onUpdate({selected_page_id:p.id})}
-                  className={`flex items-center gap-3 p-3 rounded-lg border mb-2 cursor-pointer transition-all ${v.selected_page_id===p.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]'}`}>
-                  <div className="w-8 h-8 rounded-lg bg-[#1D2D3E] flex items-center justify-center">📘</div>
-                  <div><div className="text-sm font-medium">{p.name}</div><div className="text-[11px] text-[#6B8FA8]">{p.fan_count?.toLocaleString()||0} עוקבים · {p.id}</div></div>
-                  <div className={`w-4 h-4 rounded-full border ml-auto ${v.selected_page_id===p.id?'border-[#3D9FFF] text-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[10px]':'border-[#2A4158]'}`}>{v.selected_page_id===p.id?'✓':''}</div>
-                </div>
-              ))}
-          </div>
-        )}
-        {tab==='ads' && (
-          <div>
-            <div className="text-xs text-[#6B8FA8] mb-3">בחר חשבון מודעות לקמפיינים</div>
-            {v.ad_accounts.length===0?<Alert type="amber">לא נמצאו חשבונות — בדוק הרשאות Token</Alert>:
-              v.ad_accounts.map(a=>(
-                <div key={a.id} onClick={()=>onUpdate({selected_ad_account_id:a.id})}
-                  className={`flex items-center gap-3 p-3 rounded-lg border mb-2 cursor-pointer transition-all ${v.selected_ad_account_id===a.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]'}`}>
-                  <div className="w-8 h-8 rounded-lg bg-[#1D2D3E] flex items-center justify-center">💰</div>
-                  <div><div className="text-sm font-medium">{a.name}</div><div className="text-[11px] text-[#6B8FA8]">{a.currency} · {a.id}</div></div>
-                  <div className={`w-4 h-4 rounded-full border ml-auto ${v.selected_ad_account_id===a.id?'border-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[#3D9FFF] text-[10px]':'border-[#2A4158]'}`}>{v.selected_ad_account_id===a.id?'✓':''}</div>
-                </div>
-              ))}
-          </div>
-        )}
-      </Card>
     </div>
   );
 }

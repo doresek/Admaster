@@ -208,6 +208,37 @@ export interface MetaConnection {
   connected_at:            string;
 }
 
+// ── Clean client model (v2) ──────────────────────────────────
+// `Client` is the business identity record in the new `clients` table —
+// completely separate from the legacy `MetaClient`. It NEVER carries Meta
+// credentials or assets; the optional Meta link lives on `meta_connections`.
+export interface Client {
+  id:                  string;
+  owner_user_id:       string;
+  name:                string;
+  email:               string | null;
+  phone:               string | null;
+  company:             string | null;
+  notes:               string | null;
+  connect_token:       string | null;
+  connect_expires_at:  string | null;
+  connect_consumed_at: string | null;
+  created_at:          string;
+  updated_at:          string;
+}
+
+// Per-client strategy core (business analysis + avatar), built from the brief.
+// One row per client (unique client_id) in the new `client_strategy` table.
+export interface ClientStrategy {
+  id:                string;
+  client_id:         string;
+  owner_user_id:     string;
+  business_analysis: Record<string, unknown> | null;
+  avatar:            Record<string, unknown> | null;
+  core_generated_at: string | null;
+  updated_at:        string;
+}
+
 export interface GeneratedContent {
   id:         string;
   user_id:    string;
