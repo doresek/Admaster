@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import Anthropic from '@anthropic-ai/sdk';
+import {
+  aggregatePerformance,
+  buildPeriodComparison,
+  composeReportPrompt,
+  cpaOf,
+  priorPeriodRange,
+} from '@/lib/report-metrics';
 
 const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -30,37 +37,45 @@ export async function POST(req: NextRequest) {
     .gte('scheduled_at', periodStart)
     .lte('scheduled_at', `${periodEnd}T23:59:59`);
 
-  // Aggregate metrics
-  const totals = (perf ?? []).reduce((acc, row) => ({
-    impressions: acc.impressions + row.impressions,
-    clicks:      acc.clicks + row.clicks,
-    spend:       acc.spend + parseFloat(row.spend),
-    reach:       acc.reach + row.reach,
-    conversions: acc.conversions + row.conversions,
-  }), { impressions: 0, clicks: 0, spend: 0, reach: 0, conversions: 0 });
+  // Aggregate metrics (outcome-first; revenue/ROAS derived from per-row roas)
+  const totals = aggregatePerformance(perf);
 
   const avgCtr = totals.clicks && totals.impressions ? ((totals.clicks / totals.impressions) * 100).toFixed(2) : '0';
   const avgCpc = totals.clicks ? (totals.spend / totals.clicks).toFixed(2) : '0';
-  const cpa    = totals.conversions ? (totals.spend / totals.conversions).toFixed(2) : 'N/A';
+  const cpaNum = cpaOf(totals);
+  const cpa    = cpaNum === null ? 'N/A' : cpaNum.toFixed(2);
 
-  // AI analysis
+  // Period-over-period: fetch the immediately-preceding equal-length window.
+  // Range is [periodStart - len, periodStart). Omit gracefully if empty.
+  const prior = priorPeriodRange(periodStart, periodEnd);
+  const { data: prevPerf } = await supabase
+    .from('ad_performance')
+    .select('*')
+    .eq('client_id', clientId)
+    .gte('date', prior.start)
+    .lt('date', prior.endExclusive);
+
+  const comparison = prevPerf && prevPerf.length > 0
+    ? buildPeriodComparison(totals, aggregatePerformance(prevPerf))
+    : null;
+
+  // AI analysis — Hebrew prompt that LEADS with business outcomes (ROI),
+  // then demotes activity metrics (impressions/reach/CTR/CPC) to context.
   const analysisMsg = await ai.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 800,
     messages: [{
       role: 'user',
-      content: `כתוב דוח שיווקי מקצועי בעברית עבור לקוח ${client?.name}.
-תקופה: ${periodStart} עד ${periodEnd}
-נתונים:
-- חשיפות: ${totals.impressions.toLocaleString()}
-- קליקים: ${totals.clicks.toLocaleString()}
-- הוצאה: ₪${totals.spend.toFixed(2)}
-- CTR: ${avgCtr}%
-- CPC: ₪${avgCpc}
-- פוסטים שפורסמו: ${posts?.length || 0}
-
-כלול: סיכום ביצועים, הישגים עיקריים, מה שיפרנו, המלצות לתקופה הבאה.
-טון מקצועי ונעים.`,
+      content: composeReportPrompt({
+        clientName: client?.name,
+        periodStart,
+        periodEnd,
+        totals,
+        avgCtr,
+        avgCpc,
+        postsPublished: posts?.length || 0,
+        comparison,
+      }),
     }],
   });
 
@@ -70,7 +85,14 @@ export async function POST(req: NextRequest) {
   const reportData = {
     client: client?.name,
     period: { start: periodStart, end: periodEnd },
-    metrics: { ...totals, avgCtr, avgCpc, cpa },
+    metrics: {
+      impressions: totals.impressions,
+      clicks:      totals.clicks,
+      spend:       totals.spend,
+      reach:       totals.reach,
+      conversions: totals.conversions,
+      avgCtr, avgCpc, cpa,
+    },
     postsPublished: posts?.length || 0,
     analysis,
   };
