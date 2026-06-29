@@ -18,7 +18,30 @@ export async function GET(req: NextRequest) {
   // Verify the active client still belongs to this user
   const validActive = active && clients?.some(c => c.id === active) ? active : null;
 
-  return NextResponse.json({ clients: clients ?? [], active: validActive });
+  // For the active client, resolve the most-recent brief (same logic as
+  // buildAiContext) so /create can tell whether generation will actually be
+  // grounded in a real client brief + avatar, and pass brief_id explicitly.
+  let brief_id: string | null = null;
+  let has_brief = false;
+  if (validActive) {
+    const { data: brief } = await supabase
+      .from('briefs')
+      .select('id, values')
+      .eq('user_id', user.id)
+      .eq('client_id', validActive)
+      .order('submitted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (brief) {
+      brief_id = brief.id;
+      const values = (brief.values ?? {}) as Record<string, unknown>;
+      // Matches buildAiContext: a brief only injects context if it has
+      // at least one non-empty string field.
+      has_brief = Object.values(values).some(v => typeof v === 'string' && v.trim().length > 0);
+    }
+  }
+
+  return NextResponse.json({ clients: clients ?? [], active: validActive, brief_id, has_brief });
 }
 
 // POST — set active client (body: { id: string | null })
