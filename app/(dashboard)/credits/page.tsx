@@ -61,6 +61,16 @@ export default function CreditsPage() {
     } finally { setLoading(null); }
   }
 
+  async function manageSubscription() {
+    setLoading('portal');
+    try {
+      const res = await fetch('/api/billing/portal', { method: 'POST' });
+      const { url, error } = await res.json();
+      if (url) window.location.href = url;
+      else alert(error || 'שגיאה');
+    } finally { setLoading(null); }
+  }
+
   async function buyTopup(credits: number, amount: number) {
     setLoading(`topup-${credits}`);
     try {
@@ -144,6 +154,21 @@ export default function CreditsPage() {
           </div>
         ))}
       </div>
+
+      {/* Self-serve subscription management — clear, no dark patterns */}
+      <Card className="mb-6">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <CardLabel>⚙️ ניהול מנוי</CardLabel>
+            <div className="text-[11px] text-[#6B8FA8] mt-1">
+              שינוי חבילה, עדכון אמצעי תשלום או ביטול — בכל עת, ללא צורך לפנות לתמיכה
+            </div>
+          </div>
+          <Btn variant="ghost" size="sm" loading={loading === 'portal'} onClick={manageSubscription}>
+            ניהול מנוי / ביטול
+          </Btn>
+        </div>
+      </Card>
 
       {/* Top-up */}
       <Card className="mb-6" style={{borderColor: 'rgba(184,149,58,.3)'}}>
