@@ -4,7 +4,7 @@
 // Supabase is mocked.
 
 import { describe, it, expect } from 'vitest';
-import { issueBriefCode, generateBriefCode, BriefCodeError } from '@/app/api/briefs/code/issue';
+import { issueBriefCode, generateBriefCode, generateBriefToken, BriefCodeError } from '@/app/api/briefs/code/issue';
 
 // ── Mock Supabase ───────────────────────────────────────────────
 // meta_clients: from('meta_clients').select('id').eq('id',_).eq('user_id',_).maybeSingle()
@@ -49,14 +49,20 @@ function makeSupabase(opts: {
       }
       if (table === 'brief_codes') {
         let row: any;
+        const lookup: any = {};
         const b: any = {
           insert: (r: any) => { row = r; inserted.push(r); return b; },
           select: () => b,
+          // Resolution path (mirrors the /brief/[token] resolver + submit lookup):
+          //   from('brief_codes').select(...).eq('token'|'code', v).maybeSingle()
+          eq: (col: string, val: any) => { lookup.col = col; lookup.val = val; return b; },
+          maybeSingle: () =>
+            Promise.resolve({ data: inserted.find(r => r[lookup.col] === lookup.val) ?? null, error: null }),
           single: () => {
             const outcome = outcomes.shift();
             if (outcome?.error) return Promise.resolve({ data: null, error: outcome.error });
             return Promise.resolve({
-              data: { code: row.code, client_id: row.client_id ?? null },
+              data: { code: row.code, client_id: row.client_id ?? null, token: row.token ?? null },
               error: null,
             });
           },
@@ -82,7 +88,26 @@ describe('generateBriefCode', () => {
   });
 });
 
+describe('generateBriefToken', () => {
+  it('produces a 64-char lowercase hex CSPRNG token', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 50; i++) {
+      const token = generateBriefToken();
+      expect(token).toMatch(/^[a-f0-9]{64}$/);
+      seen.add(token);
+    }
+    expect(seen.size).toBe(50); // no collisions
+  });
+});
+
 describe('issueBriefCode', () => {
+  it('generates + persists + returns a 64-hex token alongside the code', async () => {
+    const supabase = makeSupabase({ profileName: 'Acme', ownedClients: [CLIENT] });
+    const result = await issueBriefCode(supabase, 'user-1', CLIENT, { genCode: () => 'ABC123' });
+    expect(result.token).toMatch(/^[a-f0-9]{64}$/);
+    expect(supabase._inserted[0].token).toBe(result.token);
+  });
+
   it('returns a 6-char-style uppercase code from the default generator', async () => {
     const supabase = makeSupabase({ profileName: 'Acme', ownedClients: [CLIENT] });
     const { code } = await issueBriefCode(supabase, 'user-1', CLIENT);
@@ -165,6 +190,37 @@ describe('issueBriefCode', () => {
       issueBriefCode(supabase, 'user-1', CLIENT, { genCode: () => 'ABC123' }),
     ).rejects.toThrow('permission denied');
     expect(supabase._inserted.length).toBe(1);
+  });
+
+  // Regression: the "+ create brief code" action must yield a magic link that
+  // actually resolves. Guards against the bug where new codes were inserted
+  // WITHOUT a token (so /brief/<token> had nothing to resolve).
+  it('REGRESSION: creating a code yields a token-resolvable magic link', async () => {
+    // The resolver (/brief/[token] page + GET /api/brief/[token]) rejects
+    // anything that fails this regex before it ever hits the DB.
+    const RESOLVER_TOKEN_REGEX = /^[a-f0-9]{64}$/;
+
+    const supabase = makeSupabase({ profileName: 'Acme', ownedClients: [CLIENT] });
+
+    // 1) Create (uses the REAL default token generator, not a stub).
+    const issued = await issueBriefCode(supabase, 'user-1', CLIENT, { genCode: () => 'LINK01' });
+    expect(issued.token).toMatch(RESOLVER_TOKEN_REGEX);
+
+    // 2) The token was actually persisted on the row (not just returned).
+    expect(supabase._inserted[0].token).toBe(issued.token);
+
+    // 3) The resolver lookup by token finds the row → the link resolves.
+    const { data: resolved } = await supabase
+      .from('brief_codes')
+      .select('agency_name, client_id, token')
+      .eq('token', issued.token)
+      .maybeSingle();
+    expect(resolved).not.toBeNull();
+    expect(resolved.token).toBe(issued.token);
+    expect(resolved.client_id).toBe(CLIENT);
+
+    // 4) The built link has the expected /brief/<token> shape.
+    expect(`/brief/${issued.token}`).toMatch(/^\/brief\/[a-f0-9]{64}$/);
   });
 
   it('gives up after maxAttempts when every code collides', async () => {

@@ -1,6 +1,7 @@
 // Core brief-code issuance logic, kept free of next/headers so it can be
 // unit-tested with a mocked Supabase client. The route handler (route.ts)
 // supplies an authenticated, user-scoped Supabase client.
+import { randomBytes } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Thrown for caller-fixable problems (missing / not-owned client_id) so the
@@ -16,13 +17,23 @@ export class BriefCodeError extends Error {
 
 // Code generation — UNCHANGED from the original inline client logic:
 // a random base-36 string, 6 chars, uppercased (e.g. "K3J9ZQ").
+// NOTE: this is a manual-entry fallback only; it is NOT used as the magic-link
+// access control (Math.random is not a CSPRNG and 6 chars is enumerable).
 export function generateBriefCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+// Magic-link token — a 256-bit CSPRNG value as 64 lowercase hex chars. This IS
+// the access control on the public /brief/<token> form, so it must be
+// unguessable and non-enumerable. Mirrors the column added in migration 018.
+export function generateBriefToken(): string {
+  return randomBytes(32).toString('hex');
 }
 
 export interface IssuedBriefCode {
   code:      string;
   client_id: string;
+  token:     string;
 }
 
 /**
@@ -39,9 +50,10 @@ export async function issueBriefCode(
   supabase: SupabaseClient,
   userId: string,
   clientId: string | null | undefined,
-  opts: { genCode?: () => string; maxAttempts?: number } = {},
+  opts: { genCode?: () => string; genToken?: () => string; maxAttempts?: number } = {},
 ): Promise<IssuedBriefCode> {
   const genCode = opts.genCode ?? generateBriefCode;
+  const genToken = opts.genToken ?? generateBriefToken;
   const maxAttempts = opts.maxAttempts ?? 5;
 
   if (!clientId) {
@@ -69,19 +81,20 @@ export async function issueBriefCode(
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const code = genCode();
-    const row = { code, user_id: userId, agency_name, client_id: clientId };
+    const token = genToken();
+    const row = { code, token, user_id: userId, agency_name, client_id: clientId };
 
     const { data, error } = await supabase
       .from('brief_codes')
       .insert(row)
-      .select('code, client_id')
+      .select('code, client_id, token')
       .single();
 
     if (!error) {
-      return { code: data.code, client_id: data.client_id };
+      return { code: data.code, client_id: data.client_id, token: data.token };
     }
 
-    // 23505 = unique_violation → code clash, regenerate and retry.
+    // 23505 = unique_violation → code/token clash, regenerate both and retry.
     // Any other error is a real failure; surface it immediately.
     if (error.code !== '23505') {
       throw new Error(error.message);

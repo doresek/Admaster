@@ -18,31 +18,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { code, values } = await req.json() as { code: string; values: BriefValues };
+    const { code, token, values } = await req.json() as { code?: string; token?: string; values: BriefValues };
 
-    if (!code || !values) {
-      return NextResponse.json({ error: 'Missing code or values' }, { status: 400 });
+    if ((!code && !token) || !values) {
+      return NextResponse.json({ error: 'Missing code/token or values' }, { status: 400 });
+    }
+
+    // Reject malformed tokens before any DB hit (matches generateBriefToken()).
+    if (token && !/^[a-f0-9]{64}$/.test(token)) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 400 });
     }
 
     const admin = createAdminClient();
 
-    // Verify code exists and get the marketer's user_id + the client the code
-    // was issued for. The brief deterministically inherits that client_id.
-    const { data: briefCode, error: codeErr } = await admin
-      .from('brief_codes')
-      .select('user_id, client_id')
-      .eq('code', code.toUpperCase())
-      .single();
+    // Resolve the brief code by token (magic-link flow) or by code (legacy
+    // manual-entry flow). Either way we read the canonical `code` so the briefs
+    // row satisfies its NOT NULL FK, plus the marketer's user_id and the client
+    // the code was issued for — the brief deterministically inherits client_id.
+    const lookup = admin.from('brief_codes').select('code, user_id, client_id');
+    const { data: briefCode, error: codeErr } = token
+      ? await lookup.eq('token', token).single()
+      : await lookup.eq('code', String(code).toUpperCase()).single();
 
     if (codeErr || !briefCode) {
       return NextResponse.json({ error: 'קוד בריף לא קיים' }, { status: 404 });
     }
 
-    // Insert brief submission — client_id inherited from the brief code.
+    // Insert brief submission — code + client_id inherited from the brief code.
     const { data, error } = await admin
       .from('briefs')
       .insert({
-        code:      code.toUpperCase(),
+        code:      briefCode.code,
         user_id:   briefCode.user_id,
         client_id: briefCode.client_id ?? null,
         values,
