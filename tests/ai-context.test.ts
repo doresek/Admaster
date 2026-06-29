@@ -42,6 +42,96 @@ const CLIENT_ID = 'client-1';
 // Note: the marker glyphs use the box-drawing ═══ that buildAiContext emits.
 const BA_MARKER = '═══ BUSINESS ANALYSIS ═══';
 const AVATAR_MARKER = '═══ CLIENT AVATAR ═══';
+const STRATEGY_MARKER = '═══ MARKETING STRATEGY ═══';
+
+describe('buildAiContext: MARKETING STRATEGY (new StrategyAnalysis shape) + legacy fallback', () => {
+  it('(2) NEW strategy-shape business_analysis emits MARKETING STRATEGY + all 4 section markers', async () => {
+    const supabase = makeSupabase({
+      meta_clients: {
+        data: {
+          id: CLIENT_ID,
+          name: 'Bloom',
+          industry: 'clinic',
+          emoji: '🌸',
+          core_generated_at: '2026-06-20T00:00:00Z',
+          business_analysis: {
+            strategic_summary: {
+              goal: 'לידים לקליניקה',
+              core_offer: 'ליווי 12 שבועות',
+              usp: 'מעקב אישי יומי',
+              constraints: ['תקציב מוגבל', 'עונתיות', 'c3', 'c4', 'c5', 'c6-capped'],
+            },
+            sub_audience: {
+              name: 'אמהות עסוקות',
+              awareness_level: 'Problem-aware',
+              persona: 'עובדות, חסרות זמן',
+              explanation: 'מרגישות כאב בלי פתרון',
+            },
+            platform_funnel: {
+              platform: 'Meta', ad_format: 'Reels', funnel_type: 'lead-gen',
+              platform_reason: 'הקהל באינסטגרם', format_reason: 'וידאו ממיר', funnel_reason: 'מחיר גבוה',
+            },
+            offer_stack: {
+              components: ['ליווי אישי', 'קבוצה'],
+              strengths: ['אחריות כפולה', 'ערך גבוה'],
+              assessment: 'הצעה חזקה',
+            },
+          },
+          avatar: null,
+        },
+      },
+      briefs: { data: [] },
+    });
+
+    const ctx = await buildAiContext(supabase, { userId: USER_ID, clientId: CLIENT_ID });
+
+    expect(ctx.combined).toContain(STRATEGY_MARKER);
+    expect(ctx.combined).toContain('[STRATEGIC SUMMARY]');
+    expect(ctx.combined).toContain('[SUB-AUDIENCE]');
+    expect(ctx.combined).toContain('[PLATFORM & FUNNEL]');
+    expect(ctx.combined).toContain('[OFFER STACK]');
+    // field values from each section
+    expect(ctx.combined).toContain('goal: לידים לקליניקה');
+    expect(ctx.combined).toContain('awareness: Problem-aware');
+    expect(ctx.combined).toContain('platform: Meta');
+    expect(ctx.combined).toContain('strengths: אחריות כפולה | ערך גבוה');
+    // arrays capped at 5
+    expect(ctx.combined).not.toContain('c6-capped');
+    // and it must NOT render the legacy block
+    expect(ctx.combined).not.toContain(BA_MARKER);
+  });
+
+  it('(3) LEGACY completeness-shape row still renders (no error) and emits NO strategy markers', async () => {
+    const supabase = makeSupabase({
+      meta_clients: {
+        data: {
+          id: CLIENT_ID,
+          name: 'Bloom',
+          industry: null,
+          emoji: null,
+          core_generated_at: '2026-05-01T00:00:00Z',
+          business_analysis: {
+            completeness_score: 71,
+            strengths: ['s1'],
+            gaps: ['g1'],
+            questions: ['q1'],
+            refinements: ['r1'],
+          },
+          avatar: null,
+        },
+      },
+      briefs: { data: [] },
+    });
+
+    const ctx = await buildAiContext(supabase, { userId: USER_ID, clientId: CLIENT_ID });
+
+    expect(ctx.combined).toContain(BA_MARKER);
+    expect(ctx.combined).toContain('completeness_score: 71');
+    // no new strategy markers — no regression for pre-upgrade clients
+    expect(ctx.combined).not.toContain(STRATEGY_MARKER);
+    expect(ctx.combined).not.toContain('[STRATEGIC SUMMARY]');
+  });
+});
 
 describe('buildAiContext: client-core BUSINESS ANALYSIS + structured AVATAR', () => {
   it('(a) client WITH avatar + business_analysis emits both new blocks and field values', async () => {

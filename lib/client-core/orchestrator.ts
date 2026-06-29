@@ -23,7 +23,7 @@
 //     with advanceJourneyOnBrief; core-readiness is signaled by
 //     core_generated_at alone.
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { analyzeBrief, persistBusinessAnalysis, type BriefRunner } from '@/lib/analyze-brief';
+import { analyzeBrief, persistBusinessAnalysis, type BriefRunner, type OfferStackSeed } from '@/lib/analyze-brief';
 import { generateAvatarV1, type AvatarRunner } from '@/lib/client-core/avatar';
 import { generateAvatarV2, type AvatarV2Runner, type AvatarInput } from '@/lib/avatar/generator';
 import { deductCredits } from '@/lib/credits';
@@ -110,7 +110,25 @@ export async function orchestrateClientCore(
 
     // (3) ANALYSIS — independent; persist on success, deduct credits, mark done.
     try {
-      const analysis = await analyzeBrief({ briefValues, run: analyzeRun });
+      // Seed the offer-stack assessment from the client's most-recent saved
+      // Hormozi stack (linked by client_id), when one exists. Best-effort: any
+      // failure (or no row) just falls back to deriving the stack from the brief.
+      let offerStack: OfferStackSeed | null = null;
+      try {
+        const { data: os } = await admin
+          .from('offer_stacks')
+          .select('product_name, main_offer, bonuses, guarantee, full_pitch, total_value, final_price')
+          .eq('client_id', clientId)
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        offerStack = (os as OfferStackSeed | null) ?? null;
+      } catch (osErr: any) {
+        console.error('[orchestrateClientCore] offer_stacks lookup failed:', osErr?.message);
+      }
+
+      const analysis = await analyzeBrief({ briefValues, offerStack, run: analyzeRun });
       await persistBusinessAnalysis(admin, { userId, clientId, analysis });
       await deductCredits(admin, userId, 'analyze_brief');
       result.analysis = true;

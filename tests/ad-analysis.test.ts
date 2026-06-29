@@ -31,11 +31,35 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const CANNED = [
-  '[SCORE]82[/SCORE]',
-  '[STRENGTHS]', '- חוזקה א', '- חוזקה ב', '[/STRENGTHS]',
-  '[GAPS]', '- פער א', '[/GAPS]',
-  '[QUESTIONS]', '- שאלה א', '- שאלה ב', '[/QUESTIONS]',
-  '[REFINEMENTS]', '- שינוי א', '[/REFINEMENTS]',
+  '[STRATEGIC_SUMMARY]',
+  'goal: לידים',
+  'core_offer: ליווי',
+  'usp: ייחודי',
+  'constraints:',
+  '- אילוץ א',
+  '[/STRATEGIC_SUMMARY]',
+  '[SUB_AUDIENCE]',
+  'name: קהל',
+  'awareness: Problem-aware',
+  'persona: פרסונה',
+  'explanation: הסבר',
+  '[/SUB_AUDIENCE]',
+  '[PLATFORM_FUNNEL]',
+  'platform: Meta',
+  'ad_format: Reels',
+  'funnel_type: lead-gen',
+  'platform_reason: ר1',
+  'format_reason: ר2',
+  'funnel_reason: ר3',
+  '[/PLATFORM_FUNNEL]',
+  '[OFFER_STACK]',
+  'components:',
+  '- רכיב א',
+  'strengths:',
+  '- חוזקה א',
+  '- חוזקה ב',
+  'assessment: הערכה',
+  '[/OFFER_STACK]',
   '[DIAGNOSIS]hook חלש[/DIAGNOSIS]',
   '[CAUSES]', '- סיבה א', '- סיבה ב', '[/CAUSES]',
   '[IMPROVEMENTS]', '- שיפור א', '- שיפור ב', '[/IMPROVEMENTS]',
@@ -113,15 +137,17 @@ describe('POST /api/tools analyze_brief — brief_analyses insert shape', () => 
 
     expect(res.status).toBe(200);
     expect(H.captured.insert!.table).toBe('brief_analyses');
+    // New StrategyAnalysis maps cleanly onto the legacy history columns:
+    // strengths ← offer_stack.strengths, gaps ← strategic_summary.constraints,
+    // raw_text retains the full strategy text.
     expect(H.captured.insert!.payload).toEqual({
-      user_id:            'owner-1',
-      brief_id:           'brief-7',
-      completeness_score: 82,
-      strengths:          ['חוזקה א', 'חוזקה ב'],
-      gaps:               ['פער א'],
-      questions:          ['שאלה א', 'שאלה ב'],
-      refinements:        ['שינוי א'],
-      raw_text:           CANNED,
+      user_id:     'owner-1',
+      brief_id:    'brief-7',
+      strengths:   ['חוזקה א', 'חוזקה ב'],
+      gaps:        ['אילוץ א'],
+      questions:   [],
+      refinements: [],
+      raw_text:    CANNED,
     });
     expect('client_id' in H.captured.insert!.payload).toBe(false);
   });
