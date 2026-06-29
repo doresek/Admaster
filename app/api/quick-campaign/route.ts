@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { FRAMEWORKS_BY_ID, type FrameworkId } from '@/lib/frameworks';
 import { deductCredits, refundCredits, extractErrorMessage } from '@/lib/credits';
 import { buildAiContext } from '@/lib/ai-context';
 import { readActiveClientCookie } from '@/lib/active-client';
+import { recordArtifactSafe, contextHash } from '@/lib/intelligence/artifacts';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -108,6 +109,39 @@ ${sysParts}
           output:   { post: v.post, hashtags: v.hashtags, wa: v.wa, image_prompt: v.image_prompt },
         }))
       );
+    }
+
+    // Tagged write-through to the artifact log (best-effort): one 'campaign'
+    // parent, then each framework variant as an 'ad' child tagged with its
+    // framework + the insight ids buildAiContext grounded on.
+    if (variants.length > 0 && activeClientId) {
+      try {
+        const admin = createAdminClient();
+        const model = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
+        const generatedFrom = { model, context_hash: contextHash(ctx.combined), platform };
+        const parent = await recordArtifactSafe(admin, {
+          clientId:    activeClientId,
+          ownerUserId: user.id,
+          type:        'campaign',
+          content:     { brief: brief.substring(0, 500), variant_count: variants.length },
+          insightIds:  ctx.insightIds,
+          generatedFrom,
+        });
+        for (const v of variants) {
+          await recordArtifactSafe(admin, {
+            clientId:    activeClientId,
+            ownerUserId: user.id,
+            type:        'ad',
+            parentId:    parent?.id ?? null,
+            content:     { post: v.post, hashtags: v.hashtags, wa: v.wa, image_prompt: v.image_prompt },
+            framework:   v.framework,
+            insightIds:  ctx.insightIds,
+            generatedFrom,
+          });
+        }
+      } catch (e: any) {
+        console.error('[quick-campaign] artifact tagging failed:', e?.message ?? e);
+      }
     }
 
     // Optional: generate images for each variant (best effort; failures don't block the response)

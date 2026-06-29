@@ -12,34 +12,41 @@
 let idCounter = 0;
 
 export interface FakeDb {
-  client_insights: any[];
-  insight_events:  any[];
-  client_strategy: any[];
-  clients:         any[];
-  briefs:          any[];
-  rpcCalls:        Array<{ fn: string; args: any }>;
-  admin:           any;
+  client_insights:   any[];
+  insight_events:    any[];
+  client_strategy:   any[];
+  clients:           any[];
+  briefs:            any[];
+  content_artifacts: any[];
+  learning_signals:  any[];
+  rpcCalls:          Array<{ fn: string; args: any }>;
+  admin:             any;
 }
 
 export function makeFakeDb(
-  seed: { insights?: any[]; clients?: any[]; briefs?: any[] } = {},
+  seed: { insights?: any[]; clients?: any[]; briefs?: any[]; artifacts?: any[]; signals?: any[] } = {},
 ): FakeDb {
   const db = {
-    client_insights: (seed.insights ?? []).map((r) => ({ ...r })),
-    insight_events:  [] as any[],
-    client_strategy: [] as any[],
-    clients:         (seed.clients ?? []).map((r) => ({ ...r })),
-    briefs:          (seed.briefs ?? []).map((r) => ({ ...r })),
+    client_insights:   (seed.insights ?? []).map((r) => ({ ...r })),
+    insight_events:    [] as any[],
+    client_strategy:   [] as any[],
+    clients:           (seed.clients ?? []).map((r) => ({ ...r })),
+    briefs:            (seed.briefs ?? []).map((r) => ({ ...r })),
+    content_artifacts: (seed.artifacts ?? []).map((r) => ({ ...r })),
+    learning_signals:  (seed.signals ?? []).map((r) => ({ ...r })),
   };
   const rpcCalls: Array<{ fn: string; args: any }> = [];
 
-  function matches(row: any, filters: [string, any][]): boolean {
-    return filters.every(([col, val]) => row[col] === val);
+  function matches(row: any, filters: [string, any][], inFilters: [string, any[]][]): boolean {
+    return (
+      filters.every(([col, val]) => row[col] === val) &&
+      inFilters.every(([col, vals]) => vals.includes(row[col]))
+    );
   }
 
   function from(table: keyof typeof db) {
-    const state: { op: 'insert' | 'update' | 'upsert' | 'select' | null; payload: any; filters: [string, any][]; onConflict?: string } = {
-      op: null, payload: null, filters: [],
+    const state: { op: 'insert' | 'update' | 'upsert' | 'select' | null; payload: any; filters: [string, any][]; inFilters: [string, any[]][]; onConflict?: string } = {
+      op: null, payload: null, filters: [], inFilters: [],
     };
 
     const store = () => db[table] as any[];
@@ -66,10 +73,16 @@ export function makeFakeDb(
     }
 
     function doUpdate(): any {
-      const row = store().find((r) => matches(r, state.filters));
+      const row = store().find((r) => matches(r, state.filters, state.inFilters));
       if (!row) return null;
       Object.assign(row, state.payload);
       return row;
+    }
+
+    function doUpdateMany(): number {
+      const rows = store().filter((r) => matches(r, state.filters, state.inFilters));
+      for (const r of rows) Object.assign(r, state.payload);
+      return rows.length;
     }
 
     function doUpsert() {
@@ -89,13 +102,14 @@ export function makeFakeDb(
       },
       select() { if (!state.op) state.op = 'select'; return builder; },
       eq(col: string, val: any) { state.filters.push([col, val]); return builder; },
+      in(col: string, vals: any[]) { state.inFilters.push([col, vals]); return builder; },
       order() { // terminal list read
-        const rows = store().filter((r) => matches(r, state.filters));
+        const rows = store().filter((r) => matches(r, state.filters, state.inFilters));
         rows.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
         return Promise.resolve({ data: rows.map((r) => ({ ...r })), error: null });
       },
       maybeSingle() {
-        const row = store().find((r) => matches(r, state.filters));
+        const row = store().find((r) => matches(r, state.filters, state.inFilters));
         return Promise.resolve({ data: row ? { ...row } : null, error: null });
       },
       single() {
@@ -104,12 +118,18 @@ export function makeFakeDb(
           const r = doUpdate();
           return Promise.resolve({ data: r ? { ...r } : null, error: r ? null : { message: 'not found' } });
         }
-        const row = store().find((r) => matches(r, state.filters));
+        const row = store().find((r) => matches(r, state.filters, state.inFilters));
         return Promise.resolve({ data: row ? { ...row } : null, error: null });
       },
-      // awaited directly: insert-without-select (events) or anything else
+      // awaited directly: insert-without-select (events), update-without-select
+      // (mark processed), or a filtered list read (select).
       then(resolve: any) {
-        if (state.op === 'insert') doInsert();
+        if (state.op === 'insert') { doInsert(); return resolve({ error: null }); }
+        if (state.op === 'update') { doUpdateMany(); return resolve({ error: null }); }
+        if (state.op === 'select') {
+          const rows = store().filter((r) => matches(r, state.filters, state.inFilters));
+          return resolve({ data: rows.map((r) => ({ ...r })), error: null });
+        }
         resolve({ error: null });
       },
     };

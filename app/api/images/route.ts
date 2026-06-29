@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { recordArtifactWith } from '@/lib/intelligence/artifacts';
 import { CREDIT_COSTS } from '@/types';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { callVertexImageGen, GEMINI_ASPECT } from '@/lib/vertex-ai';
@@ -243,6 +244,18 @@ export async function POST(req: NextRequest) {
         });
         if (insertErr) console.error('[images] smart DB insert failed:', insertErr);
 
+        // Tagged write-through: record the winning creative as an artifact (best-effort).
+        if (activeClientId) {
+          await recordArtifactWith(createAdminClient, {
+            clientId:    activeClientId,
+            ownerUserId: user.id,
+            type:        'creative_image',
+            content:     { url: result.winner.url, prompt: result.winner.prompt, concept: result.winner.concept },
+            funnelStage: null,
+            generatedFrom: { model: GEMINI_MODEL, provider: 'gemini', smart: true },
+          });
+        }
+
         const responseBody = {
           url:        result.winner.url,
           candidates: [result.winner.url, ...losers.map(l => l.url)],
@@ -363,6 +376,18 @@ export async function POST(req: NextRequest) {
       parent_image_id: parentImageId ?? null,
       edit_prompt:     isEdit ? editPrompt : isAdapt ? `Adapt to ${aspectRatio}` : null,
     });
+
+    // Tagged write-through: record the generated creative as an artifact (best-effort).
+    // Skip edits/adapts — those are derivatives of an existing creative, not fresh generations.
+    if (activeClientId && !isEdit && !isAdapt) {
+      await recordArtifactWith(createAdminClient, {
+        clientId:    activeClientId,
+        ownerUserId: user.id,
+        type:        'creative_image',
+        content:     { url: imageUrl, prompt: finalPrompt },
+        generatedFrom: { provider: fallbackProvider ?? provider, model: GEMINI_MODEL },
+      });
+    }
 
     const baseResponse = {
       url: imageUrl,

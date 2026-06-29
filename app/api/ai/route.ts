@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { type CreditAction } from '@/types';
 import { deductCredits, refundCredits, extractErrorMessage } from '@/lib/credits';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildAiContext } from '@/lib/ai-context';
 import { readActiveClientCookie } from '@/lib/active-client';
+import { recordArtifactWith, contextHash } from '@/lib/intelligence/artifacts';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -85,6 +86,25 @@ export async function POST(req: NextRequest) {
     output:   { text: text.substring(0, 2000) },
   });
   if (insertErr) console.error('[AI route] insert failed:', insertErr.message);
+
+  // Tagged write-through (best-effort): generic generations are tracked as a
+  // 'post' when the action looks post-like, else a 'message'. Tagged with the
+  // insight ids buildAiContext grounded on.
+  if (activeClientId) {
+    const artifactType = /post|ad|caption|copy/i.test(String(action)) ? 'post' : 'message';
+    await recordArtifactWith(createAdminClient, {
+      clientId:    activeClientId,
+      ownerUserId: user.id,
+      type:        artifactType,
+      content:     { text: text.substring(0, 2000) },
+      insightIds:  ctx.insightIds,
+      generatedFrom: {
+        model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
+        context_hash: contextHash(ctx.combined),
+        action: String(action),
+      },
+    });
+  }
 
   return NextResponse.json({ text, credits: deduct.credits });
 }

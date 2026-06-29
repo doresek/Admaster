@@ -7,6 +7,7 @@ import { MASTER_NOTES_MAX, type MasterV2Output } from '@/lib/master-studio';
 import { ScoreBadge } from '@/components/ScoreBadge';
 import { ScorePanel } from '@/components/ScorePanel';
 import { BoostButton } from '@/components/BoostButton';
+import { SignalButtons } from '@/components/intelligence/SignalButtons';
 import type { ScoreResult } from '@/lib/scoring';
 
 const PLATFORMS = [
@@ -56,6 +57,7 @@ export default function CreatePage() {
 
   const [tab,  setTab]   = useState('post');
   const [out,  setOut]   = useState<MasterV2Output | null>(null);
+  const [artifactId, setArtifactId] = useState<string | null>(null);
   const [revealOpen, setRevealOpen] = useState(true);
 
   const [score, setScore]               = useState<(ScoreResult & { score_id: string; iteration: number; max: number }) | null>(null);
@@ -90,7 +92,7 @@ export default function CreatePage() {
 
   async function generate() {
     if (!brief.trim()) return;
-    setLoading(true); setStage(1); setError(null); setOut(null); setScore(null);
+    setLoading(true); setStage(1); setError(null); setOut(null); setScore(null); setArtifactId(null);
     // Optimistic stage ticker (no SSE in v1): advance the label on a timer.
     const t1 = setTimeout(() => setStage(2), 12_000);
     const t2 = setTimeout(() => setStage(3), 75_000);
@@ -117,6 +119,7 @@ export default function CreatePage() {
       if (!res.ok) { setError(data.error ?? 'שגיאה ביצירה — נסה שוב'); return; }
       const output = data as MasterV2Output;
       setOut(output);
+      setArtifactId((data as { artifact_id?: string | null }).artifact_id ?? null);
       if (output.winner?.draft?.post) fetchScore(output.winner.draft.post);
       setTab('post');
       setRevealOpen(true);
@@ -331,6 +334,7 @@ export default function CreatePage() {
                     <CopyBtn text={out.winner.draft.post + '\n\n' + out.winner.draft.hashtags.join(' ')} />
                     <Btn variant="ghost" size="sm" onClick={generate} disabled={loading}>🔄 שוב</Btn>
                   </div>
+                  {artifactId && <SignalButtons artifactId={artifactId} className="mt-3" />}
                   {(score || scoreLoading) && (
                     <div className="flex items-center gap-3 mt-3" dir="rtl">
                       {scoreLoading && <Spinner size={14} />}

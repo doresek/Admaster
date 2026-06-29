@@ -25,6 +25,7 @@ export interface AiContextBlocks {
   briefText:    string;       // formatted block for the brief
   combined:     string;       // client + brief joined — drop this into a system prompt
   client:       any | null;   // raw row (so callers can grab name etc.)
+  insightIds:   string[];     // ids of the active insights this context grounded on (for artifact tagging)
 }
 
 const FIELD_LABELS_HE: Record<string, string> = {
@@ -140,13 +141,15 @@ ${lines.join('\n')}`;
   const avatarText = formatClientAvatar(strategy?.avatar);
 
   // ─── 5. Living atoms: top active insights per layer (client_insights) ─
-  const insightsText = clientId ? await formatTopInsights(supabase, clientId) : '';
+  const { text: insightsText, ids: insightIds } = clientId
+    ? await formatTopInsights(supabase, clientId)
+    : { text: '', ids: [] as string[] };
 
   const combined = [clientText, briefText, businessAnalysisText, avatarText, insightsText]
     .filter(Boolean)
     .join('\n\n');
 
-  return { clientText, briefText, combined, client };
+  return { clientText, briefText, combined, client, insightIds };
 }
 
 // ─── Living-atoms formatter ──────────────────────────────────────
@@ -162,33 +165,35 @@ async function formatTopInsights(
   supabase: SupabaseClient,
   clientId: string,
   perLayer = 4,
-): Promise<string> {
+): Promise<{ text: string; ids: string[] }> {
   let rows: any[] = [];
   try {
     const { data, error } = await supabase
       .from('client_insights')
-      .select('layer, kind, content, confidence')
+      .select('id, layer, kind, content, confidence')
       .eq('client_id', clientId)
       .eq('status', 'active')
       .order('confidence', { ascending: false });
-    if (error) return '';
+    if (error) return { text: '', ids: [] };
     rows = data ?? [];
   } catch {
-    return '';
+    return { text: '', ids: [] };
   }
-  if (!rows.length) return '';
+  if (!rows.length) return { text: '', ids: [] };
 
   const lines: string[] = ['═══ LIVING INSIGHTS (top active, by confidence) ═══'];
+  const ids: string[] = [];
   for (const layer of ['business', 'customers', 'bridge']) {
     const top = rows.filter((r) => r.layer === layer).slice(0, perLayer);
     if (!top.length) continue;
     lines.push(`[${LAYER_LABELS[layer] ?? layer.toUpperCase()}]`);
     for (const r of top) {
+      if (r.id) ids.push(String(r.id));
       const conf = typeof r.confidence === 'number' ? r.confidence.toFixed(2) : '?';
       lines.push(`- (${r.kind} ${conf}) ${String(r.content).trim()}`);
     }
   }
-  return lines.length > 1 ? lines.join('\n') : '';
+  return lines.length > 1 ? { text: lines.join('\n'), ids } : { text: '', ids: [] };
 }
 
 // ─── Client-core formatters ──────────────────────────────────────
