@@ -191,6 +191,23 @@ export interface MetaClient {
   updated_at:              string;
 }
 
+// A per-(client, agency-user) Meta connection. meta_clients is pure identity;
+// each OAuth connect creates a meta_connections child row that owns the
+// encrypted token and the connected account's assets. One client can own many.
+export interface MetaConnection {
+  id:                      string;
+  client_id:               string;
+  token_encrypted:         string | null;
+  meta_user_id:            string | null;
+  meta_user_name:          string | null;
+  pages:                   MetaPage[];
+  ad_accounts:             MetaAdAccount[];
+  selected_page_id:        string | null;
+  selected_ad_account_id:  string | null;
+  status:                  'pending' | 'connected' | 'error' | 'revoked';
+  connected_at:            string;
+}
+
 export interface GeneratedContent {
   id:         string;
   user_id:    string;
