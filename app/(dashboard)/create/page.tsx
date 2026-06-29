@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardLabel, Chip, Textarea, Btn, OutputBox, Tabs, CopyBtn, CostBadge, Alert, PageHeader, Spinner } from '@/components/ui';
 import { FRAMEWORKS, FRAMEWORKS_BY_ID, type FrameworkId } from '@/lib/frameworks';
@@ -32,6 +32,27 @@ export default function CreatePage() {
 
   const [brief,       setBrief]       = useState('');
   const [masterNotes, setMasterNotes] = useState('');
+
+  // Active client + its brief — generation is grounded in these when present.
+  const [activeClient, setActiveClient] = useState<{ id: string; name: string; emoji: string } | null>(null);
+  const [briefId,      setBriefId]      = useState<string | null>(null);
+  const [hasBrief,     setHasBrief]     = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/active-client');
+        const d = await r.json();
+        if (cancelled) return;
+        const client = (d.clients ?? []).find((c: { id: string }) => c.id === d.active) ?? null;
+        setActiveClient(client ? { id: client.id, name: client.name, emoji: client.emoji ?? '🏢' } : null);
+        setBriefId(d.brief_id ?? null);
+        setHasBrief(!!d.has_brief);
+      } catch { /* binding chip stays in the no-client state */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const [tab,  setTab]   = useState('post');
   const [out,  setOut]   = useState<MasterV2Output | null>(null);
@@ -86,6 +107,10 @@ export default function CreatePage() {
           framework:   fwOverride ?? undefined,
           hook:        hookOverride ?? undefined,
           locale:      'he',
+          // Bind generation to the active client + its brief explicitly, so it
+          // doesn't depend on the active-client cookie reaching the server.
+          client_id:   activeClient?.id ?? undefined,
+          brief_id:    briefId ?? undefined,
         }),
       });
       const data = await res.json();
@@ -172,9 +197,27 @@ export default function CreatePage() {
           </Card>
 
           <Card className="mb-3">
-            <CardLabel>בריף</CardLabel>
+            <CardLabel>על מה הפוסט הזה?</CardLabel>
+
+            {hasBrief && activeClient ? (
+              <div className="flex items-center gap-1.5 mb-2 text-[11px] font-semibold rounded-lg px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
+                ✓ מבוסס על הבריף של {activeClient.emoji} {activeClient.name}
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2 mb-2 text-[11px] rounded-lg px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-300">
+                <span>
+                  {activeClient
+                    ? `אין בריף ל${activeClient.name} — הפוסט ייווצר מהטקסט בלבד`
+                    : 'לא נבחר לקוח פעיל — הפוסט ייווצר מהטקסט בלבד'}
+                </span>
+                <Link href="/briefs" className="font-semibold underline shrink-0 hover:text-amber-200">
+                  {activeClient ? 'צור בריף ←' : 'לבריפים ←'}
+                </Link>
+              </div>
+            )}
+
             <Textarea value={brief} onChange={setBrief}
-              placeholder="תאר מה אתה רוצה לפרסם. לדוגמה: מבצע לחג שבועות — תפילין מהודרות 15% הנחה לבני מצווה..."
+              placeholder="מבצע סוף עונה, השקת מוצר…"
               rows={4} />
           </Card>
 

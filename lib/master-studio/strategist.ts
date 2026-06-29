@@ -20,6 +20,10 @@ ${corpus}
 
 ═══ פלטפורמה: ${input.platform} | טון: ${input.tone ?? '—'} | סוג: ${input.type ?? '—'} ═══
 
+═══ GROUNDING (מקור אמת) ═══
+אם מופיעים מעליך CLIENT BRIEF ו/או "saved customer avatar" — אלה מקור האמת לגבי העסק והקהל. בסס את [AVATAR_PROFILE] עליהם ואל תמציא פרסונה, פחדים, רצונות או התנגדויות הסותרים אותם. במצב זה הטקסט החופשי של המשתמש למטה הוא רק נושא הפוסט הספציפי — לא תיאור העסק או הקהל.
+אם אין בריף/אווטאר שמורים מעל — גזור את הפרופיל מהטקסט החופשי בלבד.
+
 ═══ OUTPUT CONTRACT (החזר רק את התגיות, בסדר הזה) ═══
 [AVATAR_PROFILE]
 persona: ...
@@ -35,7 +39,7 @@ objections: ...
 [/RANKED_MARKETERS]
 השתמש אך ורק ב-id חוקיים מהקורפוס. שלושה משווקים שונים.`;
 
-  const user = `בריף: ${input.brief}`;
+  const user = `נושא הפוסט הספציפי: ${input.brief}`;
   return { system, user };
 }
 
