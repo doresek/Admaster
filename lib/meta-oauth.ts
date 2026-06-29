@@ -36,8 +36,15 @@ function stateSecret(): string {
 }
 
 export interface MetaOAuthState {
-  userId: string;
+  // Set on the authenticated dashboard flow (the agency user starting the
+  // connect). OMITTED on the session-less client-connect flow, where the
+  // external client has no AdMaster session — there `connectToken` is the
+  // sole binding back to the meta_clients row.
+  userId?: string;
   clientId: string;
+  // Present only on the session-less client-connect flow. Lets the public
+  // callback re-validate the single-use token before writing the credential.
+  connectToken?: string;
   returnTo: string;
   nonce: string;
   iat: number;
@@ -99,7 +106,11 @@ export function verifyState(
   } catch {
     return null;
   }
-  if (!parsed.userId || !parsed.clientId || typeof parsed.exp !== 'number') return null;
+  // Require a clientId, a valid exp, and at least one binding to who/what is
+  // connecting: a session userId (dashboard flow) OR a connectToken
+  // (session-less client-connect flow).
+  if (!parsed.clientId || typeof parsed.exp !== 'number') return null;
+  if (!parsed.userId && !parsed.connectToken) return null;
   if (parsed.exp < nowSec) return null;
   return parsed;
 }
@@ -112,15 +123,20 @@ interface TokenResponse {
   expires_in?: number; // seconds; absent/0 ⇒ long-lived / never-expiring
 }
 
-// Exchange the OAuth `code` for a short-lived user access token.
-export async function exchangeCodeForToken(code: string): Promise<TokenResponse> {
+// Exchange the OAuth `code` for a short-lived user access token. `redirectUri`
+// MUST byte-for-byte match the one used in the authorize redirect; defaults to
+// the dashboard callback. The session-less connect flow passes its own URI.
+export async function exchangeCodeForToken(
+  code: string,
+  redirectUri: string = metaRedirectUri(),
+): Promise<TokenResponse> {
   assertMetaAppConfigured();
   const url =
     `${META_GRAPH_BASE}/oauth/access_token?` +
     new URLSearchParams({
       client_id: META_APP_ID,
       client_secret: META_APP_SECRET,
-      redirect_uri: metaRedirectUri(),
+      redirect_uri: redirectUri,
       code,
     });
   const res = await fetch(url);

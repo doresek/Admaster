@@ -18,6 +18,14 @@ export function briefLink(token: string): string {
   return `${getAppOrigin()}/brief/${token}`;
 }
 
+// Session-less client-connect magic-link. The 64-hex token IS the authorization:
+// an external client opens this to authorize THEIR OWN Meta account without ever
+// logging into AdMaster. Like briefLink, it must point at the canonical
+// production origin (NEXT_PUBLIC_APP_URL), never a Vercel preview URL.
+export function connectLink(token: string): string {
+  return `${getAppOrigin()}/connect/${token}`;
+}
+
 // Pre-filled WhatsApp share. With a phone, normalizes IL numbers (0xx -> 972xx)
 // and opens a chat with that contact; without one, opens the share sheet so the
 // agency can pick the recipient.

@@ -50,9 +50,22 @@ export const META_APP_SECRET = process.env.META_APP_SECRET || '';
 export const META_LOGIN_CONFIG_ID = process.env.META_LOGIN_CONFIG_ID || '';
 
 // The redirect URI MUST byte-for-byte match a "Valid OAuth Redirect URI"
-// registered on the Meta app. Override per environment (e.g. localhost in dev)
-// with META_OAUTH_REDIRECT_URI.
-export function metaRedirectUri(): string {
+// registered on the Meta app, AND must be identical between the authorize
+// redirect and the code→token exchange.
+//
+//  • 'dashboard' (default) — the authenticated per-client connect; callback at
+//    /api/meta/oauth/callback. Override with META_OAUTH_REDIRECT_URI.
+//  • 'connect' — the session-less client-connect link; callback at
+//    /api/meta/connect/callback. Override with META_CONNECT_REDIRECT_URI.
+//
+// Both are distinct registered URIs because Meta routes back to whichever one
+// was sent. The default origin is shared so only the path differs.
+export function metaRedirectUri(variant: 'dashboard' | 'connect' = 'dashboard'): string {
+  if (variant === 'connect') {
+    const fromEnv = process.env.META_CONNECT_REDIRECT_URI?.trim();
+    if (fromEnv) return fromEnv;
+    return 'https://admaster-three.vercel.app/api/meta/connect/callback';
+  }
   const fromEnv = process.env.META_OAUTH_REDIRECT_URI?.trim();
   if (fromEnv) return fromEnv;
   return 'https://admaster-three.vercel.app/api/meta/oauth/callback';
