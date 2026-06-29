@@ -11,11 +11,34 @@ import { describe, it, expect, vi } from 'vitest';
 import { orchestrateClientCore } from '@/lib/client-core/orchestrator';
 
 const ANALYSIS_RAW = [
-  '[SCORE]77[/SCORE]',
-  '[STRENGTHS]', '- חוזקה', '[/STRENGTHS]',
-  '[GAPS]', '- פער', '[/GAPS]',
-  '[QUESTIONS]', '- שאלה', '[/QUESTIONS]',
-  '[REFINEMENTS]', '- שינוי', '[/REFINEMENTS]',
+  '[STRATEGIC_SUMMARY]',
+  'goal: לידים לקליניקה',
+  'core_offer: ליווי 12 שבועות',
+  'usp: מעקב אישי',
+  'constraints:',
+  '- תקציב מוגבל',
+  '[/STRATEGIC_SUMMARY]',
+  '[SUB_AUDIENCE]',
+  'name: אמהות עסוקות',
+  'awareness: Problem-aware',
+  'persona: חסרות זמן',
+  'explanation: מרגישות כאב',
+  '[/SUB_AUDIENCE]',
+  '[PLATFORM_FUNNEL]',
+  'platform: Meta',
+  'ad_format: Reels',
+  'funnel_type: lead-gen',
+  'platform_reason: קהל באינסטגרם',
+  'format_reason: וידאו ממיר',
+  'funnel_reason: חימום לפני מכירה',
+  '[/PLATFORM_FUNNEL]',
+  '[OFFER_STACK]',
+  'components:',
+  '- ליווי אישי',
+  'strengths:',
+  '- אחריות כפולה',
+  'assessment: הצעה חזקה',
+  '[/OFFER_STACK]',
 ].join('\n');
 
 // ── In-memory fake Supabase admin client ────────────────────────
@@ -97,10 +120,13 @@ describe('orchestrateClientCore', () => {
 
     expect(result).toEqual({ analysis: true, avatar: false });
 
-    // analysis was persisted onto meta_clients.business_analysis
+    // analysis was persisted onto meta_clients.business_analysis as a StrategyAnalysis
     const analysisUpdate = admin._updates.find((u: any) => 'business_analysis' in u.payload);
     expect(analysisUpdate).toBeTruthy();
-    expect(analysisUpdate.payload.business_analysis.completeness_score).toBe(77);
+    expect(analysisUpdate.payload.business_analysis.strategic_summary.goal).toBe('לידים לקליניקה');
+    expect(analysisUpdate.payload.business_analysis.sub_audience.awareness_level).toBe('Problem-aware');
+    expect(analysisUpdate.payload.business_analysis.platform_funnel.platform).toBe('Meta');
+    expect(analysisUpdate.payload.business_analysis.offer_stack.strengths).toContain('אחריות כפולה');
 
     // avatar was NOT persisted
     expect(admin._updates.some((u: any) => 'avatar' in u.payload)).toBe(false);

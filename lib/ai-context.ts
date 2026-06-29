@@ -139,8 +139,72 @@ function asCappedList(v: unknown, cap = 5): string[] {
     .slice(0, cap);
 }
 
+// Dispatch on the stored shape:
+//   • NEW StrategyAnalysis (has `strategic_summary`) → the 4-section MARKETING
+//     STRATEGY block.
+//   • LEGACY completeness shape (completeness_score / gaps / questions, no
+//     strategic_summary) → the old BUSINESS ANALYSIS block, unchanged, so
+//     pre-upgrade clients keep rendering and emit no strategy markers.
 function formatBusinessAnalysis(analysis: any): string {
   if (!analysis || typeof analysis !== 'object') return '';
+  if (analysis.strategic_summary && typeof analysis.strategic_summary === 'object') {
+    return formatStrategyAnalysis(analysis);
+  }
+  return formatLegacyAnalysis(analysis);
+}
+
+const scalarLine = (label: string, v: unknown): string | null => {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s ? `${label}: ${s}` : null;
+};
+
+function formatStrategyAnalysis(a: any): string {
+  const lines: string[] = ['═══ MARKETING STRATEGY ═══'];
+
+  const ss = a.strategic_summary ?? {};
+  lines.push('[STRATEGIC SUMMARY]');
+  for (const l of [
+    scalarLine('goal', ss.goal),
+    scalarLine('core_offer', ss.core_offer),
+    scalarLine('usp', ss.usp),
+  ]) if (l) lines.push(l);
+  const constraints = asCappedList(ss.constraints);
+  if (constraints.length) lines.push(`constraints: ${constraints.join(' | ')}`);
+
+  const sa = a.sub_audience ?? {};
+  lines.push('[SUB-AUDIENCE]');
+  for (const l of [
+    scalarLine('name', sa.name),
+    scalarLine('awareness', sa.awareness_level),
+    scalarLine('persona', sa.persona),
+    scalarLine('explanation', sa.explanation),
+  ]) if (l) lines.push(l);
+
+  const pf = a.platform_funnel ?? {};
+  lines.push('[PLATFORM & FUNNEL]');
+  for (const l of [
+    scalarLine('platform', pf.platform),
+    scalarLine('ad_format', pf.ad_format),
+    scalarLine('funnel_type', pf.funnel_type),
+    scalarLine('platform_reason', pf.platform_reason),
+    scalarLine('format_reason', pf.format_reason),
+    scalarLine('funnel_reason', pf.funnel_reason),
+  ]) if (l) lines.push(l);
+
+  const os = a.offer_stack ?? {};
+  lines.push('[OFFER STACK]');
+  const components = asCappedList(os.components);
+  const strengths  = asCappedList(os.strengths);
+  if (components.length) lines.push(`components: ${components.join(' | ')}`);
+  if (strengths.length)  lines.push(`strengths: ${strengths.join(' | ')}`);
+  const assessment = scalarLine('assessment', os.assessment);
+  if (assessment) lines.push(assessment);
+
+  return lines.join('\n');
+}
+
+function formatLegacyAnalysis(analysis: any): string {
   const lines: string[] = ['═══ BUSINESS ANALYSIS ═══'];
   if (analysis.completeness_score != null && analysis.completeness_score !== '') {
     lines.push(`completeness_score: ${analysis.completeness_score}`);

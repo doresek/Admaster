@@ -51,14 +51,39 @@ export async function POST(req: NextRequest) {
     if (tool === 'analyze_brief') {
       const briefValues = input?.values ?? input;
 
-      // Single code path: prompt-compose + parse live in lib/analyze-brief.
-      const result = await analyzeBrief({ briefValues, locale, contextPrefix });
+      // Seed the offer-stack assessment from the client's saved Hormozi stack
+      // (explicit input client wins, else the active client). Best-effort.
+      const analyzeClientId = input?.client_id ?? activeClientId ?? null;
+      let offerStack: import('@/lib/analyze-brief').OfferStackSeed | null = null;
+      if (analyzeClientId) {
+        try {
+          const { data: os } = await supabase
+            .from('offer_stacks')
+            .select('product_name, main_offer, bonuses, guarantee, full_pitch, total_value, final_price')
+            .eq('client_id', analyzeClientId)
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          offerStack = (os as any) ?? null;
+        } catch (osErr: any) {
+          console.error('[tools] offer_stacks lookup failed:', osErr?.message);
+        }
+      }
 
-      // Brief-analysis history insert — UNCHANGED.
+      // Single code path: prompt-compose + parse live in lib/analyze-brief.
+      const result = await analyzeBrief({ briefValues, locale, contextPrefix, offerStack });
+
+      // Brief-analysis history insert — map what fits the legacy columns cleanly,
+      // raw_text retains the full strategy (the new sections live there too).
       const { data: row } = await supabase.from('brief_analyses').insert({
-        user_id:  user.id,
-        brief_id: input?.brief_id ?? null,
-        ...result,
+        user_id:     user.id,
+        brief_id:    input?.brief_id ?? null,
+        strengths:   result.offer_stack.strengths,
+        gaps:        result.strategic_summary.constraints,
+        questions:   [],
+        refinements: [],
+        raw_text:    result.raw_text,
       }).select().single();
 
       // W2.2a: additionally persist the analysis onto the client core.
@@ -66,7 +91,7 @@ export async function POST(req: NextRequest) {
       // — no-op when neither resolves and never affects the response below.
       await persistBusinessAnalysis(supabase, {
         userId:   user.id,
-        clientId: input?.client_id ?? activeClientId ?? null,
+        clientId: analyzeClientId,
         analysis: result,
       });
 
