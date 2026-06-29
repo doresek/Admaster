@@ -112,6 +112,86 @@ describe('orchestrateClientCore', () => {
     expect(admin._rpcCalls.map((c: any) => c.args.p_action)).toEqual(['analyze_brief']);
   });
 
+  it('(c) Avatar v2: injected v2 runner stores a STRUCTURED avatar (not the v1 shim)', async () => {
+    const admin = makeAdmin({
+      brief:  { values: { biz_name: 'X', biz_what: 'מאמן כושר', pain_main: 'אין זמן' }, submitted_at: '2026-03-01T00:00:00Z', user_id: 'u1', client_id: 'c1' },
+      client: { core_generated_at: null },
+    });
+
+    const STRUCTURED = {
+      name: 'דנה',
+      age: '34',
+      occupation: 'מנהלת שיווק',
+      pains: ['אין זמן להתאמן', 'עייפות כרונית'],
+      desires: ['להרגיש אנרגטית'],
+      fears: ['לבזבז עוד כסף'],
+      objections: ['כבר ניסיתי'],
+      awareness_level: 'problem_aware',
+      recommended_angle: 'story-led',
+      voice_quotes: ['אני פשוט מותשת'],
+      recommended_creative_angles: ['בוקר חדש'],
+    };
+
+    // v2 runner: branches on the critique system prompt; never throws → no refine.
+    const avatarV2Run = vi.fn(async (system: string) => {
+      if (system.includes('creative director')) {
+        return JSON.stringify({
+          scores: { specificity: 9, voice: 9, consistency: 9, usefulness: 9, originality: 9 },
+          needs_refinement: false,
+          summary: 'solid',
+          top_3_issues: [],
+        });
+      }
+      return JSON.stringify(STRUCTURED);
+    });
+    const avatarRun = vi.fn(async () => 'V1-AVATAR'); // must NOT be used
+
+    const result = await orchestrateClientCore(admin, {
+      userId: 'u1', clientId: 'c1', briefId: 'b1',
+      analyzeRun: async () => ANALYSIS_RAW,
+      avatarV2Run, avatarRun,
+    });
+
+    expect(result.avatar).toBe(true);
+    expect(avatarRun).not.toHaveBeenCalled(); // v1 fallback untouched
+
+    const avatarUpdate = admin._updates.find((u: any) => 'avatar' in u.payload);
+    expect(avatarUpdate).toBeTruthy();
+    expect(avatarUpdate.payload.avatar.name).toBe('דנה');
+    expect(avatarUpdate.payload.avatar.pains).toContain('אין זמן להתאמן');
+    expect('v1_text' in avatarUpdate.payload.avatar).toBe(false); // structured, not shim
+
+    // core stamped + avatar credit deducted once
+    expect(admin._updates.some((u: any) => 'core_generated_at' in u.payload)).toBe(true);
+    expect(admin._rpcCalls.map((c: any) => c.args.p_action)).toContain('avatar');
+  });
+
+  it('(d) Avatar v2 throws → falls back to v1 { v1_text } shim, still stamps core', async () => {
+    const admin = makeAdmin({
+      brief:  { values: { biz_name: 'X' }, submitted_at: '2026-03-01T00:00:00Z', user_id: 'u1', client_id: 'c1' },
+      client: { core_generated_at: null },
+    });
+
+    const avatarV2Run = vi.fn(async () => { throw new Error('v2 provider down'); });
+    const avatarRun   = vi.fn(async () => 'V1-AVATAR');
+
+    const result = await orchestrateClientCore(admin, {
+      userId: 'u1', clientId: 'c1', briefId: 'b1',
+      analyzeRun: async () => ANALYSIS_RAW,
+      avatarV2Run, avatarRun,
+    });
+
+    expect(result.avatar).toBe(true);
+    expect(avatarV2Run).toHaveBeenCalled();      // v2 attempted
+    expect(avatarRun).toHaveBeenCalled();        // v1 fallback used
+
+    const avatarUpdate = admin._updates.find((u: any) => 'avatar' in u.payload);
+    expect(avatarUpdate.payload.avatar).toEqual({ v1_text: 'V1-AVATAR' });
+
+    // core_generated_at still stamped despite v2 failure
+    expect(admin._updates.some((u: any) => 'core_generated_at' in u.payload)).toBe(true);
+  });
+
   it('returns early (no work) when the brief does not belong to the user', async () => {
     const admin = makeAdmin({ brief: null, client: { core_generated_at: null } });
     const result = await orchestrateClientCore(admin, {
