@@ -6,6 +6,7 @@ export default function RegisterPage() {
   const [form, setForm]     = useState({ name: '', email: '', pw: '', pw2: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState('');
+  const [confirmSent, setConfirmSent] = useState(false);
   const supabase = createClient();
   const u = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
@@ -16,13 +17,21 @@ export default function RegisterPage() {
     if (form.pw.length < 6)   { setError('סיסמה — לפחות 6 תווים');  return; }
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: form.email,
       password: form.pw,
-      options: { data: { name: form.name } },
+      options: {
+        data: { name: form.name },
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/`,
+      },
     });
 
     if (error) { setError(error.message); setLoading(false); return; }
+
+    // Email-confirmation ON: a user is returned but no session yet.
+    if (data.user && !data.session) { setConfirmSent(true); setLoading(false); return; }
+
+    // Confirmation OFF: session is live, go straight in.
     window.location.href = '/';
   }
 
@@ -34,6 +43,18 @@ export default function RegisterPage() {
           <p className="text-[#6B8FA8] text-sm mt-1">🚀 הצטרף — 150 קרדיטים חינם</p>
         </div>
 
+        {confirmSent ? (
+          <div className="space-y-4">
+            <div className="bg-green-900/20 border border-green-500/30 text-green-400 text-sm rounded-lg px-3 py-3 text-center">
+              בדוק את האימייל לאישור ✉️
+              <p className="text-xs text-[#6B8FA8] mt-2">שלחנו קישור אישור ל־{form.email}. לחץ עליו כדי להפעיל את החשבון.</p>
+            </div>
+            <p className="text-center text-xs text-[#6B8FA8]">
+              <a href="/login" className="text-[#3D9FFF] font-semibold hover:underline">חזרה לכניסה</a>
+            </p>
+          </div>
+        ) : (
+        <>
         <form onSubmit={handleRegister} className="space-y-3">
           {[
             { k: 'name',  l: 'שם מלא',        ph: 'שם שלך',            type: 'text',     dir: 'rtl' },
@@ -70,6 +91,8 @@ export default function RegisterPage() {
           יש חשבון?{' '}
           <a href="/login" className="text-[#3D9FFF] font-semibold hover:underline">כניסה</a>
         </p>
+        </>
+        )}
       </div>
     </div>
   );
