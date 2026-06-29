@@ -3,8 +3,10 @@
 // Post-brief-submit orchestrator (MASTER-PLAN W2.3b). Given a freshly-submitted
 // brief, it builds the durable client core on meta_clients:
 //   • business_analysis  ← analyzeBrief + persistBusinessAnalysis (W2.2a)
-//   • avatar             ← the shared Avatar v1 generator, stored as the
-//                          { v1_text } shim the AI context loader understands
+//   • avatar             ← the structured Avatar v2 generator (lib/avatar),
+//                          stored as the structured Avatar object buildAiContext
+//                          formats. Falls back to the Avatar v1 { v1_text } shim
+//                          if v2 throws (W2.5a).
 //   • core_generated_at  ← stamped once, the ONLY readiness signal
 //
 // Design constraints:
@@ -23,6 +25,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { analyzeBrief, persistBusinessAnalysis, type BriefRunner } from '@/lib/analyze-brief';
 import { generateAvatarV1, type AvatarRunner } from '@/lib/client-core/avatar';
+import { generateAvatarV2, type AvatarV2Runner, type AvatarInput } from '@/lib/avatar/generator';
 import { deductCredits } from '@/lib/credits';
 
 export interface OrchestrateClientCoreOpts {
@@ -32,8 +35,34 @@ export interface OrchestrateClientCoreOpts {
   /** Rebuild even if the core was generated after this brief. Default false. */
   force?:   boolean;
   /** Injectable Claude runners for tests (no API key / network needed). */
-  analyzeRun?: BriefRunner;
-  avatarRun?:  AvatarRunner;
+  analyzeRun?:  BriefRunner;
+  /** Avatar v2 multi-pass runner (StageRunner shape). Defaults to a real call. */
+  avatarV2Run?: AvatarV2Runner;
+  /** Avatar v1 fallback runner (used only when v2 throws). */
+  avatarRun?:   AvatarRunner;
+}
+
+/** Map the Hormozi×Schwartz brief fields onto the Avatar v2 generator input. */
+function avatarInputFromBrief(v: Record<string, string>): AvatarInput {
+  const notes = [
+    v.biz_result    && `תוצאה ללקוח: ${v.biz_result}`,
+    v.cust_who      && `הלקוח האידיאלי: ${v.cust_who}`,
+    v.pain_main     && `הכאב הגדול: ${v.pain_main}`,
+    v.pain_internal && `כאב פנימי: ${v.pain_internal}`,
+    v.desire_dream  && `החלום: ${v.desire_dream}`,
+    v.obj_main      && `התנגדות עיקרית: ${v.obj_main}`,
+    v.obj_fear      && `הפחד הכי גדול: ${v.obj_fear}`,
+    v.mkt_awareness && `רמת מודעות: ${v.mkt_awareness}`,
+  ].filter(Boolean).join('\n');
+
+  return {
+    businessName: v.biz_name || null,
+    product:      v.biz_what  || null,
+    industry:     v.industry  || null,
+    region:       'IL',
+    language:     'he',
+    userNotes:    notes || null,
+  };
 }
 
 export interface ClientCoreResult {
@@ -45,7 +74,7 @@ export async function orchestrateClientCore(
   admin: SupabaseClient,
   opts: OrchestrateClientCoreOpts,
 ): Promise<ClientCoreResult> {
-  const { userId, clientId, briefId, force = false, analyzeRun, avatarRun } = opts;
+  const { userId, clientId, briefId, force = false, analyzeRun, avatarV2Run, avatarRun } = opts;
   const result: ClientCoreResult = { analysis: false, avatar: false };
 
   try {
@@ -89,13 +118,25 @@ export async function orchestrateClientCore(
       console.error('[orchestrateClientCore] analysis failed:', e?.message);
     }
 
-    // (4) AVATAR v1 — independent; store as the { v1_text } shim, deduct credits.
+    // (4) AVATAR — Avatar v2 structured generator, with the v1 { v1_text } shim
+    //     as a fallback. Either path stores onto meta_clients.avatar (jsonb) and
+    //     deducts the same 'avatar' credit once. buildAiContext already formats
+    //     both the structured object and the legacy shim.
     try {
-      const text = await generateAvatarV1({ briefValues, run: avatarRun });
-      if (!text) throw new Error('empty avatar text');
+      let avatarValue: Record<string, unknown>;
+      try {
+        const { avatar } = await generateAvatarV2(avatarInputFromBrief(briefValues), avatarV2Run);
+        if (!avatar || typeof avatar !== 'object') throw new Error('empty avatar object');
+        avatarValue = avatar as unknown as Record<string, unknown>;
+      } catch (v2err: any) {
+        console.error('[orchestrateClientCore] avatar v2 failed, falling back to v1:', v2err?.message);
+        const text = await generateAvatarV1({ briefValues, run: avatarRun });
+        if (!text) throw new Error('empty avatar text');
+        avatarValue = { v1_text: text };
+      }
       const { error } = await admin
         .from('meta_clients')
-        .update({ avatar: { v1_text: text } })
+        .update({ avatar: avatarValue })
         .eq('id', clientId)
         .eq('user_id', userId);
       if (error) throw new Error(error.message);
