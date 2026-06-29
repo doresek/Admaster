@@ -17,8 +17,8 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { name, industry, emoji, token } = await req.json() as {
-      name: string; industry?: string; emoji?: string; token?: string;
+    const { name, phone, email, company, industry, emoji, token } = await req.json() as {
+      name: string; phone?: string; email?: string; company?: string; industry?: string; emoji?: string; token?: string;
     };
     if (!name) {
       return NextResponse.json({ error: 'Missing name' }, { status: 400 });
@@ -32,7 +32,10 @@ export async function POST(req: NextRequest) {
     let adAccounts: any[] = [];
     let status: 'new' | 'connected' = 'new';
 
-    if (token) {
+    // Guard the Meta path on a real (non-empty, non-whitespace) token. An empty
+    // string / whitespace / absent token must NEVER hit the Graph API or encrypt
+    // — this is the structural fix for the name-only-create OAuth bug.
+    if (token && token.trim()) {
       // Verify token + fetch Meta metadata (server-side; token never leaves server)
       const meRes = await fetch(`${GRAPH}/me?access_token=${encodeURIComponent(token)}&fields=name,id`);
       const me = await meRes.json();
@@ -57,6 +60,9 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.from('meta_clients').insert({
       user_id:                user.id,
       name,
+      phone:                  phone ?? null,
+      email:                  email ?? null,
+      company:                company ?? null,
       industry:               industry ?? null,
       emoji:                  emoji ?? '🏢',
       token_encrypted,
@@ -67,7 +73,7 @@ export async function POST(req: NextRequest) {
       selected_page_id:       pages[0]?.id ?? null,
       selected_ad_account_id: adAccounts[0]?.id ?? null,
       status,
-    }).select('id, user_id, name, industry, emoji, meta_user_id, meta_user_name, pages, ad_accounts, selected_page_id, selected_ad_account_id, status, posts_published, campaigns_created, connected_at, updated_at').single();
+    }).select('id, user_id, name, phone, email, company, industry, emoji, meta_user_id, meta_user_name, pages, ad_accounts, selected_page_id, selected_ad_account_id, status, posts_published, campaigns_created, connected_at, updated_at').single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json(data);

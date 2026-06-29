@@ -71,10 +71,10 @@ function useClients() {
     });
   }, []);
 
-  // Adds a new client via the secure server endpoint. Brief-first: only `name`
-  // is required. When a token is supplied it is verified, encrypted and stored
-  // server-side — never sent to the DB in plaintext from the browser.
-  async function addClient(input: { name: string; industry?: string; emoji?: string; token?: string }) {
+  // Adds a new client via the secure server endpoint. Contact-first: only `name`
+  // is required; Meta is connected later on the client. A token is never sent
+  // from this creation flow (kept optional in the signature for the legacy path).
+  async function addClient(input: { name: string; phone?: string; email?: string; company?: string; emoji?: string; token?: string }) {
     const res  = await fetch('/api/meta/clients', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -109,7 +109,7 @@ function useClients() {
 // ─── CLIENTS PAGE ────────────────────────────────────────────
 export default function ClientsPage() {
   const { clients, connections, addClient, updateSelection } = useClients();
-  const [form, setForm]    = useState({ name:'', industry:'', emoji:'🏢', token:'' });
+  const [form, setForm]    = useState({ name:'', phone:'', email:'', company:'', emoji:'🏢' });
   const [showForm, setShowForm] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [err, setErr]      = useState('');
@@ -132,12 +132,13 @@ export default function ClientsPage() {
     if (!form.name) { setErr('מלא שם לקוח'); return; }
     setConnecting(true); setErr('');
     try {
-      // Token is optional — sent only when filled (brief-first). The server
-      // inserts an identity-only client when no token is provided.
-      const payload = form.token ? form : { name: form.name, industry: form.industry, emoji: form.emoji };
-      const newClient = await addClient(payload);
+      // Contact-first creation: send ONLY the contact fields — never a token.
+      // Meta is connected later on the existing client (ConnectFacebookButton).
+      const newClient = await addClient({
+        name: form.name, phone: form.phone, email: form.email, company: form.company, emoji: form.emoji,
+      });
       setShowForm(false);
-      setForm({ name:'', industry:'', emoji:'🏢', token:'' });
+      setForm({ name:'', phone:'', email:'', company:'', emoji:'🏢' });
       setCreated(newClient);
     } catch (e: any) {
       setErr('שגיאה ביצירת לקוח: ' + e.message);
@@ -149,7 +150,7 @@ export default function ClientsPage() {
 
   return (
     <div>
-      <PageHeader eyebrow="Meta API" title="לקוחות Meta" sub={`${clients.length} לקוחות`}
+      <PageHeader eyebrow="ניהול לקוחות" title="לקוחות" sub={`${clients.length} לקוחות`}
         right={<Btn variant="primary" onClick={() => setShowForm(!showForm)}>+ הוסף לקוח</Btn>} />
 
       {created && (
@@ -183,25 +184,14 @@ export default function ClientsPage() {
             ))}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Input label="שם לקוח *"  value={form.name}     onChange={v=>uf('name',v)}     placeholder="שם העסק" />
-            <Input label="תחום"        value={form.industry} onChange={v=>uf('industry',v)} placeholder="תחום עיסוק" />
+            <Input label="שם *"   value={form.name}    onChange={v=>uf('name',v)}    placeholder="שם הלקוח" />
+            <Input label="טלפון"  value={form.phone}   onChange={v=>uf('phone',v)}   placeholder="050-0000000" />
+            <Input label="אימייל" value={form.email}   onChange={v=>uf('email',v)}   placeholder="name@example.com" />
+            <Input label="חברה"   value={form.company} onChange={v=>uf('company',v)} placeholder="שם העסק" />
           </div>
-          <details className="mt-3 mb-3 group">
-            <summary className="cursor-pointer text-xs font-medium text-[#6B8FA8] hover:text-[#D9E8F5] select-none">
-              🔌 חבר חשבון Meta (אפשר גם מאוחר יותר)
-            </summary>
-            <div className="mt-3">
-              <Alert type="blue">הToken נשמר מאובטח בDB ומעולם לא נחשף ללקוח. אפשר גם לחבר דרך כפתור ההתחברות בכרטיס הלקוח.</Alert>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-medium text-[#6B8FA8]">Meta Access Token (אופציונלי)</label>
-                <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noreferrer"
-                  className="text-[11px] text-[#3D9FFF] hover:underline">❓ איך מקבלים?</a>
-              </div>
-              <input type="password" value={form.token} onChange={e=>uf('token',e.target.value)} placeholder="EAAxxxxxxxx..."
-                className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]"
-                dir="ltr" />
-            </div>
-          </details>
+          <div className="text-[11px] text-[#6B8FA8] mt-2">
+            את חשבון ה-Meta אפשר לחבר בהמשך מתוך כרטיס הלקוח.
+          </div>
           {err && <Alert type="red">{err}</Alert>}
           <Btn variant="primary" loading={connecting} onClick={connect} disabled={!form.name}>
             צור לקוח
@@ -227,13 +217,14 @@ export default function ClientsPage() {
             <div className="p-3.5 flex items-start gap-2.5">
               <div className="w-9 h-9 rounded-lg bg-[#1D2D3E] border border-[#2A4158] flex items-center justify-center text-lg flex-shrink-0">{c.emoji}</div>
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm">{c.name}</div>
-                <div className="text-[11px] text-[#6B8FA8] truncate">{c.industry}</div>
-                <div className="text-[10px] text-[#2E4459] mt-0.5">{v.meta_user_name}</div>
+                <div className="font-semibold text-sm truncate">{c.name}</div>
+                {c.company && <div className="text-[11px] text-[#6B8FA8] truncate">🏢 {c.company}</div>}
+                {c.phone   && <div className="text-[11px] text-[#6B8FA8] truncate" dir="ltr">📞 {c.phone}</div>}
+                {c.email   && <div className="text-[11px] text-[#6B8FA8] truncate" dir="ltr">✉️ {c.email}</div>}
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
-                <div className={`w-1.5 h-1.5 rounded-full ${v.status==='connected'?'bg-[#059669]':'bg-red-500'}`} />
-                <span className={`text-[10px] font-bold ${v.status==='connected'?'text-[#059669]':'text-red-400'}`}>{v.status==='connected'?'פעיל':'שגיאה'}</span>
+                <div className={`w-1.5 h-1.5 rounded-full ${v.status==='connected'?'bg-[#059669]':'bg-[#2E4459]'}`} />
+                <span className={`text-[10px] font-bold ${v.status==='connected'?'text-[#059669]':'text-[#6B8FA8]'}`}>{v.status==='connected'?'מחובר':'לא מחובר'}</span>
               </div>
             </div>
             <div className="flex gap-3 px-3.5 py-2 border-t border-[#1E2F42]">
@@ -260,7 +251,7 @@ function ClientWorkspace({ client, connection, onBack, onUpdate }: { client: Met
       <div className="flex items-center gap-3 mb-5">
         <Btn variant="ghost" size="sm" onClick={onBack}>←</Btn>
         <div>
-          <div className="text-[11px] font-bold text-[#2E4459] uppercase">לקוח Meta</div>
+          <div className="text-[11px] font-bold text-[#2E4459] uppercase">לקוח</div>
           <div className="font-bold text-lg">{client.emoji} {client.name}</div>
         </div>
         {/* Per-client OAuth connect/reconnect — uses this client's id. */}

@@ -68,6 +68,40 @@ describe('POST /api/meta/clients — name only (brief-first)', () => {
     expect(data.id).toBe('new-client-id');
   });
 
+  it('persists contact fields (phone/email/company) on the identity row', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch' as any);
+
+    const res = await POST(req({ name: 'Acme', phone: '050-1234567', email: 'a@b.com', company: 'Acme Ltd' }));
+    expect(res.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(H.insertPayload).toMatchObject({
+      name: 'Acme',
+      phone: '050-1234567',
+      email: 'a@b.com',
+      company: 'Acme Ltd',
+      status: 'new',
+      token_encrypted: null,
+    });
+  });
+
+  it('with an EMPTY token makes NO Meta call and inserts status "new" (bug fix)', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch' as any);
+
+    const res = await POST(req({ name: 'Acme', token: '' }));
+    expect(res.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(H.insertPayload).toMatchObject({ status: 'new', token_encrypted: null });
+  });
+
+  it('with a WHITESPACE-only token makes NO Meta call and inserts status "new" (bug fix)', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch' as any);
+
+    const res = await POST(req({ name: 'Acme', token: '   ' }));
+    expect(res.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(H.insertPayload).toMatchObject({ status: 'new', token_encrypted: null });
+  });
+
   it('400s when name is missing', async () => {
     const fetchSpy = vi.spyOn(global, 'fetch' as any);
     const res = await POST(req({ industry: 'spa' }));
