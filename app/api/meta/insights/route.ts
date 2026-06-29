@@ -4,6 +4,7 @@ import { getActiveConnection } from '@/lib/meta-connections';
 import { getDecryptedMetaToken } from '@/lib/meta';
 import { META_GRAPH_BASE } from '@/lib/meta-config';
 import {
+  buildInsightsUrl,
   mapInsightsRowToPerformance,
   type GraphInsightsRow,
 } from '@/lib/meta-insights';
@@ -54,18 +55,18 @@ export async function POST(req: NextRequest) {
     const sinceDate = since ?? ymd(new Date(Date.now() - DEFAULT_WINDOW_DAYS * 86_400_000));
 
     // Daily insights for the ad account. time_increment=1 → one row per day.
-    const fields = 'impressions,clicks,spend,reach,frequency,ctr,cpc,cpm,actions';
-    const params = new URLSearchParams({
-      fields,
-      level: 'account',
-      time_increment: '1',
-      time_range: JSON.stringify({ since: sinceDate, until: untilDate }),
-      limit: '500',
-      access_token: token,
+    // The token is sent via the Authorization header (NOT the URL) so it never
+    // leaks into server/proxy/error logs. The URL holds only non-secret params.
+    const url = buildInsightsUrl({
+      graphBase: META_GRAPH_BASE,
+      adAccountId,
+      since: sinceDate,
+      until: untilDate,
     });
-    const url = `${META_GRAPH_BASE}/${adAccountId}/insights?${params.toString()}`;
 
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     const json = await res.json();
     if (json.error) {
       return NextResponse.json(
@@ -98,7 +99,12 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ days_synced: records.length, ad_account_id: adAccountId });
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message ?? 'Insights sync failed' }, { status: 500 });
+  } catch (err) {
+    // Never surface err.message to the client — it can carry sensitive context
+    // (and, depending on the failure, fragments of the request). Log only a
+    // redacted summary server-side: the error name, never the token or URL.
+    const name = err instanceof Error ? err.name : typeof err;
+    console.error(`[meta/insights] sync failed: ${name}`);
+    return NextResponse.json({ error: 'Insights sync failed' }, { status: 500 });
   }
 }
