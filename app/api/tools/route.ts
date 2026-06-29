@@ -5,6 +5,7 @@ import { type CreditAction } from '@/types';
 import { deductCredits, refundCredits, extractErrorMessage } from '@/lib/credits';
 import { buildAiContext } from '@/lib/ai-context';
 import { readActiveClientCookie } from '@/lib/active-client';
+import { analyzeBrief, persistBusinessAnalysis } from '@/lib/analyze-brief';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -49,50 +50,25 @@ export async function POST(req: NextRequest) {
     // ─── BRIEF ANALYZER ────────────────────────────────────────
     if (tool === 'analyze_brief') {
       const briefValues = input?.values ?? input;
-      const system = `${contextPrefix}אתה אסטרטג שיווק בכיר. תפקידך לנתח בריף לקוח ולזהות חוזקות, פערים, שאלות חשובות שלא נשאלו, וצעדים קונקרטיים לחיזוק. כתוב ${lang}.
 
-החזר בפורמט הזה בלבד:
-[SCORE]ציון שלמות מ-0 עד 100 (רק מספר)[/SCORE]
-[STRENGTHS]
-- חוזקה 1
-- חוזקה 2
-- חוזקה 3
-[/STRENGTHS]
-[GAPS]
-- פער 1 — מה חסר ולמה זה חשוב
-- פער 2
-- פער 3
-[/GAPS]
-[QUESTIONS]
-- שאלה 1 שכדאי לחזור ולשאול את הלקוח
-- שאלה 2
-- שאלה 3
-- שאלה 4
-[/QUESTIONS]
-[REFINEMENTS]
-- שינוי קונקרטי 1
-- שינוי קונקרטי 2
-- שינוי קונקרטי 3
-[/REFINEMENTS]`;
+      // Single code path: prompt-compose + parse live in lib/analyze-brief.
+      const result = await analyzeBrief({ briefValues, locale, contextPrefix });
 
-      const prompt = `הבריף:\n${JSON.stringify(briefValues, null, 2)}`;
-      const msg = await anthropic.messages.create({ model, max_tokens: 1500, system, messages: [{ role: 'user', content: prompt }] });
-      const text = msg.content.find(b => b.type === 'text')?.text ?? '';
-
-      const result = {
-        completeness_score: parseInt(xt(text, 'SCORE')) || 0,
-        strengths:   parseList(xt(text, 'STRENGTHS')),
-        gaps:        parseList(xt(text, 'GAPS')),
-        questions:   parseList(xt(text, 'QUESTIONS')),
-        refinements: parseList(xt(text, 'REFINEMENTS')),
-        raw_text:    text,
-      };
-
+      // Brief-analysis history insert — UNCHANGED.
       const { data: row } = await supabase.from('brief_analyses').insert({
         user_id:  user.id,
         brief_id: input?.brief_id ?? null,
         ...result,
       }).select().single();
+
+      // W2.2a: additionally persist the analysis onto the client core.
+      // Explicit input client wins, else the active client (cookie). Best-effort
+      // — no-op when neither resolves and never affects the response below.
+      await persistBusinessAnalysis(supabase, {
+        userId:   user.id,
+        clientId: input?.client_id ?? activeClientId ?? null,
+        analysis: result,
+      });
 
       return NextResponse.json({ ...result, id: row?.id, credits: deduct.credits });
     }
