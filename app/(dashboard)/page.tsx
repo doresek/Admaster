@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { StatCard } from '@/components/ui';
 import { RecommendationsWidget } from '@/components/RecommendationsWidget';
+import { FirstRunHero } from '@/components/onboarding/FirstRunHero';
+import { isNewUser } from '@/lib/onboarding';
 import Link from 'next/link';
 
 export const metadata = { title: 'לוח בקרה' };
@@ -14,6 +16,18 @@ const HOLIDAYS = [
 export default async function DashboardPage() {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
+
+  // Agency-led first run: a brand-new user (no clients yet) gets a single,
+  // focused call-to-action — "add your first client" — instead of the full
+  // feature dashboard. Cheap count query gates this before the heavy queries.
+  const { count: clientCount } = await supabase
+    .from('meta_clients').select('id', { count: 'exact', head: true }).eq('user_id', user!.id);
+
+  if (isNewUser(clientCount)) {
+    const { data: newProfile } = await supabase
+      .from('users').select('name').eq('id', user!.id).single();
+    return <FirstRunHero name={newProfile?.name} />;
+  }
 
   // Run all dashboard queries in parallel
   const [
