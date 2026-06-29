@@ -1,31 +1,34 @@
 // lib/client-core/orchestrator.ts
 //
-// Post-brief-submit orchestrator (MASTER-PLAN W2.3b). Given a freshly-submitted
-// brief, it builds the durable client core on meta_clients:
-//   • business_analysis  ← analyzeBrief + persistBusinessAnalysis (W2.2a)
-//   • avatar             ← the structured Avatar v2 generator (lib/avatar),
-//                          stored as the structured Avatar object buildAiContext
-//                          formats. Falls back to the Avatar v1 { v1_text } shim
-//                          if v2 throws (W2.5a).
-//   • core_generated_at  ← stamped once, the ONLY readiness signal
+// Post-brief-submit orchestrator. Given a freshly-submitted brief, it builds the
+// durable client core as LIVING KNOWLEDGE (Phase-A):
+//   1. analyze   — deep 3-layer analysis of the brief into discrete candidates
+//                  (lib/intelligence/analyze).
+//   2. reconcile — fold the candidates into the client's living atoms
+//                  (client_insights): corroborate / supersede / create, each
+//                  with an insight_events audit row (lib/intelligence/lifecycle).
+//   3. synthesize— project the active atoms into the StrategyAnalysis + avatar
+//                  snapshot and upsert client_strategy (lib/intelligence/
+//                  synthesize). This is the row the dashboard + buildAiContext
+//                  read; core_generated_at is the readiness signal.
 //
-// Design constraints:
-//   • Reuses the existing analyze + avatar + credit code paths (single source
-//     of truth) — it does not reinvent prompts or credit logic.
-//   • IDEMPOTENT: if core_generated_at is newer than the brief's submitted_at
-//     (and !force), it is a no-op. This makes the serverless fire-and-forget
-//     trigger in /api/briefs/submit safe to re-run via /api/client-core/run.
-//   • PARTIAL-FAILURE TOLERANT: analysis and avatar are wrapped independently;
-//     whichever succeeds is persisted, the stamp is always written, and the
-//     function returns which parts succeeded. It NEVER throws.
-//   • Does NOT touch client_journeys.state — that column has a DB CHECK
-//     constraint and no new state value is introduced. Journey transitions stay
-//     with advanceJourneyOnBrief; core-readiness is signaled by
-//     core_generated_at alone.
+// This REPLACES the prior writes to meta_clients.business_analysis / .avatar —
+// those columns do not exist on prod, so they were a latent silent failure.
+//
+// Design constraints (unchanged):
+//   • IDEMPOTENT: if client_strategy.core_generated_at is newer than the brief's
+//     submitted_at (and !force), it is a no-op — safe to re-run via
+//     /api/client-core/run.
+//   • PARTIAL-FAILURE TOLERANT: analyze+reconcile and synthesize are wrapped
+//     independently; the readiness stamp is always written (best-effort), and
+//     the function NEVER throws.
+//   • Credit handling preserved: 'analyze_brief' on a successful analysis,
+//     'avatar' when synthesis produces a non-empty avatar.
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { analyzeBrief, persistBusinessAnalysis, type BriefRunner, type OfferStackSeed } from '@/lib/analyze-brief';
-import { generateAvatarV1, type AvatarRunner } from '@/lib/client-core/avatar';
-import { generateAvatarV2, type AvatarV2Runner, type AvatarInput } from '@/lib/avatar/generator';
+import { analyzeToInsights, type AnalysisRunner } from '@/lib/intelligence/analyze';
+import { reconcileCandidates } from '@/lib/intelligence/lifecycle';
+import { synthesizeStrategy } from '@/lib/intelligence/synthesize';
+import { listActiveInsights } from '@/lib/intelligence/insights';
 import { deductCredits } from '@/lib/credits';
 
 export interface OrchestrateClientCoreOpts {
@@ -34,35 +37,8 @@ export interface OrchestrateClientCoreOpts {
   briefId:  string;
   /** Rebuild even if the core was generated after this brief. Default false. */
   force?:   boolean;
-  /** Injectable Claude runners for tests (no API key / network needed). */
-  analyzeRun?:  BriefRunner;
-  /** Avatar v2 multi-pass runner (StageRunner shape). Defaults to a real call. */
-  avatarV2Run?: AvatarV2Runner;
-  /** Avatar v1 fallback runner (used only when v2 throws). */
-  avatarRun?:   AvatarRunner;
-}
-
-/** Map the Hormozi×Schwartz brief fields onto the Avatar v2 generator input. */
-function avatarInputFromBrief(v: Record<string, string>): AvatarInput {
-  const notes = [
-    v.biz_result    && `תוצאה ללקוח: ${v.biz_result}`,
-    v.cust_who      && `הלקוח האידיאלי: ${v.cust_who}`,
-    v.pain_main     && `הכאב הגדול: ${v.pain_main}`,
-    v.pain_internal && `כאב פנימי: ${v.pain_internal}`,
-    v.desire_dream  && `החלום: ${v.desire_dream}`,
-    v.obj_main      && `התנגדות עיקרית: ${v.obj_main}`,
-    v.obj_fear      && `הפחד הכי גדול: ${v.obj_fear}`,
-    v.mkt_awareness && `רמת מודעות: ${v.mkt_awareness}`,
-  ].filter(Boolean).join('\n');
-
-  return {
-    businessName: v.biz_name || null,
-    product:      v.biz_what  || null,
-    industry:     v.industry  || null,
-    region:       'IL',
-    language:     'he',
-    userNotes:    notes || null,
-  };
+  /** Injectable analysis runner for tests (no API key / network needed). */
+  analyzeRun?: AnalysisRunner;
 }
 
 export interface ClientCoreResult {
@@ -70,11 +46,19 @@ export interface ClientCoreResult {
   avatar:   boolean;
 }
 
+/** True when the synthesized avatar carries any non-empty field. */
+function avatarHasContent(avatar: Record<string, unknown> | null | undefined): boolean {
+  if (!avatar) return false;
+  return Object.values(avatar).some((v) =>
+    Array.isArray(v) ? v.length > 0 : typeof v === 'string' ? v.trim().length > 0 : v != null,
+  );
+}
+
 export async function orchestrateClientCore(
   admin: SupabaseClient,
   opts: OrchestrateClientCoreOpts,
 ): Promise<ClientCoreResult> {
-  const { userId, clientId, briefId, force = false, analyzeRun, avatarV2Run, avatarRun } = opts;
+  const { userId, clientId, briefId, force = false, analyzeRun } = opts;
   const result: ClientCoreResult = { analysis: false, avatar: false };
 
   try {
@@ -92,86 +76,61 @@ export async function orchestrateClientCore(
 
     const briefValues = (brief.values ?? {}) as Record<string, string>;
 
-    // (2) Idempotency guard: skip when the core is already newer than the brief.
-    const { data: client } = await admin
-      .from('meta_clients')
+    // (2) Idempotency guard: skip when the snapshot is already newer than the brief.
+    const { data: strat } = await admin
+      .from('client_strategy')
       .select('core_generated_at')
-      .eq('id', clientId)
-      .eq('user_id', userId)
+      .eq('client_id', clientId)
+      .eq('owner_user_id', userId)
       .maybeSingle();
     if (
       !force &&
-      client?.core_generated_at &&
+      strat?.core_generated_at &&
       brief.submitted_at &&
-      new Date(client.core_generated_at) > new Date(brief.submitted_at)
+      new Date(strat.core_generated_at) > new Date(brief.submitted_at)
     ) {
       return result; // core already built after this brief — no-op
     }
 
-    // (3) ANALYSIS — independent; persist on success, deduct credits, mark done.
+    // (3) ANALYZE + RECONCILE — independent; deduct the analysis credit on success.
     try {
-      // Seed the offer-stack assessment from the client's most-recent saved
-      // Hormozi stack (linked by client_id), when one exists. Best-effort: any
-      // failure (or no row) just falls back to deriving the stack from the brief.
-      let offerStack: OfferStackSeed | null = null;
-      try {
-        const { data: os } = await admin
-          .from('offer_stacks')
-          .select('product_name, main_offer, bonuses, guarantee, full_pitch, total_value, final_price')
-          .eq('client_id', clientId)
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        offerStack = (os as OfferStackSeed | null) ?? null;
-      } catch (osErr: any) {
-        console.error('[orchestrateClientCore] offer_stacks lookup failed:', osErr?.message);
+      const existing   = await listActiveInsights(admin, clientId);
+      const candidates = await analyzeToInsights({ briefValues, existingActiveInsights: existing, run: analyzeRun });
+      if (candidates.length) {
+        await reconcileCandidates(admin, clientId, userId, candidates, {
+          source: 'brief',
+          sourceRef: { brief_id: briefId },
+        });
+        await deductCredits(admin, userId, 'analyze_brief');
+        result.analysis = true;
       }
-
-      const analysis = await analyzeBrief({ briefValues, offerStack, run: analyzeRun });
-      await persistBusinessAnalysis(admin, { userId, clientId, analysis });
-      await deductCredits(admin, userId, 'analyze_brief');
-      result.analysis = true;
     } catch (e: any) {
-      console.error('[orchestrateClientCore] analysis failed:', e?.message);
+      console.error('[orchestrateClientCore] analyze/reconcile failed:', e?.message);
     }
 
-    // (4) AVATAR — Avatar v2 structured generator, with the v1 { v1_text } shim
-    //     as a fallback. Either path stores onto meta_clients.avatar (jsonb) and
-    //     deducts the same 'avatar' credit once. buildAiContext already formats
-    //     both the structured object and the legacy shim.
+    // (4) SYNTHESIZE — project active atoms into client_strategy (stamps
+    //     core_generated_at). Deduct the avatar credit when an avatar materializes.
     try {
-      let avatarValue: Record<string, unknown>;
-      try {
-        const { avatar } = await generateAvatarV2(avatarInputFromBrief(briefValues), avatarV2Run);
-        if (!avatar || typeof avatar !== 'object') throw new Error('empty avatar object');
-        avatarValue = avatar as unknown as Record<string, unknown>;
-      } catch (v2err: any) {
-        console.error('[orchestrateClientCore] avatar v2 failed, falling back to v1:', v2err?.message);
-        const text = await generateAvatarV1({ briefValues, run: avatarRun });
-        if (!text) throw new Error('empty avatar text');
-        avatarValue = { v1_text: text };
+      const snapshot = await synthesizeStrategy(admin, clientId);
+      if (snapshot && avatarHasContent(snapshot.avatar)) {
+        await deductCredits(admin, userId, 'avatar');
+        result.avatar = true;
       }
-      const { error } = await admin
-        .from('meta_clients')
-        .update({ avatar: avatarValue })
-        .eq('id', clientId)
-        .eq('user_id', userId);
-      if (error) throw new Error(error.message);
-      await deductCredits(admin, userId, 'avatar');
-      result.avatar = true;
     } catch (e: any) {
-      console.error('[orchestrateClientCore] avatar failed:', e?.message);
+      console.error('[orchestrateClientCore] synthesize failed:', e?.message);
     }
 
-    // (5) Stamp core_generated_at — always, even on partial failure, so the
-    //     dashboard can stop polling. Re-runs are governed by the guard above.
+    // (5) Readiness stamp — always, even on partial failure, so the dashboard can
+    //     stop polling. synthesizeStrategy already stamps on success; this is the
+    //     best-effort safety net (upsert touches only core_generated_at).
     try {
+      const now = new Date().toISOString();
       const { error } = await admin
-        .from('meta_clients')
-        .update({ core_generated_at: new Date().toISOString() })
-        .eq('id', clientId)
-        .eq('user_id', userId);
+        .from('client_strategy')
+        .upsert(
+          { client_id: clientId, owner_user_id: userId, core_generated_at: now, updated_at: now },
+          { onConflict: 'client_id' },
+        );
       if (error) console.error('[orchestrateClientCore] stamp failed:', error.message);
     } catch (e: any) {
       console.error('[orchestrateClientCore] stamp exception:', e?.message);

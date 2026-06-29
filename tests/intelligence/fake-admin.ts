@@ -1,0 +1,125 @@
+// In-memory fake of the Supabase admin client for the intelligence tests.
+//
+// Supports exactly the chains the data layer uses:
+//   • insert(payload).select(cols).single()           -> create, returns row
+//   • insert(payload)            (awaited directly)    -> append (events)
+//   • update(payload).eq(...).select(cols).single()   -> patch, returns row
+//   • select(cols).eq(...)...order(...)                -> list (awaited)
+//   • select(cols).eq(...).maybeSingle()               -> one | null
+//   • upsert(payload, { onConflict }) (awaited)        -> insert/merge by key
+//
+// Tables are plain arrays; rows get a generated id + timestamps on insert.
+let idCounter = 0;
+
+export interface FakeDb {
+  client_insights: any[];
+  insight_events:  any[];
+  client_strategy: any[];
+  clients:         any[];
+  briefs:          any[];
+  rpcCalls:        Array<{ fn: string; args: any }>;
+  admin:           any;
+}
+
+export function makeFakeDb(
+  seed: { insights?: any[]; clients?: any[]; briefs?: any[] } = {},
+): FakeDb {
+  const db = {
+    client_insights: (seed.insights ?? []).map((r) => ({ ...r })),
+    insight_events:  [] as any[],
+    client_strategy: [] as any[],
+    clients:         (seed.clients ?? []).map((r) => ({ ...r })),
+    briefs:          (seed.briefs ?? []).map((r) => ({ ...r })),
+  };
+  const rpcCalls: Array<{ fn: string; args: any }> = [];
+
+  function matches(row: any, filters: [string, any][]): boolean {
+    return filters.every(([col, val]) => row[col] === val);
+  }
+
+  function from(table: keyof typeof db) {
+    const state: { op: 'insert' | 'update' | 'upsert' | 'select' | null; payload: any; filters: [string, any][]; onConflict?: string } = {
+      op: null, payload: null, filters: [],
+    };
+
+    const store = () => db[table] as any[];
+
+    function doInsert(): any {
+      const now = new Date().toISOString();
+      const row =
+        table === 'client_insights'
+          ? {
+              id:                `ins-${++idCounter}`,
+              structured:        null,
+              source_ref:        null,
+              evidence_count:    1,
+              status:            'active',
+              superseded_by:     null,
+              superseded_reason: null,
+              first_seen_at:     now,
+              updated_at:        now,
+              ...state.payload,
+            }
+          : { id: `row-${++idCounter}`, created_at: now, ...state.payload };
+      store().push(row);
+      return row;
+    }
+
+    function doUpdate(): any {
+      const row = store().find((r) => matches(r, state.filters));
+      if (!row) return null;
+      Object.assign(row, state.payload);
+      return row;
+    }
+
+    function doUpsert() {
+      const key = state.onConflict ?? 'id';
+      const existing = store().find((r) => r[key] === state.payload[key]);
+      if (existing) Object.assign(existing, state.payload);
+      else store().push({ id: `row-${++idCounter}`, ...state.payload });
+      return { data: null, error: null };
+    }
+
+    const builder: any = {
+      insert(payload: any) { state.op = 'insert'; state.payload = payload; return builder; },
+      update(payload: any) { state.op = 'update'; state.payload = payload; return builder; },
+      upsert(payload: any, opts?: { onConflict?: string }) {
+        state.op = 'upsert'; state.payload = payload; state.onConflict = opts?.onConflict;
+        return Promise.resolve(doUpsert());
+      },
+      select() { if (!state.op) state.op = 'select'; return builder; },
+      eq(col: string, val: any) { state.filters.push([col, val]); return builder; },
+      order() { // terminal list read
+        const rows = store().filter((r) => matches(r, state.filters));
+        rows.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+        return Promise.resolve({ data: rows.map((r) => ({ ...r })), error: null });
+      },
+      maybeSingle() {
+        const row = store().find((r) => matches(r, state.filters));
+        return Promise.resolve({ data: row ? { ...row } : null, error: null });
+      },
+      single() {
+        if (state.op === 'insert') return Promise.resolve({ data: { ...doInsert() }, error: null });
+        if (state.op === 'update') {
+          const r = doUpdate();
+          return Promise.resolve({ data: r ? { ...r } : null, error: r ? null : { message: 'not found' } });
+        }
+        const row = store().find((r) => matches(r, state.filters));
+        return Promise.resolve({ data: row ? { ...row } : null, error: null });
+      },
+      // awaited directly: insert-without-select (events) or anything else
+      then(resolve: any) {
+        if (state.op === 'insert') doInsert();
+        resolve({ error: null });
+      },
+    };
+    return builder;
+  }
+
+  function rpc(fn: string, args: any) {
+    rpcCalls.push({ fn, args });
+    return Promise.resolve({ data: { success: true, credits: 100 }, error: null });
+  }
+
+  return { ...db, rpcCalls, admin: { from, rpc } };
+}

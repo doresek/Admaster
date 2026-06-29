@@ -14,6 +14,12 @@ export interface AiContextInput {
   briefId?:  string | null;   // explicit override; else uses most-recent brief for the client/user
 }
 
+interface StrategySnapshot {
+  business_analysis: any;
+  avatar:            any;
+  core_generated_at: any;
+}
+
 export interface AiContextBlocks {
   clientText:   string;       // formatted block for the active client
   briefText:    string;       // formatted block for the brief
@@ -51,16 +57,29 @@ export async function buildAiContext(
 ): Promise<AiContextBlocks> {
   const { userId, clientId, briefId } = input;
 
-  // ─── 1. Active client (Meta client) ─────────────
+  // ─── 1. Active client identity + strategy snapshot ─────────────
+  // Identity lives on the v2 `clients` table; the synthesized snapshot
+  // (business_analysis + avatar) lives on `client_strategy` (one row per
+  // client). This REPLACES the legacy meta_clients.business_analysis/.avatar
+  // reads (those columns do not exist on prod → latent silent failure).
   let client: any = null;
+  let strategy: StrategySnapshot | null = null;
   if (clientId) {
-    const { data } = await supabase
-      .from('meta_clients')
-      .select('id, name, industry, emoji, business_analysis, avatar, core_generated_at')
+    const { data: identity } = await supabase
+      .from('clients')
+      .select('id, name')
       .eq('id', clientId)
-      .eq('user_id', userId)
+      .eq('owner_user_id', userId)
       .maybeSingle();
-    client = data ?? null;
+    client = identity ?? null;
+
+    const { data: strat } = await supabase
+      .from('client_strategy')
+      .select('business_analysis, avatar, core_generated_at')
+      .eq('client_id', clientId)
+      .eq('owner_user_id', userId)
+      .maybeSingle();
+    strategy = (strat as unknown as StrategySnapshot) ?? null;
   }
 
   // ─── 2. Brief — explicit or most recent for the client ─
@@ -89,8 +108,10 @@ export async function buildAiContext(
   }
 
   // ─── Format blocks ───────────────────────────────
+  // The v2 `clients` identity has no emoji/industry columns; surface a stable
+  // placeholder so prompts that still expect the chip keep rendering.
   const clientText = !client ? '' : `═══ ACTIVE CLIENT ═══
-Client: ${client.emoji ?? ''} ${client.name}${client.industry ? ` (industry: ${client.industry})` : ''}
+Client: 🏢 ${client.name}
 (All generated content is FOR this client's audience and business.)`;
 
   const briefText = (() => {
@@ -103,26 +124,71 @@ Client: ${client.emoji ?? ''} ${client.name}${client.industry ? ` (industry: ${c
 
     let block = `═══ CLIENT BRIEF (full Hormozi×Schwartz form) ═══
 ${lines.join('\n')}`;
-    // Legacy avatar fallback: only when the client core has no structured avatar.
-    // When meta_clients.avatar exists, the structured CLIENT AVATAR block below
-    // supersedes this 1500-char text slice (no duplicate avatars in the prompt).
-    if (brief.avatar && !client?.avatar) {
+    // Legacy avatar fallback: only when the strategy snapshot has no structured
+    // avatar. When client_strategy.avatar exists, the structured CLIENT AVATAR
+    // block below supersedes this 1500-char text slice (no duplicate avatars).
+    if (brief.avatar && !strategy?.avatar) {
       block += `\n\n--- Saved customer avatar ---\n${String(brief.avatar).slice(0, 1500)}`;
     }
     return block;
   })();
 
-  // ─── 3. Client-core BUSINESS ANALYSIS (only when present) ─────────
-  const businessAnalysisText = formatBusinessAnalysis(client?.business_analysis);
+  // ─── 3. Strategy snapshot: BUSINESS ANALYSIS / MARKETING STRATEGY ─────
+  const businessAnalysisText = formatBusinessAnalysis(strategy?.business_analysis);
 
-  // ─── 4. Client-core CLIENT AVATAR (Avatar v2 structured, or v1 shim) ─
-  const avatarText = formatClientAvatar(client?.avatar);
+  // ─── 4. Strategy snapshot: CLIENT AVATAR (structured, or v1 shim) ─────
+  const avatarText = formatClientAvatar(strategy?.avatar);
 
-  const combined = [clientText, briefText, businessAnalysisText, avatarText]
+  // ─── 5. Living atoms: top active insights per layer (client_insights) ─
+  const insightsText = clientId ? await formatTopInsights(supabase, clientId) : '';
+
+  const combined = [clientText, briefText, businessAnalysisText, avatarText, insightsText]
     .filter(Boolean)
     .join('\n\n');
 
   return { clientText, briefText, combined, client };
+}
+
+// ─── Living-atoms formatter ──────────────────────────────────────
+// Emits the highest-confidence active insights per layer from client_insights.
+// Best-effort: any read error (e.g. table absent in a stale env) yields ''.
+const LAYER_LABELS: Record<string, string> = {
+  business:  'BUSINESS',
+  customers: 'CUSTOMERS',
+  bridge:    'BRIDGE',
+};
+
+async function formatTopInsights(
+  supabase: SupabaseClient,
+  clientId: string,
+  perLayer = 4,
+): Promise<string> {
+  let rows: any[] = [];
+  try {
+    const { data, error } = await supabase
+      .from('client_insights')
+      .select('layer, kind, content, confidence')
+      .eq('client_id', clientId)
+      .eq('status', 'active')
+      .order('confidence', { ascending: false });
+    if (error) return '';
+    rows = data ?? [];
+  } catch {
+    return '';
+  }
+  if (!rows.length) return '';
+
+  const lines: string[] = ['═══ LIVING INSIGHTS (top active, by confidence) ═══'];
+  for (const layer of ['business', 'customers', 'bridge']) {
+    const top = rows.filter((r) => r.layer === layer).slice(0, perLayer);
+    if (!top.length) continue;
+    lines.push(`[${LAYER_LABELS[layer] ?? layer.toUpperCase()}]`);
+    for (const r of top) {
+      const conf = typeof r.confidence === 'number' ? r.confidence.toFixed(2) : '?';
+      lines.push(`- (${r.kind} ${conf}) ${String(r.content).trim()}`);
+    }
+  }
+  return lines.length > 1 ? lines.join('\n') : '';
 }
 
 // ─── Client-core formatters ──────────────────────────────────────
