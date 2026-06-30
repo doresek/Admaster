@@ -56,18 +56,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'קוד בריף לא קיים' }, { status: 404 });
     }
 
-    // Insert brief submission — code + client_id inherited from the brief code.
-    const { data, error } = await admin
-      .from('briefs')
-      .insert({
-        code:      briefCode.code,
-        user_id:   briefCode.user_id,
-        client_id: briefCode.client_id ?? null,
-        values,
-        status:    'new',
-      })
-      .select()
-      .single();
+    // Persist the brief submission — code + client_id inherited from the brief
+    // code. One brief per client is the intended design (unique(client_id)), so a
+    // RE-SUBMIT must UPDATE the existing row, not collide on the constraint:
+    //   • client_id present → UPSERT on conflict(client_id): refreshes
+    //     values/status/updated_at when a brief already exists, inserts otherwise.
+    //   • client_id null (edge) → plain insert (no conflict target).
+    // Brief "history" is preserved via the brain's client_insights/insight_events
+    // accumulation, not duplicate brief rows.
+    const now = new Date().toISOString();
+    const { data, error } = briefCode.client_id
+      ? await admin
+          .from('briefs')
+          .upsert(
+            {
+              client_id:  briefCode.client_id,
+              code:       briefCode.code,
+              user_id:    briefCode.user_id,
+              values,
+              status:     'new',
+              updated_at: now,
+            },
+            { onConflict: 'client_id' },
+          )
+          .select('id, client_id, user_id')
+          .single()
+      : await admin
+          .from('briefs')
+          .insert({
+            code:      briefCode.code,
+            user_id:   briefCode.user_id,
+            client_id: null,
+            values,
+            status:    'new',
+          })
+          .select('id, client_id, user_id')
+          .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -87,11 +111,17 @@ export async function POST(req: NextRequest) {
     // which the dashboard calls and polls (client_strategy.core_generated_at). The
     // orchestrator is idempotent, so a fire-and-forget run plus a /run call never
     // double-builds.
+    //
+    // force: true — a re-submit reuses the SAME brief row (upsert above), so its
+    // core_generated_at can already be newer than the brief; the orchestrator's
+    // idempotency guard would then SKIP. force re-runs the 3-layer analysis from
+    // the freshly-submitted answers on every submit.
     if (data.client_id) {
       void orchestrateClientCore(createAdminClient(), {
         userId:   briefCode.user_id,
         clientId: data.client_id,
         briefId:  data.id,
+        force:    true,
       }).catch((e: any) =>
         console.error('[briefs/submit] client-core orchestrator failed:', e?.message)
       );
