@@ -10,6 +10,12 @@ import { orchestrateClientCore } from '@/lib/client-core/orchestrator';
 // the orchestrator deterministically (and poll readiness via
 // client_strategy.core_generated_at). The orchestrator is idempotent, so calling
 // this after a successful fire-and-forget run is a safe no-op.
+//
+// This route AWAITS the orchestrator (it blocks the response), so no waitUntil is
+// needed — but the chained 3-layer analysis can exceed the default function
+// budget, so allow up to 300s.
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();

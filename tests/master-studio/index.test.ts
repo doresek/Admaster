@@ -1,6 +1,6 @@
 // tests/master-studio/index.test.ts
 import { describe, it, expect } from 'vitest';
-import { xt, parseList, parsePrinciples, stripFence, MASTER_NOTES_MAX } from '@/lib/master-studio';
+import { xt, parseList, parsePrinciples, stripFence, deriveFunnelStage, MASTER_NOTES_MAX } from '@/lib/master-studio';
 
 describe('xt', () => {
   it('extracts tag content and trims', () => {
@@ -37,4 +37,23 @@ describe('stripFence', () => {
 
 describe('MASTER_NOTES_MAX', () => {
   it('is 2000', () => { expect(MASTER_NOTES_MAX).toBe(2000); });
+});
+
+describe('deriveFunnelStage', () => {
+  it('maps conversion/offer types to BOFU', () => {
+    expect(deriveFunnelStage('מבצע')).toBe('BOFU');
+    expect(deriveFunnelStage('sale')).toBe('BOFU');
+    expect(deriveFunnelStage('Special Offer')).toBe('BOFU');
+  });
+  it('maps trust / product-consideration types to MOFU', () => {
+    expect(deriveFunnelStage('בניית אמון')).toBe('MOFU');
+    expect(deriveFunnelStage('הצגת מוצר')).toBe('MOFU');
+    expect(deriveFunnelStage('product showcase')).toBe('MOFU');
+  });
+  it('defaults awareness/tips/engagement/empty to TOFU', () => {
+    expect(deriveFunnelStage('טיפ מקצועי')).toBe('TOFU');
+    expect(deriveFunnelStage('שאלה לקהל')).toBe('TOFU');
+    expect(deriveFunnelStage(undefined)).toBe('TOFU');
+    expect(deriveFunnelStage('')).toBe('TOFU');
+  });
 });

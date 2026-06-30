@@ -54,6 +54,29 @@ export function localeWord(locale?: MasterStudioInput['locale']): string {
   return locale === 'en' ? 'in English' : locale === 'ar' ? 'بالعربية' : 'בעברית';
 }
 
+/**
+ * Map a post `type` (the Hebrew chip labels used by /create, or a matching token)
+ * to a marketing funnel stage so the recorded artifact carries a `funnel_stage`
+ * tag for the learning loop. Conversion-intent posts are bottom-of-funnel, trust /
+ * product-consideration posts are mid-funnel; everything else (awareness, tips,
+ * engagement) defaults to top-of-funnel ('TOFU').
+ */
+export function deriveFunnelStage(type?: string): 'TOFU' | 'MOFU' | 'BOFU' {
+  const t = (type ?? '').toLowerCase();
+  // Bottom — direct conversion / offer push.
+  if (t.includes('מבצע') || t.includes('מכיר') || t.includes('הנחה') ||
+      t.includes('promo') || t.includes('sale') || t.includes('offer') || t.includes('bofu')) {
+    return 'BOFU';
+  }
+  // Middle — consideration / trust / product depth.
+  if (t.includes('אמון') || t.includes('הצגת מוצר') || t.includes('המלצ') ||
+      t.includes('trust') || t.includes('product') || t.includes('case') || t.includes('mofu')) {
+    return 'MOFU';
+  }
+  // Top — awareness, tips, engagement, questions, and the default.
+  return 'TOFU';
+}
+
 /** Extract content inside `[TAG]…[/TAG]`. Empty string if missing. */
 export function xt(raw: string, tag: string): string {
   const m = raw.match(new RegExp(`\\[${tag}\\]([\\s\\S]*?)\\[\\/${tag}\\]`));
