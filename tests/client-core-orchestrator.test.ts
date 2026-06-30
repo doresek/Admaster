@@ -1,231 +1,124 @@
-// Tests for lib/client-core/orchestrator.ts — the post-brief-submit core builder.
+// Tests for lib/client-core/orchestrator.ts — the post-brief-submit core builder
+// (Phase-A: analyze -> reconcile -> synthesize -> client_strategy).
 //
-// Claude calls are INJECTED (analyzeRun / avatarRun), so no API key / network is
-// needed. Supabase is a tiny in-memory fake: builders are chainable AND thenable
-// (await on an update resolves to { error }) and maybeSingle returns per-table
-// fixtures. We assert:
-//   (a) idempotency guard returns early when core_generated_at > submitted_at;
-//   (b) partial failure (avatar throws) still persists analysis + stamps the
-//       core, and returns { analysis: true, avatar: false }.
+// The analysis LLM is INJECTED (analyzeRun), so no API key/network is needed.
+// The fake admin client is the shared in-memory DB (tests/intelligence/fake-admin)
+// extended with briefs + a deduct_credits rpc. We assert:
+//   (a) idempotency guard returns early when client_strategy.core_generated_at > submitted_at;
+//   (b) force bypasses the guard;
+//   (c) a fresh brief produces atoms (client_insights), a synthesized snapshot
+//       (client_strategy.business_analysis + avatar + core_generated_at), and
+//       deducts both credits;
+//   (d) ownership mismatch / missing brief is a no-op.
 import { describe, it, expect, vi } from 'vitest';
 import { orchestrateClientCore } from '@/lib/client-core/orchestrator';
+import { makeFakeDb } from './intelligence/fake-admin';
 
 const ANALYSIS_RAW = [
-  '[STRATEGIC_SUMMARY]',
-  'goal: לידים לקליניקה',
-  'core_offer: ליווי 12 שבועות',
-  'usp: מעקב אישי',
-  'constraints:',
-  '- תקציב מוגבל',
-  '[/STRATEGIC_SUMMARY]',
-  '[SUB_AUDIENCE]',
-  'name: אמהות עסוקות',
-  'awareness: Problem-aware',
-  'persona: חסרות זמן',
-  'explanation: מרגישות כאב',
-  '[/SUB_AUDIENCE]',
-  '[PLATFORM_FUNNEL]',
-  'platform: Meta',
-  'ad_format: Reels',
-  'funnel_type: lead-gen',
-  'platform_reason: קהל באינסטגרם',
-  'format_reason: וידאו ממיר',
-  'funnel_reason: חימום לפני מכירה',
-  '[/PLATFORM_FUNNEL]',
-  '[OFFER_STACK]',
-  'components:',
-  '- ליווי אישי',
-  'strengths:',
-  '- אחריות כפולה',
-  'assessment: הצעה חזקה',
-  '[/OFFER_STACK]',
+  '[INSIGHTS]',
+  'business | goal | לידים לקליניקה | 0.9 | מטרה מהבריף',
+  'business | real_usp | מעקב אישי יומי | 0.85 | בידול מהבריף',
+  'business | core_offer | ליווי 12 שבועות | 0.8 | ההצעה',
+  'customers | pain | אין זמן להתאמן | 0.9 | כאב מרכזי',
+  'customers | awareness | Problem-aware | 0.7 | מזהים כאב',
+  'customers | persona | אמהות עסוקות | 0.8 | מי הלקוח',
+  'customers | desire | להרגיש אנרגטית | 0.7 | רצון',
+  'bridge | platform | Meta | 0.8 | קהל באינסטגרם',
+  'bridge | funnel | lead-gen | 0.75 | חימום לפני מכירה',
+  'bridge | angle | התחל בלי לשנות הכל | 0.7 | גשר',
+  '[/INSIGHTS]',
 ].join('\n');
 
-// ── In-memory fake Supabase admin client ────────────────────────
-function makeAdmin(opts: { brief: any; client: any }) {
-  const updates: Array<{ table: string; payload: any }> = [];
-  const rpcCalls: Array<{ fn: string; args: any }> = [];
-
-  const admin: any = {
-    _updates: updates,
-    _rpcCalls: rpcCalls,
-    rpc(fn: string, args: any) {
-      rpcCalls.push({ fn, args });
-      // deduct_credits SECURITY DEFINER RPC shape
-      return Promise.resolve({ data: { success: true, credits: 100 }, error: null });
-    },
-    from(table: string) {
-      const builder: any = {
-        select() { return builder; },
-        update(payload: any) { updates.push({ table, payload }); return builder; },
-        eq() { return builder; },
-        maybeSingle() {
-          if (table === 'briefs')       return Promise.resolve({ data: opts.brief, error: null });
-          if (table === 'meta_clients') return Promise.resolve({ data: opts.client, error: null });
-          return Promise.resolve({ data: null, error: null });
-        },
-        // makes `await builder` (update().eq().eq()) resolve to { error: null }
-        then(resolve: any) { resolve({ error: null }); },
-      };
-      return builder;
-    },
-  };
-  return admin;
+function makeAdmin(opts: { brief: any; strategySeed?: any[] }) {
+  const db = makeFakeDb({
+    clients: [{ id: 'c1', owner_user_id: 'u1' }],
+    briefs:  opts.brief ? [{ id: 'b1', ...opts.brief }] : [],
+  });
+  for (const s of opts.strategySeed ?? []) db.client_strategy.push(s);
+  return db;
 }
 
-describe('orchestrateClientCore', () => {
+describe('orchestrateClientCore (Phase-A)', () => {
   it('(a) idempotency guard: no-op when core_generated_at is newer than the brief', async () => {
-    const admin = makeAdmin({
-      brief:  { values: { biz_name: 'X' }, submitted_at: '2026-01-01T00:00:00Z', user_id: 'u1', client_id: 'c1' },
-      client: { core_generated_at: '2026-02-01T00:00:00Z' }, // newer than submitted_at
+    const db = makeAdmin({
+      brief: { values: { biz_name: 'X' }, submitted_at: '2026-01-01T00:00:00Z', user_id: 'u1', client_id: 'c1' },
+      strategySeed: [{ client_id: 'c1', owner_user_id: 'u1', core_generated_at: '2026-02-01T00:00:00Z' }],
     });
     const analyzeRun = vi.fn(async () => ANALYSIS_RAW);
-    const avatarRun  = vi.fn(async () => 'AVATAR');
 
-    const result = await orchestrateClientCore(admin, {
-      userId: 'u1', clientId: 'c1', briefId: 'b1', analyzeRun, avatarRun,
-    });
+    const result = await orchestrateClientCore(db.admin, { userId: 'u1', clientId: 'c1', briefId: 'b1', analyzeRun });
 
     expect(result).toEqual({ analysis: false, avatar: false });
     expect(analyzeRun).not.toHaveBeenCalled();
-    expect(avatarRun).not.toHaveBeenCalled();
-    expect(admin._updates).toHaveLength(0); // nothing persisted, no stamp
-    expect(admin._rpcCalls).toHaveLength(0); // no credits deducted
+    expect(db.client_insights).toHaveLength(0);
+    expect(db.rpcCalls).toHaveLength(0);
   });
 
-  it('(a2) force=true bypasses the idempotency guard', async () => {
-    const admin = makeAdmin({
-      brief:  { values: { biz_name: 'X' }, submitted_at: '2026-01-01T00:00:00Z', user_id: 'u1', client_id: 'c1' },
-      client: { core_generated_at: '2026-02-01T00:00:00Z' },
+  it('(b) force=true bypasses the idempotency guard and rebuilds', async () => {
+    const db = makeAdmin({
+      brief: { values: { biz_name: 'X' }, submitted_at: '2026-01-01T00:00:00Z', user_id: 'u1', client_id: 'c1' },
+      strategySeed: [{ client_id: 'c1', owner_user_id: 'u1', core_generated_at: '2026-02-01T00:00:00Z' }],
     });
-    const result = await orchestrateClientCore(admin, {
-      userId: 'u1', clientId: 'c1', briefId: 'b1', force: true,
-      analyzeRun: async () => ANALYSIS_RAW,
-      avatarRun:  async () => 'AVATAR',
+    const result = await orchestrateClientCore(db.admin, {
+      userId: 'u1', clientId: 'c1', briefId: 'b1', force: true, analyzeRun: async () => ANALYSIS_RAW,
     });
     expect(result).toEqual({ analysis: true, avatar: true });
+    expect(db.client_insights.length).toBeGreaterThan(0);
   });
 
-  it('(b) partial failure: avatar throws → analysis persisted + stamped, returns {analysis:true, avatar:false}', async () => {
-    const admin = makeAdmin({
-      brief:  { values: { biz_name: 'X' }, submitted_at: '2026-03-01T00:00:00Z', user_id: 'u1', client_id: 'c1' },
-      client: { core_generated_at: null }, // never built → guard passes
+  it('(c) fresh brief: creates atoms, synthesizes client_strategy, deducts both credits', async () => {
+    const db = makeAdmin({
+      brief: { values: { biz_name: 'X', pain_main: 'אין זמן' }, submitted_at: '2026-03-01T00:00:00Z', user_id: 'u1', client_id: 'c1' },
     });
     const analyzeRun = vi.fn(async () => ANALYSIS_RAW);
-    const avatarRun  = vi.fn(async () => { throw new Error('avatar provider down'); });
 
-    const result = await orchestrateClientCore(admin, {
-      userId: 'u1', clientId: 'c1', briefId: 'b1', analyzeRun, avatarRun,
-    });
+    const result = await orchestrateClientCore(db.admin, { userId: 'u1', clientId: 'c1', briefId: 'b1', analyzeRun });
 
-    expect(result).toEqual({ analysis: true, avatar: false });
+    expect(result).toEqual({ analysis: true, avatar: true });
 
-    // analysis was persisted onto meta_clients.business_analysis as a StrategyAnalysis
-    const analysisUpdate = admin._updates.find((u: any) => 'business_analysis' in u.payload);
-    expect(analysisUpdate).toBeTruthy();
-    expect(analysisUpdate.payload.business_analysis.strategic_summary.goal).toBe('לידים לקליניקה');
-    expect(analysisUpdate.payload.business_analysis.sub_audience.awareness_level).toBe('Problem-aware');
-    expect(analysisUpdate.payload.business_analysis.platform_funnel.platform).toBe('Meta');
-    expect(analysisUpdate.payload.business_analysis.offer_stack.strengths).toContain('אחריות כפולה');
+    // atoms persisted across all 3 layers
+    expect(db.client_insights.length).toBe(10);
+    expect(db.client_insights.some((i) => i.layer === 'business')).toBe(true);
+    expect(db.client_insights.some((i) => i.layer === 'customers')).toBe(true);
+    expect(db.client_insights.some((i) => i.layer === 'bridge')).toBe(true);
+    // every atom logged a 'created' event
+    expect(db.insight_events.filter((e) => e.event === 'created')).toHaveLength(10);
 
-    // avatar was NOT persisted
-    expect(admin._updates.some((u: any) => 'avatar' in u.payload)).toBe(false);
+    // synthesized snapshot written to client_strategy
+    const strat = db.client_strategy.find((r) => r.client_id === 'c1');
+    expect(strat).toBeTruthy();
+    expect(strat.business_analysis.strategic_summary.goal).toBe('לידים לקליניקה');
+    expect(strat.business_analysis.sub_audience.awareness_level).toBe('Problem-aware');
+    expect(strat.business_analysis.platform_funnel.platform).toBe('Meta');
+    expect(strat.avatar.pains).toContain('אין זמן להתאמן');
+    expect(strat.core_generated_at).toBeTruthy();
 
-    // core_generated_at was stamped despite the partial failure
-    expect(admin._updates.some((u: any) => 'core_generated_at' in u.payload)).toBe(true);
-
-    // only the analysis credit was deducted (avatar failed before its deduct)
-    expect(admin._rpcCalls.map((c: any) => c.args.p_action)).toEqual(['analyze_brief']);
+    // both credits deducted (analyze + avatar)
+    const actions = db.rpcCalls.filter((c) => c.fn === 'deduct_credits').map((c) => c.args.p_action);
+    expect(actions).toContain('analyze_brief');
+    expect(actions).toContain('avatar');
   });
 
-  it('(c) Avatar v2: injected v2 runner stores a STRUCTURED avatar (not the v1 shim)', async () => {
-    const admin = makeAdmin({
-      brief:  { values: { biz_name: 'X', biz_what: 'מאמן כושר', pain_main: 'אין זמן' }, submitted_at: '2026-03-01T00:00:00Z', user_id: 'u1', client_id: 'c1' },
-      client: { core_generated_at: null },
+  it('(c2) empty analysis: no atoms, no analysis credit, still stamps core_generated_at', async () => {
+    const db = makeAdmin({
+      brief: { values: { biz_name: 'X' }, submitted_at: '2026-03-01T00:00:00Z', user_id: 'u1', client_id: 'c1' },
     });
-
-    const STRUCTURED = {
-      name: 'דנה',
-      age: '34',
-      occupation: 'מנהלת שיווק',
-      pains: ['אין זמן להתאמן', 'עייפות כרונית'],
-      desires: ['להרגיש אנרגטית'],
-      fears: ['לבזבז עוד כסף'],
-      objections: ['כבר ניסיתי'],
-      awareness_level: 'problem_aware',
-      recommended_angle: 'story-led',
-      voice_quotes: ['אני פשוט מותשת'],
-      recommended_creative_angles: ['בוקר חדש'],
-    };
-
-    // v2 runner: branches on the critique system prompt; never throws → no refine.
-    const avatarV2Run = vi.fn(async (system: string) => {
-      if (system.includes('creative director')) {
-        return JSON.stringify({
-          scores: { specificity: 9, voice: 9, consistency: 9, usefulness: 9, originality: 9 },
-          needs_refinement: false,
-          summary: 'solid',
-          top_3_issues: [],
-        });
-      }
-      return JSON.stringify(STRUCTURED);
+    const result = await orchestrateClientCore(db.admin, {
+      userId: 'u1', clientId: 'c1', briefId: 'b1', analyzeRun: async () => 'no insights here',
     });
-    const avatarRun = vi.fn(async () => 'V1-AVATAR'); // must NOT be used
-
-    const result = await orchestrateClientCore(admin, {
-      userId: 'u1', clientId: 'c1', briefId: 'b1',
-      analyzeRun: async () => ANALYSIS_RAW,
-      avatarV2Run, avatarRun,
-    });
-
-    expect(result.avatar).toBe(true);
-    expect(avatarRun).not.toHaveBeenCalled(); // v1 fallback untouched
-
-    const avatarUpdate = admin._updates.find((u: any) => 'avatar' in u.payload);
-    expect(avatarUpdate).toBeTruthy();
-    expect(avatarUpdate.payload.avatar.name).toBe('דנה');
-    expect(avatarUpdate.payload.avatar.pains).toContain('אין זמן להתאמן');
-    expect('v1_text' in avatarUpdate.payload.avatar).toBe(false); // structured, not shim
-
-    // core stamped + avatar credit deducted once
-    expect(admin._updates.some((u: any) => 'core_generated_at' in u.payload)).toBe(true);
-    expect(admin._rpcCalls.map((c: any) => c.args.p_action)).toContain('avatar');
+    expect(result.analysis).toBe(false);
+    expect(db.client_insights).toHaveLength(0);
+    expect(db.rpcCalls.some((c) => c.args.p_action === 'analyze_brief')).toBe(false);
+    // synthesize still ran (owner resolvable via clients) and stamped readiness
+    expect(db.client_strategy[0]?.core_generated_at).toBeTruthy();
   });
 
-  it('(d) Avatar v2 throws → falls back to v1 { v1_text } shim, still stamps core', async () => {
-    const admin = makeAdmin({
-      brief:  { values: { biz_name: 'X' }, submitted_at: '2026-03-01T00:00:00Z', user_id: 'u1', client_id: 'c1' },
-      client: { core_generated_at: null },
-    });
-
-    const avatarV2Run = vi.fn(async () => { throw new Error('v2 provider down'); });
-    const avatarRun   = vi.fn(async () => 'V1-AVATAR');
-
-    const result = await orchestrateClientCore(admin, {
-      userId: 'u1', clientId: 'c1', briefId: 'b1',
-      analyzeRun: async () => ANALYSIS_RAW,
-      avatarV2Run, avatarRun,
-    });
-
-    expect(result.avatar).toBe(true);
-    expect(avatarV2Run).toHaveBeenCalled();      // v2 attempted
-    expect(avatarRun).toHaveBeenCalled();        // v1 fallback used
-
-    const avatarUpdate = admin._updates.find((u: any) => 'avatar' in u.payload);
-    expect(avatarUpdate.payload.avatar).toEqual({ v1_text: 'V1-AVATAR' });
-
-    // core_generated_at still stamped despite v2 failure
-    expect(admin._updates.some((u: any) => 'core_generated_at' in u.payload)).toBe(true);
-  });
-
-  it('returns early (no work) when the brief does not belong to the user', async () => {
-    const admin = makeAdmin({ brief: null, client: { core_generated_at: null } });
-    const result = await orchestrateClientCore(admin, {
-      userId: 'u1', clientId: 'c1', briefId: 'b1',
-      analyzeRun: async () => ANALYSIS_RAW,
-      avatarRun:  async () => 'AVATAR',
+  it('(d) no-op when the brief does not belong to the user', async () => {
+    const db = makeAdmin({ brief: null });
+    const result = await orchestrateClientCore(db.admin, {
+      userId: 'u1', clientId: 'c1', briefId: 'b1', analyzeRun: async () => ANALYSIS_RAW,
     });
     expect(result).toEqual({ analysis: false, avatar: false });
-    expect(admin._updates).toHaveLength(0);
+    expect(db.client_insights).toHaveLength(0);
   });
 });

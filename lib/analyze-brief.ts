@@ -11,7 +11,7 @@
 // tests via `run`, mirroring lib/master-studio's StageRunner), and parses the
 // tagged response into a StrategyAnalysis. `persistBusinessAnalysis` is a
 // separate best-effort helper that writes the analysis onto the client's core
-// (meta_clients.business_analysis) when a client is resolvable.
+// (client_strategy.business_analysis) when a client is resolvable.
 import Anthropic from '@anthropic-ai/sdk';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { FRAMEWORKS } from '@/lib/avatar/frameworks';
@@ -242,9 +242,15 @@ export async function analyzeBrief(opts: {
 }
 
 /**
- * Best-effort: persist a strategy analysis onto the client core
- * (meta_clients.business_analysis). No-op when `clientId` is falsy. Errors are
- * logged and swallowed so they never fail the surrounding analysis flow.
+ * Best-effort: persist a strategy analysis onto the client-strategy snapshot
+ * (client_strategy.business_analysis, one row per client). Upserts on client_id
+ * and touches ONLY business_analysis + owner_user_id — it never clobbers the
+ * snapshot's avatar or core_generated_at (which the orchestrator owns). No-op
+ * when `clientId` is falsy. Errors are logged and swallowed so they never fail
+ * the surrounding analysis flow.
+ *
+ * (Re-pointed from the legacy meta_clients.business_analysis write, which
+ * targeted a column that does not exist on prod — a latent silent failure.)
  */
 export async function persistBusinessAnalysis(
   supabase: SupabaseClient,
@@ -257,11 +263,17 @@ export async function persistBusinessAnalysis(
   if (!clientId) return;
   try {
     const { error } = await supabase
-      .from('meta_clients')
-      .update({ business_analysis: analysis })
-      .eq('id', clientId)
-      .eq('user_id', userId);
-    if (error) console.error('[persistBusinessAnalysis] update failed:', error.message);
+      .from('client_strategy')
+      .upsert(
+        {
+          client_id:         clientId,
+          owner_user_id:     userId,
+          business_analysis: analysis,
+          updated_at:        new Date().toISOString(),
+        },
+        { onConflict: 'client_id' },
+      );
+    if (error) console.error('[persistBusinessAnalysis] upsert failed:', error.message);
   } catch (e: any) {
     console.error('[persistBusinessAnalysis] exception:', e?.message);
   }

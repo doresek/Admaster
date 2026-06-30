@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { deductCredits, refundCredits } from '@/lib/credits';
+import { recordArtifactWith, contextHash } from '@/lib/intelligence/artifacts';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildAiContext } from '@/lib/ai-context';
 import { readActiveClientCookie } from '@/lib/active-client';
@@ -109,5 +110,32 @@ export async function POST(req: NextRequest) {
   });
   if (insertErr) console.error('[master route] insert failed:', insertErr.message);
 
-  return NextResponse.json({ ...out, credits: deduct.credits });
+  // Tagged write-through to the living-knowledge artifact log (best-effort).
+  // Records the winning post tagged with the framework/hook it used and the
+  // insight ids buildAiContext grounded on, so the user-signal loop can later
+  // resolve which beliefs this post relied on. Only when an active client exists.
+  let artifactId: string | null = null;
+  if (activeClientId) {
+    const artifact = await recordArtifactWith(createAdminClient, {
+      clientId:    activeClientId,
+      ownerUserId: user.id,
+      type:        'post',
+      content: {
+        post:     out.winner.draft.post,
+        hashtags: out.winner.draft.hashtags,
+        whatsapp: out.winner.draft.whatsapp,
+        image:    out.winner.draft.image,
+        marketer: out.winner.marketer,
+        score:    out.winner.score,
+      },
+      framework:    framework ?? null,
+      angle:        hook ?? null,
+      avatarRef:    (out.avatar as Record<string, unknown> | null) ?? null,
+      insightIds:   ctx.insightIds,
+      generatedFrom: { model: MODEL, context_hash: contextHash(ctx.combined), platform: platform ?? null },
+    });
+    artifactId = artifact?.id ?? null;
+  }
+
+  return NextResponse.json({ ...out, credits: deduct.credits, artifact_id: artifactId });
 }

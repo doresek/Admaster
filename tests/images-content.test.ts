@@ -81,6 +81,14 @@ vi.mock('@/lib/supabase/server', () => ({
       return builder;
     },
   }),
+  // Part-2 artifact tagging writes via the admin client. Return a self-contained
+  // no-op admin so recordArtifact's insert→select→single chain resolves without
+  // clobbering the generated_images capture above.
+  createAdminClient: () => ({
+    from: () => ({
+      insert: () => ({ select: () => ({ single: async () => ({ data: { id: 'art-test' }, error: null }) }) }),
+    }),
+  }),
 }));
 
 // Image-gen libs — keep all generation off the network.

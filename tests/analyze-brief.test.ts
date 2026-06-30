@@ -140,17 +140,13 @@ describe('persistBusinessAnalysis', () => {
   const analysis = parseStrategyAnalysis(RAW);
 
   function fakeSupabase() {
-    const calls: any = { table: undefined, update: undefined, eqs: [] as any[] };
-    // .eq is both chainable and awaitable: returns a thenable that also has .eq.
-    const eq = (col: string, val: any) => {
-      calls.eqs.push([col, val]);
-      const p: any = Promise.resolve({ error: null });
-      p.eq = eq;
-      return p;
-    };
+    const calls: any = { table: undefined, upsert: undefined, onConflict: undefined };
     const builder: any = {
-      update(payload: any) { calls.update = payload; return builder; },
-      eq,
+      upsert(payload: any, opts: any) {
+        calls.upsert = payload;
+        calls.onConflict = opts?.onConflict;
+        return Promise.resolve({ error: null });
+      },
     };
     return {
       sb: { from(table: string) { calls.table = table; return builder; } } as any,
@@ -164,15 +160,20 @@ describe('persistBusinessAnalysis', () => {
     await persistBusinessAnalysis(sb, { userId: 'u1', clientId: undefined, analysis });
     await persistBusinessAnalysis(sb, { userId: 'u1', clientId: '', analysis });
     expect(calls.table).toBeUndefined();
-    expect(calls.update).toBeUndefined();
+    expect(calls.upsert).toBeUndefined();
   });
 
-  it('updates meta_clients.business_analysis scoped by id + user_id', async () => {
+  it('upserts client_strategy.business_analysis on client_id (owner-scoped, no avatar/core clobber)', async () => {
     const { sb, calls } = fakeSupabase();
     await persistBusinessAnalysis(sb, { userId: 'u1', clientId: 'client-9', analysis });
-    expect(calls.table).toBe('meta_clients');
-    expect(calls.update).toEqual({ business_analysis: analysis });
-    expect(calls.eqs).toEqual([['id', 'client-9'], ['user_id', 'u1']]);
+    expect(calls.table).toBe('client_strategy');
+    expect(calls.onConflict).toBe('client_id');
+    expect(calls.upsert.client_id).toBe('client-9');
+    expect(calls.upsert.owner_user_id).toBe('u1');
+    expect(calls.upsert.business_analysis).toEqual(analysis);
+    // must NOT touch avatar / core_generated_at
+    expect('avatar' in calls.upsert).toBe(false);
+    expect('core_generated_at' in calls.upsert).toBe(false);
   });
 
   it('swallows errors so the analysis flow is never broken', async () => {

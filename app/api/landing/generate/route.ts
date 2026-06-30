@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { TEMPLATES_BY_ID, type LandingTemplate } from '@/lib/landing-templates';
+import { recordArtifactWith, contextHash } from '@/lib/intelligence/artifacts';
 import { deductCredits, refundCredits, extractErrorMessage } from '@/lib/credits';
 import { coerceDesignSpec, FONT_PAIRS } from '@/lib/landing-design';
 import { getSkillContext } from '@/lib/landing-skill-loader';
@@ -296,6 +297,24 @@ Rules:
         cached_read: usage.cache_read_input_tokens,
         cache_creation: usage.cache_creation_input_tokens,
         output: usage.output_tokens,
+      });
+    }
+
+    // Tagged write-through (best-effort): record the generated landing as an
+    // artifact, tagged with the insight ids buildAiContext grounded on.
+    if (activeClientId) {
+      await recordArtifactWith(createAdminClient, {
+        clientId:    activeClientId,
+        ownerUserId: user.id,
+        type:        'landing',
+        content:     { template, hero_title: content.hero_title, hero_sub: content.hero_sub, cta_label: content.cta_label },
+        funnelStage: 'landing',
+        insightIds:  aiCtx.insightIds,
+        generatedFrom: {
+          model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
+          context_hash: contextHash(aiCtx.combined),
+          template,
+        },
       });
     }
 

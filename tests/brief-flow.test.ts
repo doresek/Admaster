@@ -58,7 +58,7 @@ describe('buildAiContext: brief→client matching by client_id', () => {
   it('resolves the brief linked to the active client by client_id', async () => {
     const supabase = makeSupabase({
       users:        { data: { brand: null } },
-      meta_clients: { data: { id: CLIENT_ID, name: 'Pizza Palace', industry: null, emoji: '🍕' } },
+      clients: { data: { id: CLIENT_ID, name: 'Pizza Palace', industry: null, emoji: '🍕' } },
       briefs:       { data: [
         { values: { biz_name: 'Pizza Palace Tel Aviv', biz_what: 'wood-fired pizza' }, avatar: null, ads: null, funnel: null, status: 'new' },
       ] },
@@ -72,7 +72,7 @@ describe('buildAiContext: brief→client matching by client_id', () => {
     // Old substring logic would have failed this; the client_id link does not.
     const supabase = makeSupabase({
       users:        { data: { brand: null } },
-      meta_clients: { data: { id: CLIENT_ID, name: 'Pizza Palace', industry: null, emoji: null } },
+      clients: { data: { id: CLIENT_ID, name: 'Pizza Palace', industry: null, emoji: null } },
       briefs:       { data: [
         { values: { biz_name: 'Totally Different Co', biz_what: 'omakase bar' }, avatar: null, ads: null, funnel: null, status: 'new' },
       ] },
@@ -85,7 +85,7 @@ describe('buildAiContext: brief→client matching by client_id', () => {
   it('client with no linked brief → briefText empty', async () => {
     const supabase = makeSupabase({
       users:        { data: { brand: null } },
-      meta_clients: { data: { id: CLIENT_ID, name: 'Pizza Palace', industry: null, emoji: null } },
+      clients: { data: { id: CLIENT_ID, name: 'Pizza Palace', industry: null, emoji: null } },
       briefs:       { data: [] },   // client_id filter matched nothing
     });
 
@@ -99,7 +99,7 @@ describe('buildAiContext: brief→client matching by client_id', () => {
     // The mock yields the client_id-filtered row (Bloom Bakery for this client).
     const supabase = makeSupabase({
       users:        { data: { brand: null } },
-      meta_clients: { data: { id: CLIENT_ID, name: 'Bloom', industry: null, emoji: null } },
+      clients: { data: { id: CLIENT_ID, name: 'Bloom', industry: null, emoji: null } },
       briefs:       { data: [
         { values: { biz_name: 'Bloom Bakery', biz_what: 'artisan bread' }, avatar: null, ads: null, funnel: null, status: 'new' },
       ] },
@@ -140,7 +140,7 @@ describe('buildAiContext: brief→client matching by client_id', () => {
 describe('buildAiContext: no Brand DNA in the AI context', () => {
   it('combined is client + brief only, in that order — no brand block', async () => {
     const supabase = makeSupabase({
-      meta_clients: { data: { id: CLIENT_ID, name: 'Bloom', industry: 'florist', emoji: '🌸' } },
+      clients: { data: { id: CLIENT_ID, name: 'Bloom', industry: 'florist', emoji: '🌸' } },
       briefs:       { data: [
         { values: { biz_name: 'Bloom', biz_what: 'fresh flowers' }, avatar: null, ads: null, funnel: null, status: 'new' },
       ] },
@@ -156,7 +156,7 @@ describe('buildAiContext: no Brand DNA in the AI context', () => {
 
   it('does not expose brand / brandText fields on the context object', async () => {
     const supabase = makeSupabase({
-      meta_clients: { data: { id: CLIENT_ID, name: 'Bloom', industry: null, emoji: null } },
+      clients: { data: { id: CLIENT_ID, name: 'Bloom', industry: null, emoji: null } },
       briefs:       { data: [] },
     });
     const ctx = await buildAiContext(supabase, { userId: USER_ID, clientId: CLIENT_ID });
@@ -166,7 +166,7 @@ describe('buildAiContext: no Brand DNA in the AI context', () => {
 
   it('client with no brief → combined is just the client block (no brand)', async () => {
     const supabase = makeSupabase({
-      meta_clients: { data: { id: CLIENT_ID, name: 'Bloom', industry: null, emoji: null } },
+      clients: { data: { id: CLIENT_ID, name: 'Bloom', industry: null, emoji: null } },
       briefs:       { data: [] },
     });
     const ctx = await buildAiContext(supabase, { userId: USER_ID, clientId: CLIENT_ID });

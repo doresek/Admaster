@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     // is sent is NOT guaranteed to finish — the function can be frozen/torn down.
     // (`@vercel/functions` waitUntil is not a dependency here, so we do not use
     // it.) The safety net is the authenticated POST /api/client-core/run route,
-    // which the dashboard calls and polls (meta_clients.core_generated_at). The
+    // which the dashboard calls and polls (client_strategy.core_generated_at). The
     // orchestrator is idempotent, so a fire-and-forget run plus a /run call never
     // double-builds.
     if (data.client_id) {

@@ -8,7 +8,7 @@ import { orchestrateClientCore } from '@/lib/client-core/orchestrator';
 // submit endpoint fires the orchestrator fire-and-forget (non-blocking); on
 // serverless that promise may be cut short. This route lets the dashboard run
 // the orchestrator deterministically (and poll readiness via
-// meta_clients.core_generated_at). The orchestrator is idempotent, so calling
+// client_strategy.core_generated_at). The orchestrator is idempotent, so calling
 // this after a successful fire-and-forget run is a safe no-op.
 export async function POST(req: NextRequest) {
   const supabase = createClient();
