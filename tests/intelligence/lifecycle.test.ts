@@ -133,6 +133,33 @@ describe('reconcileCandidates (apply path)', () => {
     expect(res).toEqual({ created: 1, corroborated: 0, superseded: 0 });
     expect(db.client_insights.filter((i) => i.status === 'active')).toHaveLength(2);
   });
+
+  // Regression guard for the orchestrator-reliability fix: reconcile must persist
+  // EVERY candidate across ALL THREE layers (business/customers/bridge) — not just
+  // the first/business atoms. N distinct candidates => N inserts + N created events.
+  it('inserts ALL candidates across all 3 layers (N inserts for N candidates)', async () => {
+    const db = makeFakeDb({ insights: [] });
+    const candidates: InsightCandidate[] = [
+      { layer: 'business',  kind: 'goal',      content: 'לידים לקליניקה',     confidence: 0.9,  rationale: 'r1' },
+      { layer: 'business',  kind: 'real_usp',  content: 'מעקב אישי יומי',       confidence: 0.85, rationale: 'r2' },
+      { layer: 'business',  kind: 'core_offer',content: 'ליווי 12 שבועות',      confidence: 0.8,  rationale: 'r3' },
+      { layer: 'customers', kind: 'pain',      content: 'אין זמן להתאמן',        confidence: 0.9,  rationale: 'r4' },
+      { layer: 'customers', kind: 'persona',   content: 'אמהות עסוקות',          confidence: 0.8,  rationale: 'r5' },
+      { layer: 'customers', kind: 'desire',    content: 'להרגיש אנרגטית',        confidence: 0.7,  rationale: 'r6' },
+      { layer: 'bridge',    kind: 'platform',  content: 'Meta',                  confidence: 0.8,  rationale: 'r7' },
+      { layer: 'bridge',    kind: 'funnel',    content: 'lead-gen',              confidence: 0.75, rationale: 'r8' },
+      { layer: 'bridge',    kind: 'angle',     content: 'התחל בלי לשנות הכל',     confidence: 0.7,  rationale: 'r9' },
+    ];
+    const res = await reconcileCandidates(db.admin, 'c1', 'u1', candidates);
+
+    expect(res).toEqual({ created: candidates.length, corroborated: 0, superseded: 0 });
+    expect(db.client_insights).toHaveLength(candidates.length);
+    expect(db.insight_events.filter((e) => e.event === 'created')).toHaveLength(candidates.length);
+    // all three layers represented (not just business)
+    expect(db.client_insights.some((i) => i.layer === 'business')).toBe(true);
+    expect(db.client_insights.some((i) => i.layer === 'customers')).toBe(true);
+    expect(db.client_insights.some((i) => i.layer === 'bridge')).toBe(true);
+  });
 });
 
 describe('applyLearningSignal (Part-2 entry point)', () => {

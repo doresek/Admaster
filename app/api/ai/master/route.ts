@@ -8,7 +8,8 @@ import { buildAiContext } from '@/lib/ai-context';
 import { readActiveClientCookie } from '@/lib/active-client';
 import { runMasterPipeline, type StageRunner } from '@/lib/master-studio/pipeline';
 import { withRetry, classifyError } from '@/lib/master-studio/retry';
-import { type MasterStudioInput } from '@/lib/master-studio';
+import { deriveFunnelStage, type MasterStudioInput } from '@/lib/master-studio';
+import { MARKETERS_BY_ID, type Marketer, type MarketerId } from '@/lib/marketers';
 
 // Best-of-N runs 5-6 sequential Anthropic calls; the default 10s/60s function
 // budget is not enough. Vercel Fluid Compute allows up to 300s on Node.
@@ -114,6 +115,16 @@ export async function POST(req: NextRequest) {
   // Records the winning post tagged with the framework/hook it used and the
   // insight ids buildAiContext grounded on, so the user-signal loop can later
   // resolve which beliefs this post relied on. Only when an active client exists.
+  // Resolve the framework the post actually used: the user's explicit choice when
+  // given, otherwise the winning marketer's default framework (the pipeline lets
+  // each marketer write in their own framework, so this is the AI-chosen one).
+  // Likewise tag the funnel stage so the artifact is fully isolatable; both were
+  // landing null before.
+  const winnerFramework =
+    (MARKETERS_BY_ID as Record<string, Marketer>)[out.winner.marketer.id as MarketerId]?.framework_default;
+  const resolvedFramework = framework ?? winnerFramework ?? null;
+  const funnelStage = deriveFunnelStage(type);
+
   let artifactId: string | null = null;
   if (activeClientId) {
     const artifact = await recordArtifactWith(createAdminClient, {
@@ -128,8 +139,9 @@ export async function POST(req: NextRequest) {
         marketer: out.winner.marketer,
         score:    out.winner.score,
       },
-      framework:    framework ?? null,
+      framework:    resolvedFramework,
       angle:        hook ?? null,
+      funnelStage,
       avatarRef:    (out.avatar as Record<string, unknown> | null) ?? null,
       insightIds:   ctx.insightIds,
       generatedFrom: { model: MODEL, context_hash: contextHash(ctx.combined), platform: platform ?? null },

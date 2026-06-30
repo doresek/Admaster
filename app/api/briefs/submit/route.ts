@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { waitUntil } from '@vercel/functions';
 import { createAdminClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { advanceJourneyOnBrief } from '@/lib/journey';
 import { orchestrateClientCore } from '@/lib/client-core/orchestrator';
 import { allRequiredSatisfied } from '@/lib/brief-v2';
 import type { BriefValues } from '@/types';
+
+// The client-core orchestrator runs AFTER the response via waitUntil and chains
+// 3-layer analysis -> reconcile -> synthesize (several sequential Anthropic
+// calls). The default function budget is too short; allow up to 300s.
+export const maxDuration = 300;
 
 // POST /api/briefs/submit
 // Called by client (no auth) when submitting brief form
@@ -99,31 +105,34 @@ export async function POST(req: NextRequest) {
     // when the brief has no client_id; never throws back to the submitter.
     await advanceJourneyOnBrief(admin, briefCode.user_id, data.client_id ?? null, data.id);
 
-    // Fire-and-forget: build the durable client core (business analysis + avatar)
+    // Build the durable client core (3-layer analysis -> reconcile -> synthesize)
     // from this brief WITHOUT blocking the submit response — the endpoint returns
     // as fast as before. We use the agency user_id / client_id / brief_id already
     // resolved above.
     //
-    // RELIABILITY CAVEAT: on serverless (Vercel) work started after the response
-    // is sent is NOT guaranteed to finish — the function can be frozen/torn down.
-    // (`@vercel/functions` waitUntil is not a dependency here, so we do not use
-    // it.) The safety net is the authenticated POST /api/client-core/run route,
-    // which the dashboard calls and polls (client_strategy.core_generated_at). The
-    // orchestrator is idempotent, so a fire-and-forget run plus a /run call never
-    // double-builds.
+    // RELIABILITY: on serverless (Vercel) a bare fire-and-forget promise is NOT
+    // guaranteed to finish — the function is frozen/torn down right after the
+    // response, so the orchestrator would persist only its first writes and never
+    // reach synthesize. `waitUntil` registers the promise with the platform so the
+    // function stays alive until it settles (within maxDuration), after the
+    // response is already sent. The authenticated POST /api/client-core/run route
+    // remains as an idempotent dashboard-driven safety net, so a waitUntil run plus
+    // a /run call never double-builds.
     //
     // force: true — a re-submit reuses the SAME brief row (upsert above), so its
     // core_generated_at can already be newer than the brief; the orchestrator's
     // idempotency guard would then SKIP. force re-runs the 3-layer analysis from
     // the freshly-submitted answers on every submit.
     if (data.client_id) {
-      void orchestrateClientCore(createAdminClient(), {
-        userId:   briefCode.user_id,
-        clientId: data.client_id,
-        briefId:  data.id,
-        force:    true,
-      }).catch((e: any) =>
-        console.error('[briefs/submit] client-core orchestrator failed:', e?.message)
+      waitUntil(
+        orchestrateClientCore(createAdminClient(), {
+          userId:   briefCode.user_id,
+          clientId: data.client_id,
+          briefId:  data.id,
+          force:    true,
+        }).catch((e: any) =>
+          console.error('[briefs/submit] client-core orchestrator failed:', e?.message)
+        )
       );
     }
 
