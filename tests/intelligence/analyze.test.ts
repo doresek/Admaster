@@ -78,6 +78,12 @@ describe('composeAnalysisPrompt', () => {
     expect(system).toContain('business × customers');
   });
 
+  it('forbids fabricating names/specifics not present in the brief', () => {
+    const { system } = composeAnalysisPrompt({}, []);
+    expect(system).toContain('אסור להמציא');
+    expect(system).toContain('בעל העסק'); // generic fallback instead of an invented name
+  });
+
   it('instructs the model to treat "__unsure__" cautiously at low confidence', () => {
     const { system } = composeAnalysisPrompt({}, []);
     expect(system).toContain('__unsure__');

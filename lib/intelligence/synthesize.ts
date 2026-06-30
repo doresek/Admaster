@@ -78,11 +78,19 @@ export function projectSnapshot(active: ClientInsight[]): SynthesisResult {
       format_reason:   topRationale(bridge, 'angle'),
       funnel_reason:   topRationale(bridge, 'funnel'),
     },
-    offer_stack: {
-      components: many(business, ['core_offer', 'real_solution'], 5),
-      strengths:  many(business, ['real_usp', 'pain_solved'], 5),
-      assessment: topAny(business, ['true_value', 'real_usp']),
-    },
+    // Offer-stack: never leave a slot empty when ANY business signal exists —
+    // fall back across the broader business atoms so the 💎 section always
+    // renders populated. (With no business atoms at all it stays empty, which
+    // is correct: there is nothing to synthesize from.)
+    offer_stack: (() => {
+      const components = many(business, ['core_offer', 'real_solution'], 5);
+      const strengths  = many(business, ['real_usp', 'pain_solved', 'true_value'], 5);
+      return {
+        components: components.length ? components : many(business, ['real_usp', 'true_value', 'pain_solved'], 5),
+        strengths:  strengths.length ? strengths : many(business, ['core_offer', 'real_solution', 'goal'], 5),
+        assessment: topAny(business, ['true_value', 'real_usp', 'core_offer', 'goal']),
+      };
+    })(),
     raw_text: '',
   };
 

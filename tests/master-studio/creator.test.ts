@@ -19,6 +19,13 @@ describe('composeCreatorPrompt', () => {
       { brief: 'x', platform: 'FB', framework: 'pas' }, MARKETERS_BY_ID.halbert, avatar);
     expect(system).toMatch(/PAS|pas/);
   });
+  it('GROUNDING forbids inventing names/specifics and overrides the urge to add color', () => {
+    const { system } = composeCreatorPrompt(
+      { brief: 'x', platform: 'FB' }, MARKETERS_BY_ID.halbert, avatar);
+    expect(system).toContain('אסור להמציא');
+    expect(system).toContain('בעל העסק'); // generic fallback, never an invented name
+    expect(system).toContain('גובר על הנטייה להוסיף "צבע"');
+  });
 });
 
 describe('parseCreator', () => {
