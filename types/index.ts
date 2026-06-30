@@ -117,6 +117,15 @@ export interface BriefCode {
 }
 
 export interface BriefValues {
+  // ── Group A — owner-language questions (Brief v2). Free text or the
+  //    "__unsure__" sentinel when the owner deliberately marks "not sure". ──
+  own_about?:          string;
+  own_differentiator?: string;
+  own_cost_of_no?:     string;
+  own_happy_customer?: string;
+  own_unspoken_need?:  string;
+  own_proof?:          string;
+  // ── Group B — existing Hormozi×Schwartz "pro" questions (now optional) ──
   biz_name?:        string;
   biz_what?:        string;
   biz_result?:      string;

@@ -29,6 +29,14 @@ export interface AiContextBlocks {
 }
 
 const FIELD_LABELS_HE: Record<string, string> = {
+  // Group A — owner-language questions (Brief v2)
+  own_about:          'על העסק (בשפת הבעלים)',
+  own_differentiator: 'מה הבעלים עושה שאחרים לא',
+  own_cost_of_no:     'מה הלקוח מפסיד אם לא קונה',
+  own_happy_customer: 'הלקוח הכי מרוצה ומה קיבל',
+  own_unspoken_need:  'מה הלקוחות צריכים ולא יודעים לבקש',
+  own_proof:          'סיפור הצלחה (לפני/אחרי)',
+  // Group B — Hormozi×Schwartz pro questions
   biz_name:        'שם העסק',
   biz_what:        'מה העסק עושה',
   biz_result:      'התוצאה שהלקוח מקבל',
