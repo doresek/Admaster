@@ -14,7 +14,13 @@
 
 **Capability blockers (user handling all three, 2026-07-01):** **C1** Postgres connection string incoming → full migration autonomy; until then 030 + 019-recheck wait for the channel. **H4** Meta App already EXISTS (skip creation); user auditing approved scopes (ads_management/instagram_content_publish/pages_manage_posts) + redirect URIs; App ID/secret incoming. **C2** InforU (Geula Mode) creds incoming; build against mock. **MONEY** gate before unpausing paid (stands).
 
-**Reconcile during H4:** `meta_connections` returns 404 in prod — mig 019 (committed in Wave 0) may not be applied; if so, apply via C1 (additive) so the OAuth connect flow works.
+**PROD-SCHEMA RECONCILIATION (verified via PostgREST 2026-07-01):** docs claimed 019/020/021/025 applied, but prod says otherwise:
+- `meta_connections` (019) → **404 PGRST205, genuinely absent** → merged OAuth connect flow would fail in prod.
+- `report_shares` (025) → **404, genuinely absent** → `/report/<token>` share-link broken in prod.
+- Present: `meta_clients`, `ad_performance`, `briefs`, and brain tables (`clients`/`client_insights`/`content_artifacts` = 026–028).
+- **Migration apply-backlog for C1 (all additive):** `019` (meta_connections), `025` (report_shares), `030` (ai-marketer). Apply + data-plane-verify the moment the Postgres conn string lands. (020/021 to be confirmed against live columns once DDL access exists.)
+
+**Wave 1 COMPLETE (2026-07-01):** all 7 subsystems integrated + green — tsc clean, **545 tests**, prod build clean (all new routes compiled), and the **dry-run closed-loop E2E passes** (`tests/e2e/ai-marketer-loop.test.ts`): decide→runCampaign(dry-run,PAUSED,0 live calls)→ingestPerformance→diagnose(OFFER via objection atom)→autoImprove(A/B + weakens that atom + audit). Commits: Wave1a `e327f20`, Wave1b `321a490`, E2E `2ab88e3`.
 
 | Task | State | Owns (disjoint) | Notes |
 |---|---|---|---|
@@ -26,10 +32,14 @@
 | T6 WhatsApp (InforU) adapter | **green ✅** (25, `50f3bef`) | `lib/whatsapp/**`, `app/api/whatsapp/**` | mock-default, live gated C2 |
 | T7 Owner Command Center | **green ✅** (14, `8bdf360`) | `app/(dashboard)/command-center/**`, `app/api/command-center/**` | surfaces the WHY |
 | **Wave 1a integration** | **green ✅** (`e327f20`) | orchestrator | tsc + **493 tests** + prod build all clean; all new routes compiled |
-| T2 Campaign domain + runner (dry-run) | **dispatched** (running) | `lib/campaigns/**`, `app/api/campaigns/**` | imports real T1 contract |
-| T5 Diagnosis + auto-improve engines (fixtures) | **dispatched** (running) | `lib/diagnosis/**`, `lib/performance/**` | imports real T1 contract |
-| Dry-run E2E loop (orchestrator) | **next** | `scripts/`, `tests/e2e/` | client→brief→brain→decision→campaign→perf→diagnosis→auto-improve→signal |
-| T8–T11 live wiring + closed-loop E2E | **gated on H4/C1/C2** | orchestrator, serial | money gate for paid |
+| T2 Campaign domain + runner (dry-run) | **green ✅** (27, `2ef3010`) | `lib/campaigns/**`, `app/api/campaigns/**` | decision→Meta targeting map; PAUSED |
+| T5 Diagnosis + auto-improve engines (fixtures) | **green ✅** (24, `54280e9`) | `lib/diagnosis/**`, `lib/performance/**` | reuses intelligence lifecycle |
+| **Wave 1b integration** | **green ✅** (`321a490`) | orchestrator | tsc + **544 tests** |
+| Dry-run E2E closed-loop | **green ✅** (`2ab88e3`) | `tests/e2e/` | full loop runs in-process; 545 tests |
+| T8 Meta H4 wiring | **gated H4** | env, `lib/meta-config.ts` | needs App ID/secret/scopes |
+| T9 live publish (organic + paid PAUSED) | **gated H4 + MONEY** | `lib/campaigns/runner` | money gate to unpause paid |
+| T10 live performance ingestion | **gated H4** | `lib/performance/ingest-live.ts` | needs live ads + ad_id linkage |
+| T11 live closed-loop E2E + Playwright | **gated H4/C1/C2** | `tests/e2e/`, `scripts/` | — |
 
 ---
 
