@@ -12,20 +12,24 @@
 
 **Ground-truth (prod, data-plane verified 2026-07-01):** brain live + in use — `clients=7`, `client_insights=27`, `client_strategy`/`content_artifacts` present. `campaigns/content_performance/diagnoses/whatsapp_messages` absent (404) → 030 needed, no collision. ⚠️ **`meta_connections` returns 404 in prod** — table the OAuth callback writes to may NOT actually be applied despite docs claiming mig 019 landed; reconcile during H4/Wave-2.
 
-**Capability blockers (surfaced, not pausing):** **C1** no DDL channel (no direct PG conn / Supabase CLI) → author+self-review+data-plane-verify migrations; apply needs user paste OR conn string. **H4** Meta live creds/redirect URIs/scopes. **C2** InforU (Geula Mode) creds for WhatsApp. **MONEY** gate before unpausing paid.
+**Capability blockers (user handling all three, 2026-07-01):** **C1** Postgres connection string incoming → full migration autonomy; until then 030 + 019-recheck wait for the channel. **H4** Meta App already EXISTS (skip creation); user auditing approved scopes (ads_management/instagram_content_publish/pages_manage_posts) + redirect URIs; App ID/secret incoming. **C2** InforU (Geula Mode) creds incoming; build against mock. **MONEY** gate before unpausing paid (stands).
+
+**Reconcile during H4:** `meta_connections` returns 404 in prod — mig 019 (committed in Wave 0) may not be applied; if so, apply via C1 (additive) so the OAuth connect flow works.
 
 | Task | State | Owns (disjoint) | Notes |
 |---|---|---|---|
-| T0.1 commit orphan migs (019–029) + docs + plan | **doing** | `supabase/migrations`, `docs` | record-keeping; non-destructive |
-| T0.2 migration 030 (additive: campaigns/items/decisions/content_performance/diagnoses/whatsapp) | **authored, await C1 apply** | `supabase/migrations/030*` | self-reviewed vs 028 conventions |
-| T1 Decision Engine (moat) | todo→dispatch | `lib/decision-engine/**` | |
-| T2 Campaign domain + runner (dry-run) | todo→dispatch | `lib/campaigns/**`, `app/api/campaigns/**` | |
-| T3 Meta Ads object model + client (sandbox) | todo→dispatch | `lib/meta-ads/**` | |
-| T4 Organic publishing (dry-run) | todo→dispatch | `lib/meta-publish/**` | |
-| T5 Diagnosis + auto-improve engines (fixtures) | todo→dispatch | `lib/diagnosis/**`, `lib/performance/**` | |
-| T6 WhatsApp (InforU) adapter | todo→dispatch | `lib/whatsapp/**`, `app/api/whatsapp/**` | live gated on C2 |
-| T7 Owner Command Center | todo→dispatch | `app/(dashboard)/command-center/**`, `app/api/command-center/**` | |
-| T8–T11 live wiring + closed-loop E2E | **gated on H4** | orchestrator, serial | money gate for paid |
+| T0.1 commit orphan migs (019–029) + docs + plan | **done** ✅ (`1b7292a`) | `supabase/migrations`, `docs` | record-keeping; non-destructive |
+| T0.2 migration 030 (additive) | **authored, await C1 apply** | `supabase/migrations/030*` | self-reviewed vs 028 conventions |
+| T1 Decision Engine (moat) | **green ✅** (37 tests, `c65c5f0`) | `lib/decision-engine/**` | pure core + isolated LLM refine |
+| T3 Meta Ads object model + client (sandbox) | **green ✅** (29, `50691e4`) | `lib/meta-ads/**` | objects default PAUSED |
+| T4 Organic publishing (dry-run) | **green ✅** (12, `3b80603`) | `lib/meta-publish/**` | |
+| T6 WhatsApp (InforU) adapter | **green ✅** (25, `50f3bef`) | `lib/whatsapp/**`, `app/api/whatsapp/**` | mock-default, live gated C2 |
+| T7 Owner Command Center | **green ✅** (14, `8bdf360`) | `app/(dashboard)/command-center/**`, `app/api/command-center/**` | surfaces the WHY |
+| **Wave 1a integration** | **green ✅** (`e327f20`) | orchestrator | tsc + **493 tests** + prod build all clean; all new routes compiled |
+| T2 Campaign domain + runner (dry-run) | **dispatched** (running) | `lib/campaigns/**`, `app/api/campaigns/**` | imports real T1 contract |
+| T5 Diagnosis + auto-improve engines (fixtures) | **dispatched** (running) | `lib/diagnosis/**`, `lib/performance/**` | imports real T1 contract |
+| Dry-run E2E loop (orchestrator) | **next** | `scripts/`, `tests/e2e/` | client→brief→brain→decision→campaign→perf→diagnosis→auto-improve→signal |
+| T8–T11 live wiring + closed-loop E2E | **gated on H4/C1/C2** | orchestrator, serial | money gate for paid |
 
 ---
 
