@@ -4,7 +4,11 @@ import path from 'path';
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    include: [
+      'tests/**/*.test.ts',
+      'lib/**/__tests__/**/*.test.ts',
+      'app/**/__tests__/**/*.test.ts',
+    ],
     globals: false,
   },
   // The app tsconfig sets jsx:"preserve" (Next compiles JSX). Some tests import
