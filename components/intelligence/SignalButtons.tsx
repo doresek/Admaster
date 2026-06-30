@@ -5,14 +5,31 @@ import { useState } from 'react';
 // POSTs to /api/intelligence/signal which feeds the lifecycle engine — a "worked"
 // corroborates the insights the artifact was grounded on; "wrong" weakens/refutes
 // them. Pass an artifactId (artifact-level signal) or an insightId (insight-level).
+//
+// The signal route returns the updated insight summaries; pass `onResult` to react
+// to them (e.g. the InsightCard updates its confidence meter inline). Pass `silent`
+// to suppress the built-in thank-you note when the parent renders the effect itself.
+export interface SignalInsightSummary {
+  id:         string;
+  layer:      string;
+  kind:       string;
+  content:    string;
+  confidence: number;
+  status:     string;
+}
+
 export function SignalButtons({
   artifactId,
   insightId,
   className,
+  silent,
+  onResult,
 }: {
   artifactId?: string | null;
   insightId?:  string | null;
   className?:  string;
+  silent?:     boolean;
+  onResult?:   (kind: 'worked' | 'wrong', summary: SignalInsightSummary | null) => void;
 }) {
   const [sent, setSent]       = useState<'worked' | 'wrong' | null>(null);
   const [loading, setLoading] = useState<'worked' | 'wrong' | null>(null);
@@ -35,7 +52,11 @@ export function SignalButtons({
         }),
       });
       if (!res.ok) throw new Error('signal failed');
+      const json = await res.json().catch(() => null);
+      const list: SignalInsightSummary[] = Array.isArray(json?.insights) ? json.insights : [];
+      const summary = (insightId ? list.find((s) => s.id === insightId) : list[0]) ?? list[0] ?? null;
       setSent(kind);
+      onResult?.(kind, summary);
     } catch {
       setError(true);
     } finally {
@@ -43,13 +64,14 @@ export function SignalButtons({
     }
   }
 
-  if (sent) {
+  if (sent && !silent) {
     return (
       <div className={`text-[11px] text-emerald-400 ${className ?? ''}`} dir="rtl">
         {sent === 'worked' ? '✓ תודה — נלמד שזה עבד' : '✗ תודה — נעדכן את המודל'}
       </div>
     );
   }
+  if (sent && silent) return null;
 
   return (
     <div className={`flex items-center gap-2 ${className ?? ''}`} dir="rtl">
