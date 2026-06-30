@@ -115,6 +115,20 @@ describe('analyzeBrief — compose + run + parse', () => {
     expect(user).toContain('החזר כספי 30 יום');
   });
 
+  it('forbids fabricating names/specifics not present in the brief', () => {
+    const { system } = composeStrategyPrompt({ biz_name: 'X' }, 'he');
+    expect(system).toContain('אסור להמציא');
+    expect(system).toContain('בעל העסק'); // generic fallback instead of an invented name
+  });
+
+  it('instructs the model to always return a non-empty offer_stack', () => {
+    const { system, user } = composeStrategyPrompt({ biz_name: 'X' }, 'he'); // no saved stack
+    expect(system).toContain('offer_stack');
+    expect(system).toContain('לעולם אל תחזיר offer_stack ריק');
+    // the no-saved-stack user line also pushes a full synthesis
+    expect(user).toContain('סנתז offer_stack');
+  });
+
   it('composeBriefPrompt is a back-compat alias of composeStrategyPrompt', () => {
     expect(composeBriefPrompt).toBe(composeStrategyPrompt);
   });

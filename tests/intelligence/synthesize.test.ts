@@ -60,6 +60,19 @@ describe('projectSnapshot', () => {
     expect(avatar.recommended_angle).toBe('התחל בלי לשנות הכל');
   });
 
+  it('never leaves offer_stack empty when business atoms exist (falls back across kinds)', () => {
+    // Only real_usp / true_value present — no core_offer/real_solution. The
+    // offer-stack must still populate components+strengths via the fallback.
+    const businessOnly: ClientInsight[] = [
+      atom({ layer: 'business', kind: 'real_usp', content: 'מעקב אישי יומי', confidence: 0.85 }),
+      atom({ layer: 'business', kind: 'true_value', content: 'חיסכון של שעות', confidence: 0.7 }),
+    ];
+    const { business_analysis: ba } = projectSnapshot(businessOnly);
+    expect(ba.offer_stack.components.length).toBeGreaterThan(0);
+    expect(ba.offer_stack.strengths.length).toBeGreaterThan(0);
+    expect(ba.offer_stack.assessment).not.toBe('');
+  });
+
   it('empty atom set yields an empty-but-valid snapshot', () => {
     const { business_analysis: ba, avatar } = projectSnapshot([]);
     expect(ba.strategic_summary.goal).toBe('');

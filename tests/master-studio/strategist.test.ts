@@ -13,6 +13,12 @@ describe('composeStrategistPrompt', () => {
     expect(system).toContain('RANKED_MARKETERS');         // contract present
     expect(system).toContain('AVATAR_PROFILE');
   });
+
+  it('GROUNDING forbids inventing names/specifics not in the brief', () => {
+    const { system } = composeStrategistPrompt({ brief: 'נושא', platform: 'Instagram' });
+    expect(system).toContain('אסור להמציא');
+    expect(system).toContain('בעל העסק'); // generic fallback, never an invented name
+  });
 });
 
 describe('parseStrategist', () => {
