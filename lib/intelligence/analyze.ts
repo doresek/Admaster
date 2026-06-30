@@ -56,6 +56,14 @@ export function composeAnalysisPrompt(
 3. bridge (הגשר) — תרגום של ערך עסקי לרצון של הלקוח, זוויות (angles), הוקים (hooks), הפלטפורמה המומלצת, וסוג המשפך.
    kinds מותרים: ${kindList('bridge')}
 
+שאלות בעל העסק (Group A) — שפת הבעלים, המקור הראשי. עבד דרכן ככה:
+- own_about, own_differentiator, own_cost_of_no → שכבת business: גזור real_solution, real_usp, true_value, pain_solved (מה באמת נפתר ומה הערך האמיתי).
+- own_happy_customer, own_unspoken_need → שכבת customers: גזור persona, desire ו-unspoken_want (במיוחד את הרצון הלא-מדובר).
+- own_proof → ראיה עסקית: חזק true_value / pain_solved, ואם יש — גם dream / aspiration של הלקוח.
+- את שכבת bridge (value_translation, angle, hook) אל תמפה ישירות מהבריף — גזור אותה מההצלבה של business × customers (איך מתרגמים את הערך העסקי לרצון של הלקוח).
+- תשובה שערכה בדיוק "__unsure__" פירושה שבעל העסק סימן "לא בטוח / לא יודע": הסק בזהירות והנמך confidence (≤ 0.4) לכל אטום שנשען עליה בלבד.
+- שדות מקצועיים (Group B) שמולאו במפורש — צרוך אותם ב-confidence גבוה יותר כשהם תומכים.
+
 לכל אטום תן:
 - layer: business / customers / bridge
 - kind: אחד מה-kinds המותרים לשכבה

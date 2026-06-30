@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { advanceJourneyOnBrief } from '@/lib/journey';
 import { orchestrateClientCore } from '@/lib/client-core/orchestrator';
+import { allRequiredSatisfied } from '@/lib/brief-v2';
 import type { BriefValues } from '@/types';
 
 // POST /api/briefs/submit
@@ -23,6 +24,16 @@ export async function POST(req: NextRequest) {
 
     if ((!code && !token) || !values) {
       return NextResponse.json({ error: 'Missing code/token or values' }, { status: 400 });
+    }
+
+    // Brief v2 gate: the 5 required owner-language (Group A) questions must each
+    // be answered (trimmed length ≥ 10) OR carry the deliberate "unsure" escape.
+    // Mirrors the client-side submit gate so an under-filled brief never lands.
+    if (!allRequiredSatisfied(values as Record<string, unknown>)) {
+      return NextResponse.json(
+        { error: 'יש לענות על כל שאלות החובה (או לסמן "לא בטוח")' },
+        { status: 400 },
+      );
     }
 
     // Reject malformed tokens before any DB hit (matches generateBriefToken()).

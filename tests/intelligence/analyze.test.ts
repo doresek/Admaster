@@ -68,6 +68,28 @@ describe('composeAnalysisPrompt', () => {
     expect(user).toContain('"biz_name": "Bloom"');
   });
 
+  it('consumes the Group-A owner fields and explains how to map them', () => {
+    const { system } = composeAnalysisPrompt({}, []);
+    // owner-language keys are named explicitly so the model maps them
+    for (const k of ['own_about', 'own_differentiator', 'own_cost_of_no', 'own_happy_customer', 'own_unspoken_need', 'own_proof']) {
+      expect(system).toContain(k);
+    }
+    // bridge is DERIVED from business × customers, not mapped directly
+    expect(system).toContain('business × customers');
+  });
+
+  it('instructs the model to treat "__unsure__" cautiously at low confidence', () => {
+    const { system } = composeAnalysisPrompt({}, []);
+    expect(system).toContain('__unsure__');
+    expect(system).toMatch(/0\.4/); // lower-confidence ceiling for unsure answers
+  });
+
+  it('serializes a Group-A brief (including an unsure answer) into the user prompt', () => {
+    const { user } = composeAnalysisPrompt({ own_about: 'תכשיטי כסף בעבודת יד', own_differentiator: '__unsure__' }, []);
+    expect(user).toContain('own_about');
+    expect(user).toContain('__unsure__');
+  });
+
   it('injects existing active atoms so the model can reconcile, not just restate', () => {
     const { user } = composeAnalysisPrompt({}, [
       { layer: 'business', kind: 'real_usp', content: 'מהירות', confidence: 0.6 } as any,

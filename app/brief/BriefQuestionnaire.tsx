@@ -1,13 +1,29 @@
 'use client';
 import { useState } from 'react';
+import {
+  GROUP_A_QUESTIONS,
+  REQUIRED_OWNER_KEYS,
+  UNSURE_SENTINEL,
+  isUnsure,
+  countSatisfiedRequired,
+  allRequiredSatisfied,
+} from '@/lib/brief-v2';
 
 // Shared client-facing brief questionnaire. Used by BOTH:
 //   * app/brief/page.tsx           — legacy ?code= flow (manual entry)
 //   * app/brief/[token]/page.tsx   — magic-link /brief/<token> flow
-// Keeping a single source for SECTIONS + the form UI means the two entry points
-// never drift. The only difference between them is `onSubmit` (code vs token),
-// which the caller supplies.
+// Keeping a single source for the form UI means the two entry points never
+// drift. The only difference between them is `onSubmit` (code vs token), which
+// the caller supplies.
+//
+// Brief v2 layout:
+//   • Group A — "שאלות לבעל העסק" (owner language). 5 REQUIRED + 1 optional.
+//     Each required question has a deliberately-clicked "לא בטוח / לא יודע"
+//     escape that satisfies the requirement and stores the UNSURE_SENTINEL.
+//   • Group B — the existing Hormozi×Schwartz "pro" questions, now OPTIONAL and
+//     tucked inside a collapsible <details>. Every original question is kept.
 
+// Group B — preserved verbatim from v1. Still optional; rendered collapsed.
 export const SECTIONS = [
   { sec:'🏢 העסק', qs:[
     {id:'biz_name',   l:'שם העסק',                    t:'text', ph:'לדוגמה: אלירן קהלני תפילין'},
@@ -42,6 +58,8 @@ export const SECTIONS = [
 
 export interface BriefSubmitResult { ok: boolean; error?: string }
 
+const REQUIRED_COUNT = REQUIRED_OWNER_KEYS.length;
+
 export function BriefQuestionnaire({
   agencyName,
   onSubmit,
@@ -50,16 +68,22 @@ export function BriefQuestionnaire({
   onSubmit: (values: Record<string, string>) => Promise<BriefSubmitResult>;
 }) {
   const [vals,  setVals]      = useState<Record<string, string>>({});
-  const [step,  setStep]      = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [done,  setDone]      = useState(false);
   const [error, setError]     = useState('');
 
   const uv = (k: string, v: string) => setVals(p => ({ ...p, [k]: v }));
-  const cur = SECTIONS[step];
-  const pct = Math.round((step / SECTIONS.length) * 100);
+
+  // Deliberate "unsure" toggle: clicking it stores the sentinel (satisfies the
+  // requirement); clicking again clears the answer back to empty.
+  const toggleUnsure = (k: string) =>
+    setVals(p => ({ ...p, [k]: isUnsure(p[k]) ? '' : UNSURE_SENTINEL }));
+
+  const satisfied = countSatisfiedRequired(vals);
+  const canSubmit = allRequiredSatisfied(vals);
 
   async function submit() {
+    if (!canSubmit) return;
     setSubmitting(true); setError('');
     try {
       const res = await onSubmit(vals);
@@ -91,68 +115,95 @@ export function BriefQuestionnaire({
         <div className="bg-gradient-to-br from-[#0C1118] to-[#1D2D3E] rounded-2xl p-8 text-center mb-6 border border-[#2A4158]">
           <div className="text-[#D4AF55] text-sm mb-3" style={{ fontStyle: 'italic' }}>{agencyName || 'AdMaster Pro'}</div>
           <div className="text-white font-bold text-2xl mb-2">שאלון בריף לקוח</div>
-          <div className="text-[#6B8FA8] text-sm leading-relaxed">מלא את השאלות כדי שנוכל לבנות עבורך אסטרטגיה שיווקית מדויקת</div>
+          <div className="text-[#6B8FA8] text-sm leading-relaxed">ענה על {REQUIRED_COUNT} שאלות קצרות בשפה שלך — וזה כל מה שאנחנו צריכים כדי להתחיל</div>
         </div>
 
-        {/* Progress */}
-        <div className="flex items-center gap-3 mb-5">
-          <div className="flex-1 h-1.5 rounded-full bg-[#1D2D3E] overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-[#0A7AFF] to-[#3D9FFF] rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
-          </div>
-          <span className="text-xs text-[#6B8FA8] whitespace-nowrap">שלב {step+1}/{SECTIONS.length}</span>
-        </div>
-
-        {/* Section */}
+        {/* ── Group A — שאלות לבעל העסק (REQUIRED) ── */}
         <div className="bg-[#0C1118] border border-[#1E2F42] rounded-xl p-6 mb-4">
-          <div className="flex items-center gap-2 mb-5">
-            <div className="w-7 h-7 rounded-full bg-[#0A7AFF] text-white text-xs font-bold flex items-center justify-center">{step+1}</div>
-            <div className="font-bold text-white">{cur.sec}</div>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="font-bold text-white text-lg">שאלות לבעל העסק</div>
+            <span className="text-xs text-[#6B8FA8] whitespace-nowrap">ענית על {satisfied}/{REQUIRED_COUNT} שאלות חובה</span>
           </div>
+          <div className="text-xs text-[#6B8FA8] mb-5 leading-relaxed">דבר בשפה שלך, כאילו אתה מספר לחבר. אין תשובות נכונות או שגויות.</div>
 
-          {cur.qs.map(q => (
-            <div key={q.id} className="mb-4">
-              <label className="block text-xs font-medium text-[#6B8FA8] mb-1.5">{q.l}</label>
-              {q.t === 'ta' ? (
-                <textarea value={vals[q.id]||''} onChange={e=>uv(q.id,e.target.value)} placeholder={q.ph} rows={3}
-                  className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF] placeholder-[#2E4459] resize-y"
+          {GROUP_A_QUESTIONS.map(q => {
+            const unsure = isUnsure(vals[q.id]);
+            return (
+              <div key={q.id} className="mb-6">
+                <label className="block text-sm font-semibold text-white mb-1">
+                  {q.label}
+                  {q.required
+                    ? <span className="text-[#0A7AFF] mr-1">*</span>
+                    : <span className="text-[#6B8FA8] text-xs font-normal mr-1">(אופציונלי)</span>}
+                </label>
+                <div className="text-xs text-[#6B8FA8] mb-2 leading-relaxed">{q.help}</div>
+                <textarea
+                  value={unsure ? '' : (vals[q.id] || '')}
+                  onChange={e => uv(q.id, e.target.value)}
+                  placeholder={unsure ? 'סימנת "לא בטוח" — נשלים את זה בשבילך' : 'כתוב כאן בחופשיות...'}
+                  rows={4}
+                  disabled={unsure}
+                  className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF] placeholder-[#2E4459] resize-y disabled:opacity-50"
                   dir="rtl" />
-              ) : q.t === 'sel' ? (
-                <select value={vals[q.id]||''} onChange={e=>uv(q.id,e.target.value)}
-                  className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]"
-                  dir="rtl">
-                  <option value="">בחר...</option>
-                  {'opts' in q && q.opts?.map((o: string) => <option key={o} value={o} className="bg-[#162030]">{o}</option>)}
-                </select>
-              ) : (
-                <input type="text" value={vals[q.id]||''} onChange={e=>uv(q.id,e.target.value)} placeholder={q.ph}
-                  className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF] placeholder-[#2E4459]"
-                  dir="rtl" />
-              )}
-            </div>
-          ))}
+                {q.required && (
+                  <button type="button" onClick={() => toggleUnsure(q.id)}
+                    className={`mt-2 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                      unsure
+                        ? 'border-[#D4AF55]/50 bg-[#D4AF55]/10 text-[#D4AF55]'
+                        : 'border-[#1E2F42] bg-[#162030] text-[#6B8FA8] hover:border-[#2A4158] hover:text-white'
+                    }`}>
+                    {unsure ? '✓ סימנת: לא בטוח / לא יודע' : 'לא בטוח / לא יודע'}
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
+
+        {/* ── Group B — שאלות מקצועיות (אופציונלי), collapsible ── */}
+        <details className="bg-[#0C1118] border border-[#1E2F42] rounded-xl mb-4 group">
+          <summary className="cursor-pointer select-none px-6 py-4 flex items-center justify-between text-white font-semibold list-none">
+            <span>פתח שאלות מתקדמות <span className="text-[#6B8FA8] text-xs font-normal">(אופציונלי — למי שרוצה לדייק)</span></span>
+            <span className="text-[#6B8FA8] text-sm transition-transform group-open:rotate-180">▾</span>
+          </summary>
+          <div className="px-6 pb-6 pt-1 border-t border-[#1E2F42]">
+            {SECTIONS.map(section => (
+              <div key={section.sec} className="mb-5">
+                <div className="font-bold text-white text-sm mb-3 mt-4">{section.sec}</div>
+                {section.qs.map(q => (
+                  <div key={q.id} className="mb-4">
+                    <label className="block text-xs font-medium text-[#6B8FA8] mb-1.5">{q.l}</label>
+                    {q.t === 'ta' ? (
+                      <textarea value={vals[q.id]||''} onChange={e=>uv(q.id,e.target.value)} placeholder={q.ph} rows={3}
+                        className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF] placeholder-[#2E4459] resize-y"
+                        dir="rtl" />
+                    ) : q.t === 'sel' ? (
+                      <select value={vals[q.id]||''} onChange={e=>uv(q.id,e.target.value)}
+                        className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF]"
+                        dir="rtl">
+                        <option value="">בחר...</option>
+                        {'opts' in q && q.opts?.map((o: string) => <option key={o} value={o} className="bg-[#162030]">{o}</option>)}
+                      </select>
+                    ) : (
+                      <input type="text" value={vals[q.id]||''} onChange={e=>uv(q.id,e.target.value)} placeholder={q.ph}
+                        className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-[#0A7AFF] placeholder-[#2E4459]"
+                        dir="rtl" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </details>
 
         {error && <div className="bg-red-900/20 border border-red-500/30 text-red-400 text-sm rounded-lg px-3 py-2 mb-3">{error}</div>}
 
-        <div className="flex gap-3">
-          {step > 0 && (
-            <button onClick={() => setStep(s=>s-1)}
-              className="px-4 py-2.5 rounded-lg border border-[#1E2F42] bg-[#162030] text-[#6B8FA8] text-sm font-medium hover:border-[#2A4158] hover:text-white transition-colors">
-              ← חזור
-            </button>
-          )}
-          {step < SECTIONS.length-1 ? (
-            <button onClick={() => setStep(s=>s+1)} style={{ flex: 1 }}
-              className="py-2.5 rounded-lg bg-[#0A7AFF] hover:bg-[#3D9FFF] text-white text-sm font-semibold transition-colors">
-              הבא — {SECTIONS[step+1]?.sec} →
-            </button>
-          ) : (
-            <button onClick={submit} disabled={submitting} style={{ flex: 1 }}
-              className="py-2.5 rounded-lg bg-[#059669] hover:brightness-110 text-white text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-              {submitting ? <><div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />שולח...</> : '📤 שלח בריף'}
-            </button>
-          )}
-        </div>
+        <button onClick={submit} disabled={submitting || !canSubmit}
+          className="w-full py-3 rounded-lg bg-[#059669] hover:brightness-110 text-white text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+          {submitting
+            ? <><div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />שולח...</>
+            : canSubmit ? '📤 שלח בריף' : `ענה על עוד ${REQUIRED_COUNT - satisfied} שאלות חובה`}
+        </button>
       </div>
     </div>
   );
