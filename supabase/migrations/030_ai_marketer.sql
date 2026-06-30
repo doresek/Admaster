@@ -110,6 +110,7 @@ create table if not exists public.diagnoses (
   owner_user_id       uuid not null references public.users(id) on delete cascade,
   scope_artifact_id   uuid references public.content_artifacts(id) on delete set null,
   scope_campaign_id   uuid references public.campaigns(id) on delete set null,
+  scope_item_id       uuid references public.campaign_items(id) on delete set null,  -- the diagnosed ad/item (auto-improve A/B parent)
   failed_link         text not null check (failed_link in ('hook','avatar','creative','funnel','offer','audience','none')),
   rationale           text not null,                      -- insight-driven explanation
   evidence            jsonb default '{}'::jsonb,          -- metrics + cohort comparison
