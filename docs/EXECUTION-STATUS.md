@@ -12,13 +12,13 @@
 
 **Ground-truth (prod, data-plane verified 2026-07-01):** brain live + in use — `clients=7`, `client_insights=27`, `client_strategy`/`content_artifacts` present. `campaigns/content_performance/diagnoses/whatsapp_messages` absent (404) → 030 needed, no collision. ⚠️ **`meta_connections` returns 404 in prod** — table the OAuth callback writes to may NOT actually be applied despite docs claiming mig 019 landed; reconcile during H4/Wave-2.
 
-**Capability blockers (user handling all three, 2026-07-01):** **C1** Postgres connection string incoming → full migration autonomy; until then 030 + 019-recheck wait for the channel. **H4** Meta App already EXISTS (skip creation); user auditing approved scopes (ads_management/instagram_content_publish/pages_manage_posts) + redirect URIs; App ID/secret incoming. **C2** InforU (Geula Mode) creds incoming; build against mock. **MONEY** gate before unpausing paid (stands).
+**Capability blockers:** **C1 RESOLVED** ✅ (2026-07-01) — Postgres conn string in `.env.local` `SUPABASE_DB_URL` (session pooler); **full additive-migration autonomy live** (destructive still gated). **H4** Meta App EXISTS; awaiting App ID/secret + approved-scope audit + redirect URIs. **C2** InforU creds incoming; mock meanwhile. **MONEY** gate before unpausing paid (stands).
 
 **PROD-SCHEMA RECONCILIATION (verified via PostgREST 2026-07-01):** docs claimed 019/020/021/025 applied, but prod says otherwise:
 - `meta_connections` (019) → **404 PGRST205, genuinely absent** → merged OAuth connect flow would fail in prod.
 - `report_shares` (025) → **404, genuinely absent** → `/report/<token>` share-link broken in prod.
 - Present: `meta_clients`, `ad_performance`, `briefs`, and brain tables (`clients`/`client_insights`/`content_artifacts` = 026–028).
-- **Migration apply-backlog for C1 (all additive):** `019` (meta_connections), `025` (report_shares), `030` (ai-marketer). Apply + data-plane-verify the moment the Postgres conn string lands. (020/021 to be confirmed against live columns once DDL access exists.)
+- **Migration backlog — APPLIED + VERIFIED ✅ (2026-07-01):** `030` (6 ai-marketer tables, all 200 on data plane, RLS on, `scope_item_id` present) + `031` (created `meta_connections` + `report_shares`, **FK→clients** not legacy meta_clients, both 404→200). Meta OAuth connect flow + `/report/<token>` are now schema-backed in prod. (020/021 legacy connect-token columns: superseded by the v2 `clients`/`meta_connections` model — not needed.)
 
 **Wave 1 COMPLETE (2026-07-01):** all 7 subsystems integrated + green — tsc clean, **545 tests**, prod build clean (all new routes compiled), and the **dry-run closed-loop E2E passes** (`tests/e2e/ai-marketer-loop.test.ts`): decide→runCampaign(dry-run,PAUSED,0 live calls)→ingestPerformance→diagnose(OFFER via objection atom)→autoImprove(A/B + weakens that atom + audit). Commits: Wave1a `e327f20`, Wave1b `321a490`, E2E `2ab88e3`.
 
