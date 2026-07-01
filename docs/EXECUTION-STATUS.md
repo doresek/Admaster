@@ -36,10 +36,10 @@
 | T5 Diagnosis + auto-improve engines (fixtures) | **green ✅** (24, `54280e9`) | `lib/diagnosis/**`, `lib/performance/**` | reuses intelligence lifecycle |
 | **Wave 1b integration** | **green ✅** (`321a490`) | orchestrator | tsc + **544 tests** |
 | Dry-run E2E closed-loop | **green ✅** (`2ab88e3`) | `tests/e2e/` | full loop runs in-process; 545 tests |
-| T8 Meta H4 wiring | **gated H4** | env, `lib/meta-config.ts` | needs App ID/secret/scopes |
-| T9 live publish (organic + paid PAUSED) | **gated H4 + MONEY** | `lib/campaigns/runner` | money gate to unpause paid |
-| T10 live performance ingestion | **gated H4** | `lib/performance/ingest-live.ts` | needs live ads + ad_id linkage |
-| T11 live closed-loop E2E + Playwright | **gated H4/C1/C2** | `tests/e2e/`, `scripts/` | — |
+| T8 Meta connection health/readiness (dry-run) | **dispatched** | `lib/meta-health.ts`, `app/api/meta/health/**` | reports app/scope/connection readiness; live scope-check gated H4 |
+| T9 live publish wiring (sandbox, behind flag) | **dispatched** | `lib/campaigns/**` | `LIVE_PUBLISH_ENABLED` off by default; always PAUSED; spend-cap; unpause = MONEY gate |
+| T10 live performance ingestion (sandbox) | **dispatched** | `lib/performance/ingest-live.ts` | Meta insights→content_performance via ad_id; live fetch gated H4 |
+| T11 dry-run closed-loop E2E + trace script | **dispatched** | `tests/e2e/**`, `scripts/**` | paid+organic+WA loops; Playwright smoke = orchestrator at integration |
 
 ---
 
