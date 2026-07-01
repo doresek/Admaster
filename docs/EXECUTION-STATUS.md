@@ -36,10 +36,13 @@
 | T5 Diagnosis + auto-improve engines (fixtures) | **green ✅** (24, `54280e9`) | `lib/diagnosis/**`, `lib/performance/**` | reuses intelligence lifecycle |
 | **Wave 1b integration** | **green ✅** (`321a490`) | orchestrator | tsc + **544 tests** |
 | Dry-run E2E closed-loop | **green ✅** (`2ab88e3`) | `tests/e2e/` | full loop runs in-process; 545 tests |
-| T8 Meta connection health/readiness (dry-run) | **dispatched** | `lib/meta-health.ts`, `app/api/meta/health/**` | reports app/scope/connection readiness; live scope-check gated H4 |
-| T9 live publish wiring (sandbox, behind flag) | **dispatched** | `lib/campaigns/**` | `LIVE_PUBLISH_ENABLED` off by default; always PAUSED; spend-cap; unpause = MONEY gate |
-| T10 live performance ingestion (sandbox) | **dispatched** | `lib/performance/ingest-live.ts` | Meta insights→content_performance via ad_id; live fetch gated H4 |
-| T11 dry-run closed-loop E2E + trace script | **dispatched** | `tests/e2e/**`, `scripts/**` | paid+organic+WA loops; Playwright smoke = orchestrator at integration |
+| T8 Meta connection health/readiness (dry-run) | **green ✅** (12, `a4f3ffd`) | `lib/meta-health.ts`, `app/api/meta/health/**` | live scope-check opt-in; flip on at H4 |
+| T9 live publish wiring (sandbox, behind flag) | **green ✅** (13, `5ead7a2`) | `lib/campaigns/**` | `LIVE_PUBLISH_ENABLED` off; always PAUSED; spend-cap; unpause = MONEY gate |
+| T10 live performance ingestion (sandbox) | **green ✅** (7, `385130d`) | `lib/performance/ingest-live.ts` | Meta insights→content_performance via ad_id; fetch flips on at H4 |
+| T11 dry-run closed-loop E2E + trace script | **green ✅** (4, `4bbc00e`) | `tests/e2e/**`, `scripts/**` | `node scripts/e2e-ai-marketer-dryrun.mjs` = PASS |
+| **Wave 2 integration** | **green ✅** (`85b9a4b`) | orchestrator | tsc + **581 tests** + prod build + E2E script PASS + route smoke (307 gate / 401 / boot OK) |
+
+**WAVE 2 COMPLETE (2026-07-01).** Whole plan (Wave 0→2) built. Live half fully coded behind flags/mocks → go-live = creds + flag flip, not new construction. Remaining = external only: **H4** (Meta App ID/secret + scope audit → flip T8 scope-check, T9 `LIVE_PUBLISH_ENABLED`, T10 fetch), **C2** (InforU creds → WhatsApp live), **MONEY** gate (unpause paid). Deferred: authed browser walkthrough of `/command-center` (needs a test session/seed data), image-URL wiring for live paid creatives (master-studio stores a prompt, not a URL).
 
 ---
 
