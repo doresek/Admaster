@@ -38,6 +38,20 @@ export interface CampaignStore {
   insertItem(row: CampaignItemInsert): Promise<CampaignItem | null>;
   insertDecision(row: CampaignDecisionInsert): Promise<CampaignDecision | null>;
   updateCampaignStatus(id: string, status: Campaign['status']): Promise<Campaign | null>;
+  /**
+   * OPTIONAL (T9 live publish): update a single item's status. Optional so
+   * partial/inline stores still satisfy the interface; callers use `?.()`.
+   */
+  updateItemStatus?(id: string, status: CampaignItem['status']): Promise<CampaignItem | null>;
+  /**
+   * OPTIONAL (T9 live publish): flip a campaign's publish state (status +
+   * dry_run + real meta_campaign_id) in one write when it goes live. Optional
+   * for the same reason as updateItemStatus.
+   */
+  updateCampaignPublishState?(
+    id: string,
+    patch: { status?: Campaign['status']; dry_run?: boolean; meta_campaign_id?: string | null },
+  ): Promise<Campaign | null>;
   listCampaigns(ownerUserId: string, clientId?: string): Promise<Campaign[]>;
   getCampaign(id: string, ownerUserId: string): Promise<Campaign | null>;
   listItems(campaignId: string, ownerUserId: string): Promise<CampaignItem[]>;
@@ -110,6 +124,38 @@ export function supabaseCampaignStore(admin: SupabaseClient): CampaignStore {
         return data as unknown as Campaign;
       } catch (e: any) {
         console.error('[campaigns.store] updateCampaignStatus failed:', e?.message ?? e);
+        return null;
+      }
+    },
+
+    async updateItemStatus(id, status) {
+      try {
+        const { data, error } = await admin
+          .from('campaign_items')
+          .update({ status, updated_at: new Date().toISOString() })
+          .eq('id', id)
+          .select(ITEM_COLUMNS)
+          .single();
+        if (error) throw new Error(error.message);
+        return data as unknown as CampaignItem;
+      } catch (e: any) {
+        console.error('[campaigns.store] updateItemStatus failed:', e?.message ?? e);
+        return null;
+      }
+    },
+
+    async updateCampaignPublishState(id, patch) {
+      try {
+        const { data, error } = await admin
+          .from('campaigns')
+          .update({ ...patch, updated_at: new Date().toISOString() })
+          .eq('id', id)
+          .select(CAMPAIGN_COLUMNS)
+          .single();
+        if (error) throw new Error(error.message);
+        return data as unknown as Campaign;
+      } catch (e: any) {
+        console.error('[campaigns.store] updateCampaignPublishState failed:', e?.message ?? e);
         return null;
       }
     },
@@ -233,6 +279,22 @@ export function inMemoryCampaignStore(): CampaignStore & {
       const c = campaigns.find((x) => x.id === id);
       if (!c) return null;
       c.status = status;
+      c.updated_at = nowIso();
+      return c;
+    },
+    async updateItemStatus(id, status) {
+      const it = items.find((x) => x.id === id);
+      if (!it) return null;
+      it.status = status;
+      it.updated_at = nowIso();
+      return it;
+    },
+    async updateCampaignPublishState(id, patch) {
+      const c = campaigns.find((x) => x.id === id);
+      if (!c) return null;
+      if (patch.status !== undefined) c.status = patch.status;
+      if (patch.dry_run !== undefined) c.dry_run = patch.dry_run;
+      if (patch.meta_campaign_id !== undefined) c.meta_campaign_id = patch.meta_campaign_id;
       c.updated_at = nowIso();
       return c;
     },

@@ -37,3 +37,20 @@ export {
   type GeneratedCreative,
 } from './runner';
 export { masterStudioGenerator, type MasterStudioGeneratorOptions } from './generate';
+export {
+  publishCampaign,
+  storedPlanResolver,
+  isLivePublishEnabled,
+  maxDailyBudget,
+  LIVE_PUBLISH_FLAG,
+  MAX_DAILY_BUDGET_FLAG,
+  DEFAULT_MAX_DAILY_BUDGET,
+  type PublishCampaignParams,
+  type PublishCampaignDeps,
+  type PublishResult,
+  type PublishPlan,
+  type PaidPublishPlan,
+  type OrganicPublishPlan,
+  type PublishRefusalReason,
+  type PublishedObject,
+} from './publish';
