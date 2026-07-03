@@ -23,6 +23,7 @@ import { recordArtifactWith, contextHash } from '@/lib/intelligence/artifacts';
 import { createAdminClient } from '@/lib/supabase/server';
 import { formatQuotesForPrompt, getQuoteBank } from '@/lib/voc';
 import { lintArtifact } from '@/lib/brand-lint';
+import { generateAndStoreCreativeImage } from './creative-image';
 import type { GenerateCreative, GeneratedCreative } from './runner';
 
 /** Map the decision platform to a master-studio platform label. */
@@ -129,6 +130,14 @@ export function masterStudioGenerator(opts: MasterStudioGeneratorOptions): Gener
     // LLM. Violations are STAMPED, not fatal — the publish gate reads them.
     const lint = await lintArtifact(draft.post, req.insights ?? []);
 
+    // Turn the studio's image PROMPT into a REAL stored creative image — but
+    // ONLY when an image provider is configured. DORMANT-SAFE: with no provider
+    // (dry-run) this returns null and generation is unaffected; publish then
+    // falls back to the placeholder, exactly as before. Never throws / blocks.
+    const admin = createAdminClient();
+    const imageUrl =
+      (await generateAndStoreCreativeImage(admin, req.ownerUserId, draft.image)) ?? undefined;
+
     // Record the artifact tagged with the decision's grounded atoms (best-effort).
     const artifact = await recordArtifactWith(createAdminClient, {
       clientId,
@@ -138,7 +147,10 @@ export function masterStudioGenerator(opts: MasterStudioGeneratorOptions): Gener
         post: draft.post,
         hashtags: draft.hashtags,
         whatsapp: draft.whatsapp,
+        // `image` stays the generation PROMPT; `image_url` (when we generated
+        // one) is what publish.ts reads to skip the placeholder.
         image: draft.image,
+        ...(imageUrl ? { image_url: imageUrl } : {}),
         marketer: out.winner.marketer,
         score: out.winner.score,
       },
@@ -167,9 +179,11 @@ export function masterStudioGenerator(opts: MasterStudioGeneratorOptions): Gener
       post: draft.post,
       hashtags: draft.hashtags,
       whatsapp: draft.whatsapp,
-      // master-studio's `image` is a generation PROMPT, not a URL; the dry-run
-      // paid creative falls back to a placeholder image. Carried in `raw`.
-      imageUrl: undefined,
+      // master-studio's `image` is a generation PROMPT. When a provider is
+      // configured we turned it into a real stored URL (imageUrl); otherwise it
+      // stays undefined and the paid creative falls back to a placeholder. The
+      // prompt is always carried in `raw`.
+      imageUrl,
       artifactId: artifact?.id ?? null,
       raw: { imagePrompt: draft.image, marketer: out.winner.marketer, score: out.winner.score },
     };
