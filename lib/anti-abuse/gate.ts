@@ -18,10 +18,14 @@ function isMissingTable(message?: string, code?: string): boolean {
 
 /**
  * Is this user's phone verified? Reads signup_verifications for the user.
- * Returns true when verified OR when the table is absent (fail-open). The
- * `supabase` client may be RLS-scoped (owner reads own row) or admin.
+ * FAILS CLOSED: any error in production returns false (an abuse gate must never
+ * grant "verified" on error). The missing-table bypass is a DEV-ONLY convenience
+ * for local envs where migration 050 hasn't been applied — never in production.
+ * The `supabase` client may be RLS-scoped (owner reads own row) or admin.
  */
 export async function isPhoneVerified(supabase: SupabaseClient, userId: string): Promise<boolean> {
+  // In production, a missing/erroring table must fail closed, not open.
+  const allowMissingTableBypass = process.env.NODE_ENV !== 'production';
   try {
     const { data, error } = await supabase
       .from('signup_verifications')
@@ -29,12 +33,12 @@ export async function isPhoneVerified(supabase: SupabaseClient, userId: string):
       .eq('user_id', userId)
       .maybeSingle();
     if (error) {
-      if (isMissingTable(error.message, (error as { code?: string }).code)) return true; // fail open
-      return false;
+      if (allowMissingTableBypass && isMissingTable(error.message, (error as { code?: string }).code)) return true;
+      return false; // fail closed
     }
     return Boolean((data as { phone_verified_at?: string | null } | null)?.phone_verified_at);
   } catch (e) {
-    if (isMissingTable(e instanceof Error ? e.message : String(e))) return true;
-    return false;
+    if (allowMissingTableBypass && isMissingTable(e instanceof Error ? e.message : String(e))) return true;
+    return false; // fail closed
   }
 }
