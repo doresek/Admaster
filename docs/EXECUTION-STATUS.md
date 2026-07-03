@@ -29,6 +29,13 @@
 
 **Orchestrator integration fixes during Wave A gate:** (1) supabase-js v2 type pathology — structural DB-seam assignment passes bare tsc but blows TS2589 under Next's build pass; standardized a runtime-guarded type-predicate bridge (zero casts) in `lib/attention/load.ts` + `lib/calibration/store.ts`; (2) removed a stray agent debug file (`__seamprobe.ts`).
 
+**Wire-ins (continued run, orchestrator-serial):**
+| Wire-in | State | Notes |
+|---|---|---|
+| W4: migration **038** — first-class `'voc'` InsightSource (CHECK widened additively, **applied+verified**) + `lib/voc` switched to it | **green ✅** | closes C-08's provenance follow-up |
+| W1: runner → C-01 pre-registration — every executed `MarketingDecision` registered as a frozen falsifiable hypothesis (`hypothesisFromDecision`, pure) grounded in exactly `decision.grounded_in`; weights 0.4/0.3 (below decisive — one campaign never refutes alone); registration failure degrades to a note, never blocks the run; fully-injected test contexts stay side-effect free | **green ✅** (+9 tests; **1,085 total**) | §8.2.6 pre-registration is now live runner behavior, not just a library |
+| W3: generation path → C-07 lint stamp + C-08 quote bank · W2: decision context → C-02 precedents | **next** (analyzed, not started) | serial follow-ups on `lib/campaigns/generate.ts` / context builder |
+
 **Skipped/logged for morning:** `GOOGLE_AI_API_KEY` in `.env.local` is an empty placeholder — live embeddings (C-02 runtime/backfill `--execute`) need a real key; everything ships dormant-safe (deterministic embedder for tests, dry-run default). `meta_connections` is keyed to the legacy `meta_clients` id space and has no expiry column → C-06 errorStates are caller-injected until the meta-health wire-in (TODO in code).
 
 ---
