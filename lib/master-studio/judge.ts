@@ -2,6 +2,7 @@
 import {
   type MasterStudioInput, type MarketerPick, type VariantDraft,
   type JudgeResult, type VariantScore, SCORE_DIMS, type ScoreDim,
+  SCROLL_STOP_WEIGHT, weightedSelectionScore,
   localeWord, stripFence,
 } from './index';
 
@@ -10,10 +11,19 @@ export interface JudgeVariant { marketer: MarketerPick; draft: VariantDraft; }
 export function composeJudgePrompt(
   variants: JudgeVariant[], input: MasterStudioInput,
 ): { system: string; user: string } {
+  const pct = Math.round(SCROLL_STOP_WEIGHT * 100);
   const system = `אתה שופט קופי שיווקי שדירג 250,000 מודעות. נקד כל גרסה 0-100 לפי פוטנציאל CTR והמרה ${localeWord(input.locale)}.
 
 ממדי ניקוד (כל אחד 0-100): ${SCORE_DIMS.join(', ')}.
 ה-score הסופי לכל גרסה הוא שקלול הממדים.
+
+═══ scroll_stop (עצירת-גלילה) — הממד הכי חשוב, שוקלל ${pct}% מבחירת המנצח ═══
+scroll_stop מודד את כוח עצירת-האגודל בחצי-השנייה הראשונה — לפני שקוראים מילה אחת. נקד גבוה רק אם הקריאייטיב:
+• ויזואל נועז, ניגודיות גבוהה, מוקד-מבט יחיד וחזק (single strong focal point).
+• pattern-interrupt — שובר את דפוס הגלילה, לא עוד תמונת סטוק "יפה".
+• משיכה רגשית מיידית שנוגעת בדיוק בכאב/בתשוקה/בחלום של הקהל הספציפי הזה.
+• ההוק הפותח של הפוסט תופס ומקבע את העין באותה חצי-שנייה.
+מודעה משכנעת שגוללים מעליה = 0 המרות. תן ל-scroll_stop משקל מכריע, ואל תתגמל גרסה "יפה אך שקופה".
 
 ═══ OUTPUT CONTRACT — החזר אובייקט JSON תקין אחד בלבד, ללא markdown ═══
 {
@@ -21,7 +31,7 @@ export function composeJudgePrompt(
     { "index": 0, "score": <0-100>, "dims": { ${SCORE_DIMS.map(d => `"${d}": <0-100>`).join(', ')} }, "note": "<משפט>" }
   ],
   "winner_index": <int>,
-  "rationale": "<2-3 משפטים למה המנצח ניצח>"
+  "rationale": "<2-3 משפטים למה המנצח ניצח — כולל עצירת-הגלילה>"
 }`;
 
   const body = variants.map((v, i) =>
@@ -43,19 +53,26 @@ export function parseJudge(raw: string, variantCount: number): JudgeResult | nul
   const scores: VariantScore[] = obj.variants.slice(0, variantCount).map((v: any, i: number) => {
     const dims = {} as Record<ScoreDim, number>;
     for (const d of SCORE_DIMS) dims[d] = clamp(v?.dims?.[d]);
+    const score = clamp(v?.score);
     return {
       index: Number.isInteger(v?.index) ? v.index : i,
-      score: clamp(v?.score),
+      score,
       dims,
       note: typeof v?.note === 'string' ? v.note : '',
+      // Selection score up-weights scroll_stop so the best-of-N winner is the
+      // most thumb-stopping creative, not merely the best-argued one.
+      weighted: weightedSelectionScore(score, dims.scroll_stop),
     };
   });
   if (scores.length === 0) return null;
 
-  let winnerIndex = Number(obj.winner_index);
-  const valid = scores.some(s => s.index === winnerIndex);
-  if (!valid) {
-    winnerIndex = scores.reduce((best, s) => (s.score > best.score ? s : best), scores[0]).index;
-  }
+  // Winner = the highest scroll-stop-WEIGHTED variant. The model's winner_index
+  // is honored only as a tie-breaker (when weighted scores are equal), so
+  // scroll_stop genuinely decides close calls.
+  const best = scores.reduce((b, s) => (s.weighted > b.weighted ? s : b), scores[0]);
+  const modelPick = Number(obj.winner_index);
+  const modelPickIsWinnerWeight =
+    scores.some(s => s.index === modelPick && s.weighted === best.weighted);
+  const winnerIndex = modelPickIsWinnerWeight ? modelPick : best.index;
   return { scores, winnerIndex, rationale: typeof obj.rationale === 'string' ? obj.rationale : '' };
 }

@@ -62,7 +62,7 @@ describe('generateAndStoreCreativeImage', () => {
     });
 
     expect(url).toBe('https://cdn.example.com/u1/img.png');
-    expect(generate).toHaveBeenCalledWith('a bright feed ad', '1:1');
+    expect(generate).toHaveBeenCalledWith('a bright feed ad', '1:1', undefined);
     expect(uploadMock).toHaveBeenCalledWith(fakeSupabase, 'u1', 'AAAA', 'image/png');
     expect(vertexMock).not.toHaveBeenCalled();
   });
@@ -76,7 +76,7 @@ describe('generateAndStoreCreativeImage', () => {
       deps: { generate },
     });
 
-    expect(generate).toHaveBeenCalledWith('wide ad', '16:9');
+    expect(generate).toHaveBeenCalledWith('wide ad', '16:9', undefined);
   });
 
   // (b) no provider → null, no throw, no upload

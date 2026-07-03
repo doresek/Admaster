@@ -74,8 +74,12 @@ describe('masterStudioGenerator — creative image wire-in', () => {
       clientId: 'c1', ownerUserId: 'o1', channel: 'meta_paid', decision,
     });
 
-    // The generator was asked to turn the studio's prompt into a real image.
-    expect(creativeImageMock).toHaveBeenCalledWith(expect.anything(), 'o1', 'AN IMAGE PROMPT');
+    // The generator was asked to turn the studio's prompt into a real image, and
+    // flags the hero creative as scroll-stop-critical (maxImpact) so creative-image
+    // routes to the higher-fidelity provider when configured.
+    expect(creativeImageMock).toHaveBeenCalledWith(
+      expect.anything(), 'o1', 'AN IMAGE PROMPT', { maxImpact: true },
+    );
     // Returned creative carries the real URL (publish.ts reads imageUrl).
     expect(creative.imageUrl).toBe('https://cdn.example.com/o1/real.png');
     // Artifact content has BOTH the prompt (image) and the URL (image_url).

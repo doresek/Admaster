@@ -135,8 +135,14 @@ export function masterStudioGenerator(opts: MasterStudioGeneratorOptions): Gener
     // (dry-run) this returns null and generation is unaffected; publish then
     // falls back to the placeholder, exactly as before. Never throws / blocks.
     const admin = createAdminClient();
+    // SCROLL-STOP: campaign/ad hero creatives are the thumb-stop-critical path, so
+    // request maxImpact — the creative-image module then routes to the higher-
+    // fidelity provider (OpenAI gpt-image-1) when configured. Dormant-safe: with no
+    // provider this still returns null and generation is unaffected.
     const imageUrl =
-      (await generateAndStoreCreativeImage(admin, req.ownerUserId, draft.image)) ?? undefined;
+      (await generateAndStoreCreativeImage(admin, req.ownerUserId, draft.image, {
+        maxImpact: true,
+      })) ?? undefined;
 
     // Record the artifact tagged with the decision's grounded atoms (best-effort).
     const artifact = await recordArtifactWith(createAdminClient, {
