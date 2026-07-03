@@ -26,6 +26,20 @@ The user-clickable "resume/approve" in the Command Center writes only the `campa
 
 ---
 
+## ✅ Remediation status (2026-07-03)
+
+All **CRITICAL + HIGH** findings are **FIXED + test-proven** and committed to `feat/ai-marketer-epic`:
+
+- **Wave 1** (`9a96430`, mig `032`): **S1** ✅ (CRITICAL, tests e/f) · **S2** ✅ · **S3** ✅ · **S4** ✅ · **C1** ✅ (test g) · **S6** ✅ · **Q1** ✅
+- **Wave 2/3** (`b5e74af`, mig `033`): **C2/H2** ✅ · **C4** ✅ · **C5** ✅ · **C6** ✅ · **H1** ✅ · **S7/S11** ✅
+- **S5** (Next.js CVEs) — IN-FLIGHT in an isolated worktree/branch (2-major bump; own PR when green).
+- **R1** — a documented merge-gate on the sibling `feat/meta-ads-launcher` branch (not this branch).
+- Remaining MED/LOW (S8/S9/S10/S12/M3/L1) are non-blocking, tracked for follow-up.
+
+Verified green at each wave: tsc clean · 642 tests · prod build 110/110. Money gate unchanged (structural).
+
+---
+
 ## 1. Findings — global severity ranking
 
 | # | Sev | Area | Finding | Location |

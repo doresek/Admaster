@@ -63,7 +63,24 @@
 
 **Migration 032 (additive/idempotent/reversible) APPLIED + verified on prod:** `briefs_client_id_uniq`, `client_strategy.core_building_at` + `claim_client_build()`, `rate_limits` (RLS on, 0 policies, DEFINER-only) + `check_rate_limit()` (both `SECURITY DEFINER`, live behavior confirmed).
 
-**Green:** tsc clean · **603 tests** (+22) · prod build 110/110 pages. **PR #42 merge-ready** re: CRITICAL/HIGH security (all closed). **Remaining before/at-merge:** Wave-2 (C2/C3/C4/C5/C6 reliability) + Wave-3 (H1 validation, S5 Next.js CVE bump, S7 prompt-fencing, hygiene) per `HARDENING-PLAN.md` — none block the money gate; R1 gates the sibling launcher branch.
+**Green:** tsc clean · **603 tests** (+22) · prod build 110/110 pages.
+
+**Wave-2/3 fixes — DONE + VERIFIED ✅ (commit `b5e74af`, migration `033` applied):**
+
+| # | Sev | Finding | Fix | Proof |
+|---|---|---|---|---|
+| C2/H2 | HIGH/MED | autopilot timeout → silent credit loss + stuck `running` | `maxDuration=300` + opportunistic stale-run reconciler (claim-then-refund) + resume-from-`current_step` (no double-charge) + typed `PipelineAcc` bus | `autopilot-reconcile` (6) |
+| C4 | MED | learning-signal double-apply | `processed`-flag CAS (only winner applies) + 5s rapid-click dedup | lifecycle/signal tests |
+| C5 | MED | perf-ingest / auto-improve non-idempotent | `content_performance` UPSERT on mig-033 unique key; auto-improve gated by `diagnoses.applied` | ingest/auto-improve tests |
+| C6 | MED | false "brain ready" over empty build | orchestrator stamps `core_generated_at` only when atoms exist | orch test (c2) |
+| H1 | HIGH | no runtime validation on LLM→decision→spend | hand-written guards (`parseStrategyAnalysis`) at `runner.ts` seam (degrades to fallback) + `safeJsonParse` on image/judge/scoring | `validation` + runner-degrade tests |
+| S7/S11 | MED/LOW | prompt injection | fenced untrusted brief data + `parseAnalysis` hardened (single `[INSIGHTS]` block, no whole-text fallback, `kind∈KINDS[layer]`) | analyze tests |
+
+Dead code removed (3 orphaned avatar modules); live avatar prompt extracted to `lib/avatar-prompt.ts`. **Migration 033** (content_performance unique) additive/idempotent — applied + verified on prod. **Green:** tsc clean · **642 tests** (+39) · prod build 110/110.
+
+**S5 (Next.js 9 HIGH CVEs) — IN-FLIGHT, isolated worktree/branch** (2-major bump 14→16 needs async `cookies`/`params` + React 19; kept off #42 so the hardening merges clean; own PR when green).
+
+**PR #42 status:** every **CRITICAL + HIGH** security finding in the branch is **closed + test-proven** (S1/S2/S3/S4/C1/H1/C2 + Q1). Remaining: **S5** as its own isolated PR; R1 is a merge-gate on the sibling `feat/meta-ads-launcher` branch. Money gate untouched (structural).
 
 ---
 
