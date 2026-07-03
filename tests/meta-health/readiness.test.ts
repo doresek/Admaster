@@ -145,6 +145,24 @@ describe('buildReadinessReport', () => {
   });
 });
 
+describe('token expiry (C-06 pipe-health)', () => {
+  it('blocks a connected client whose token has expired, but not a never-expiring one', async () => {
+    const expired = new Date(Date.now() - 60_000).toISOString();
+    const r = await buildReadinessReport(
+      { ownerUserId: 'u1' },
+      {
+        loadConnections: conns([
+          { clientId: 'cExpired', status: 'connected', token: 'tok', expiresAt: expired },
+          { clientId: 'cLongLived', status: 'connected', token: 'tok', expiresAt: null },
+        ]),
+      },
+    );
+    expect(r.blockers).toContain('token for client cExpired has expired — reconnect required');
+    expect(r.blockers.some((b) => b.includes('cLongLived') && b.includes('expired'))).toBe(false);
+    expect(r.connections.find((c) => c.clientId === 'cExpired')?.expiresAt).toBe(expired);
+  });
+});
+
 describe('noopCheckScopes', () => {
   it('returns undefined and never networks', async () => {
     await expect(noopCheckScopes('anything')).resolves.toBeUndefined();

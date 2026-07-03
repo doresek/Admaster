@@ -36,6 +36,8 @@ export interface ConnectionHealth {
   grantedScopes?: string[];
   // Required scopes not present in grantedScopes. Undefined when scopes unknown.
   missingScopes?: string[];
+  // Token expiry (C-06 pipe-health). null ⇒ long-lived / never-expiring.
+  expiresAt?: string | null;
 }
 
 export interface ReadinessReport {
@@ -54,6 +56,7 @@ export interface HealthConnection {
   clientId: string;
   status: string;
   token: string | null;
+  expiresAt?: string | null;
 }
 
 export interface ReadinessDeps {
@@ -85,17 +88,18 @@ async function defaultLoadConnections(ownerUserId: string): Promise<HealthConnec
     const supabase = createAdminClient();
     const { data, error } = await supabase
       .from('meta_connections')
-      .select('client_id, status, token_encrypted')
+      .select('client_id, status, token_encrypted, token_expires_at')
       .eq('agency_user_id', ownerUserId)
       .order('connected_at', { ascending: false });
 
     if (error || !data) return [];
 
-    return (data as Array<{ client_id: string; status: string | null; token_encrypted: string | null }>).map(
+    return (data as Array<{ client_id: string; status: string | null; token_encrypted: string | null; token_expires_at: string | null }>).map(
       (row) => ({
         clientId: row.client_id,
         status: row.status ?? 'unknown',
         token: row.token_encrypted ? decryptOrPlaintext(row.token_encrypted) : null,
+        expiresAt: row.token_expires_at ?? null,
       }),
     );
   } catch {
@@ -133,6 +137,7 @@ export async function buildReadinessReport(
       clientId: conn.clientId,
       status: conn.status,
       hasToken,
+      expiresAt: conn.expiresAt ?? null,
     };
 
     if (hasToken && conn.token) {
@@ -165,6 +170,10 @@ export async function buildReadinessReport(
     }
     if (c.missingScopes && c.missingScopes.length > 0) {
       blockers.push(`missing scopes for client ${c.clientId}: ${c.missingScopes.join(', ')}`);
+    }
+    // C-06 pipe-health: an expired token needs a reconnect before it can act.
+    if (c.expiresAt && new Date(c.expiresAt).getTime() <= Date.now()) {
+      blockers.push(`token for client ${c.clientId} has expired — reconnect required`);
     }
   }
 
