@@ -37,12 +37,19 @@ export async function POST(req: NextRequest) {
   const { brief, masterNotes, platform, tone, type, framework, hook, locale, client_id, brief_id } = body as
     MasterStudioInput & { client_id?: string | null; brief_id?: string | null };
 
-  if (!brief?.trim() || !platform) {
-    return NextResponse.json({ error: 'Missing fields: brief, platform' }, { status: 400 });
+  if (!platform) {
+    return NextResponse.json({ error: 'Missing field: platform' }, { status: 400 });
   }
 
   // Brand DNA + active client + brief context (prepended to every stage system prompt).
   const activeClientId = client_id ?? readActiveClientCookie(req.headers.get('cookie') ?? '');
+
+  // Generate from EITHER a typed short brief OR the active client's existing brief/brain.
+  // Only reject when there's NEITHER — with a clear message, never a silent failure.
+  const hasClientContext = Boolean(brief_id || activeClientId);
+  if (!brief?.trim() && !hasClientContext) {
+    return NextResponse.json({ error: 'הזן בריף קצר או בחר לקוח פעיל שיש לו בריף' }, { status: 400 });
+  }
   const ctx = await buildAiContext(supabase, {
     userId:   user.id,
     clientId: activeClientId,
@@ -70,7 +77,12 @@ export async function POST(req: NextRequest) {
     return block && block.type === 'text' ? block.text : '';
   });
 
-  const input: MasterStudioInput = { brief, masterNotes, platform, tone, type, framework, hook, locale };
+  // With no typed brief, the active client's brief/brain (in ctx) is the grounding —
+  // give master-studio an explicit directive to work from it.
+  const effectiveBrief = brief?.trim()
+    ? brief
+    : 'צור פוסט שיווקי מקצועי ללקוח הפעיל, מבוסס על הבריף, ה-Brand DNA והתובנות שלו.';
+  const input: MasterStudioInput = { brief: effectiveBrief, masterNotes, platform, tone, type, framework, hook, locale };
 
   let result;
   try {
@@ -98,7 +110,7 @@ export async function POST(req: NextRequest) {
     client_id: activeClientId ?? null,
     type:      'master_post',
     platform:  platform ?? null,
-    input:     { brief: brief.substring(0, 500) },
+    input:     { brief: effectiveBrief.substring(0, 500) },
     output: {
       post:      out.winner.draft.post.substring(0, 2000),
       marketer:  out.winner.marketer,
