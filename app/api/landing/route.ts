@@ -2,6 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { TEMPLATES_BY_ID, type LandingTemplate } from '@/lib/landing-templates';
 import { readActiveClientCookie } from '@/lib/active-client';
+import { safeExternalUrl, safeEmbedUrl } from '@/lib/safe-url';
+
+// Defense-in-depth: sanitize user/AI-controlled URL fields in landing `content`
+// before persisting. The public renderer also sanitizes, but we never want a
+// `javascript:`/`data:`/cross-origin URL to sit in the DB. Mutates & returns a
+// shallow copy — safe for both create and update paths.
+function sanitizeLandingContent(content: any): any {
+  if (!content || typeof content !== 'object') return content;
+  const out = { ...content };
+
+  // CTA link → must be a safe external scheme (else neutralized to '#').
+  if ('cta_href' in out && out.cta_href != null) {
+    out.cta_href = safeExternalUrl(out.cta_href);
+  }
+
+  // Video embed → must be an allow-listed https host (else dropped to '').
+  if ('video_url' in out && out.video_url != null) {
+    out.video_url = safeEmbedUrl(out.video_url) ?? '';
+  }
+
+  return out;
+}
 
 function slugify(s: string): string {
   return s
@@ -66,7 +88,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const finalContent = content ?? def.defaultContent;
+  const finalContent = sanitizeLandingContent(content ?? def.defaultContent);
 
   // Link the page to a client: explicit body client_id wins; otherwise fall
   // back to the active client (cookie). Mirrors the posts writers.
@@ -103,6 +125,9 @@ export async function PATCH(req: NextRequest) {
   const allowed: Record<string, true> = { title: true, content: true, status: true, client_id: true };
   const updates: Record<string, any> = { updated_at: new Date().toISOString() };
   for (const k of Object.keys(patch)) if (allowed[k]) updates[k] = patch[k];
+
+  // Defense-in-depth: neutralize dangerous URL fields before they hit the DB.
+  if ('content' in updates) updates.content = sanitizeLandingContent(updates.content);
 
   const { data, error } = await supabase
     .from('landing_pages')

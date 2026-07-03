@@ -8,6 +8,8 @@ import {
   cpaOf,
   priorPeriodRange,
 } from '@/lib/report-metrics';
+import { checkRateLimitDurable } from '@/lib/rate-limit';
+import { deductCredits, refundCredits, extractErrorMessage } from '@/lib/credits';
 
 const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -59,25 +61,49 @@ export async function POST(req: NextRequest) {
     ? buildPeriodComparison(totals, aggregatePerformance(prevPerf))
     : null;
 
+  // S6 — gate the paid Anthropic call: durable per-user rate limit + credits.
+  // 10 reports / minute / user (durable, cross-instance; fails open on RPC error).
+  const rl = await checkRateLimitDurable(`reports:${user.id}`, { max: 10, windowMs: 60_000 });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: 'יותר מדי בקשות — נסה שוב בעוד מספר שניות', retryAfter: rl.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
+    );
+  }
+
+  // Charge for the report generation up front; refund below if the call fails.
+  // 'analyze' is the closest existing credit action (generic AI analysis).
+  const deduct = await deductCredits(supabase, user.id, 'analyze');
+  if (!deduct.ok) {
+    return NextResponse.json({ error: deduct.error, credits: deduct.credits ?? 0 }, { status: deduct.status });
+  }
+
   // AI analysis — Hebrew prompt that LEADS with business outcomes (ROI),
   // then demotes activity metrics (impressions/reach/CTR/CPC) to context.
-  const analysisMsg = await ai.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 800,
-    messages: [{
-      role: 'user',
-      content: composeReportPrompt({
-        clientName: client?.name,
-        periodStart,
-        periodEnd,
-        totals,
-        avgCtr,
-        avgCpc,
-        postsPublished: posts?.length || 0,
-        comparison,
-      }),
-    }],
-  });
+  let analysisMsg;
+  try {
+    analysisMsg = await ai.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 800,
+      messages: [{
+        role: 'user',
+        content: composeReportPrompt({
+          clientName: client?.name,
+          periodStart,
+          periodEnd,
+          totals,
+          avgCtr,
+          avgCpc,
+          postsPublished: posts?.length || 0,
+          comparison,
+        }),
+      }],
+    });
+  } catch (e) {
+    // Provider failed after we charged — refund, then surface a clean error.
+    await refundCredits(supabase, user.id, 'analyze', deduct.cost);
+    return NextResponse.json({ error: extractErrorMessage(e) }, { status: 502 });
+  }
 
   const analysis = analysisMsg.content[0].type === 'text' ? analysisMsg.content[0].text : '';
 

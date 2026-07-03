@@ -138,6 +138,9 @@ export function makeFakeDb(
 
   function rpc(fn: string, args: any) {
     rpcCalls.push({ fn, args });
+    // Per-client build claim (C1): in the single-threaded fake there is never a
+    // competing in-flight build, so the claim is always granted.
+    if (fn === 'claim_client_build') return Promise.resolve({ data: true, error: null });
     return Promise.resolve({ data: { success: true, credits: 100 }, error: null });
   }
 

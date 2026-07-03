@@ -121,4 +121,56 @@ describe('orchestrateClientCore (Phase-A)', () => {
     expect(result).toEqual({ analysis: false, avatar: false });
     expect(db.client_insights).toHaveLength(0);
   });
+
+  // ---- S1: cross-tenant BOLA is refused (ownership verified under the admin client) ----
+  it('(e) S1: refuses when the client is not owned by the caller', async () => {
+    // client c1 belongs to u1; a different user u2 must not drive its core.
+    const db = makeAdmin({
+      brief: { values: { biz_name: 'X' }, submitted_at: '2026-03-01T00:00:00Z', user_id: 'u2', client_id: 'c1' },
+    });
+    const analyzeRun = vi.fn(async () => ANALYSIS_RAW);
+
+    const result = await orchestrateClientCore(db.admin, { userId: 'u2', clientId: 'c1', briefId: 'b1', analyzeRun });
+
+    expect(result).toEqual({ analysis: false, avatar: false });
+    expect(analyzeRun).not.toHaveBeenCalled();
+    expect(db.client_insights).toHaveLength(0);
+    expect(db.rpcCalls).toHaveLength(0); // never reached the build claim
+  });
+
+  it('(f) S1: refuses when the brief is linked to a different client (no null-brief bypass)', async () => {
+    // caller owns both c1 and c2, but the brief is tied to c2 — cannot build c1 from it.
+    const db = makeFakeDb({
+      clients: [{ id: 'c1', owner_user_id: 'u1' }, { id: 'c2', owner_user_id: 'u1' }],
+      briefs:  [{ id: 'b1', values: { biz_name: 'X' }, submitted_at: '2026-03-01T00:00:00Z', user_id: 'u1', client_id: 'c2' }],
+    });
+    const analyzeRun = vi.fn(async () => ANALYSIS_RAW);
+
+    const result = await orchestrateClientCore(db.admin, { userId: 'u1', clientId: 'c1', briefId: 'b1', analyzeRun });
+
+    expect(result).toEqual({ analysis: false, avatar: false });
+    expect(analyzeRun).not.toHaveBeenCalled();
+    expect(db.client_insights).toHaveLength(0);
+  });
+
+  // ---- C1: a lost build claim is a no-op (no duplicate atoms, no double charge) ----
+  it('(g) C1: does not build when the per-client claim is already held', async () => {
+    const db = makeAdmin({
+      brief: { values: { biz_name: 'X' }, submitted_at: '2026-03-01T00:00:00Z', user_id: 'u1', client_id: 'c1' },
+    });
+    // Simulate another in-flight build holding the claim: claim_client_build returns false.
+    const origRpc = db.admin.rpc;
+    db.admin.rpc = (fn: string, args: any) =>
+      fn === 'claim_client_build'
+        ? Promise.resolve({ data: false, error: null })
+        : origRpc(fn, args);
+    const analyzeRun = vi.fn(async () => ANALYSIS_RAW);
+
+    const result = await orchestrateClientCore(db.admin, { userId: 'u1', clientId: 'c1', briefId: 'b1', force: true, analyzeRun });
+
+    expect(result).toEqual({ analysis: false, avatar: false });
+    expect(analyzeRun).not.toHaveBeenCalled();          // never analyzed
+    expect(db.client_insights).toHaveLength(0);          // no duplicate atoms
+    expect(db.rpcCalls.some((c) => c.fn === 'deduct_credits')).toBe(false); // no double charge
+  });
 });

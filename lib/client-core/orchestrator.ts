@@ -54,17 +54,73 @@ function avatarHasContent(avatar: Record<string, unknown> | null | undefined): b
   );
 }
 
+/** Stale-claim TTL (seconds) — a claim older than this is treated as abandoned. */
+const BUILD_CLAIM_TTL_SECONDS = 600; // 10 minutes
+
+/**
+ * Per-client build claim (C1). Delegates to the `claim_client_build` RPC, which
+ * atomically ensures a client_strategy row exists and compare-and-sets
+ * core_building_at to now ONLY when it is free (null) or stale — so exactly one of
+ * N concurrent builds wins. Returns true iff this caller took the claim.
+ * FAILS OPEN: if the RPC errors (e.g. not yet applied), we proceed rather than
+ * block a legitimate build — worst case is the pre-existing double-build race.
+ */
+async function acquireBuildClaim(
+  admin: SupabaseClient,
+  clientId: string,
+  userId: string,
+): Promise<boolean> {
+  const { data, error } = await admin.rpc('claim_client_build', {
+    p_client_id: clientId,
+    p_owner: userId,
+    p_ttl_seconds: BUILD_CLAIM_TTL_SECONDS,
+  });
+  if (error) {
+    console.warn('[orchestrateClientCore] claim rpc failed, proceeding:', error.message);
+    return true; // fail open
+  }
+  return data === true;
+}
+
+/** Release the build claim so the next run can proceed. Best-effort. */
+async function releaseBuildClaim(
+  admin: SupabaseClient,
+  clientId: string,
+  userId: string,
+): Promise<void> {
+  await admin
+    .from('client_strategy')
+    .update({ core_building_at: null })
+    .eq('client_id', clientId)
+    .eq('owner_user_id', userId);
+}
+
 export async function orchestrateClientCore(
   admin: SupabaseClient,
   opts: OrchestrateClientCoreOpts,
 ): Promise<ClientCoreResult> {
   const { userId, clientId, briefId, force = false, analyzeRun } = opts;
   const result: ClientCoreResult = { analysis: false, avatar: false };
+  let claimed = false;
 
   try {
     if (!userId || !clientId || !briefId) return result;
 
-    // (1) Load the brief and verify it belongs to this user/client.
+    // (0) OWNERSHIP (S1): the admin client bypasses RLS, so the target client MUST be
+    //     verified to belong to this user with an explicit owner filter. Without this,
+    //     a caller-supplied clientId could drive analysis/reconcile/synthesis against
+    //     another tenant's living knowledge.
+    const { data: ownedClient } = await admin
+      .from('clients')
+      .select('id')
+      .eq('id', clientId)
+      .eq('owner_user_id', userId)
+      .maybeSingle();
+    if (!ownedClient) return result; // not the caller's client — refuse
+
+    // (1) Load the brief; it must belong to this user AND be linked to THIS client.
+    //     The link check is unconditional (no null-brief bypass) — you can only build
+    //     a client's core from a brief actually tied to that client.
     const { data: brief } = await admin
       .from('briefs')
       .select('values, submitted_at, user_id, client_id')
@@ -72,7 +128,7 @@ export async function orchestrateClientCore(
       .eq('user_id', userId)
       .maybeSingle();
     if (!brief) return result;
-    if (brief.client_id && brief.client_id !== clientId) return result;
+    if (brief.client_id !== clientId) return result;
 
     const briefValues = (brief.values ?? {}) as Record<string, string>;
 
@@ -91,6 +147,14 @@ export async function orchestrateClientCore(
     ) {
       return result; // core already built after this brief — no-op
     }
+
+    // (2b) BUILD CLAIM (C1): serialize per client so two concurrent submits cannot
+    //      double-build atoms or double-charge credits. If we don't win the claim,
+    //      another build is in-flight — no-op.
+    if (!(await acquireBuildClaim(admin, clientId, userId))) {
+      return result;
+    }
+    claimed = true;
 
     // (3) ANALYZE + RECONCILE — independent; deduct the analysis credit on success.
     try {
@@ -138,6 +202,15 @@ export async function orchestrateClientCore(
   } catch (e: any) {
     // Never throw out of the orchestrator — it runs fire-and-forget.
     console.error('[orchestrateClientCore] unexpected:', e?.message);
+  } finally {
+    // Always release the build claim so the next run can proceed.
+    if (claimed) {
+      try {
+        await releaseBuildClaim(admin, clientId, userId);
+      } catch (e: any) {
+        console.error('[orchestrateClientCore] release claim failed:', e?.message);
+      }
+    }
   }
 
   return result;
