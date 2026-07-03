@@ -1,20 +1,37 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { friendlyAuthError } from '@/lib/auth-messages';
 
 export default function LoginPage() {
   const [email, setEmail]   = useState('');
   const [pw, setPw]         = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState('');
+  const [notice, setNotice] = useState('');
   const supabase = createClient();
+
+  // Surface status passed via the URL by the callback / reset / confirm flows.
+  // Read from window (not useSearchParams) to avoid a Suspense boundary requirement.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get('error');
+    if (err) setError(friendlyAuthError(err));
+    if (params.get('reset') === 'success') setNotice('הסיסמה עודכנה. אפשר להתחבר עם הסיסמה החדשה.');
+    if (params.get('confirmed') === '1') setNotice('האימייל אומת. אפשר להתחבר.');
+  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true); setError('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password: pw });
-    if (error) { setError(error.message); setLoading(false); return; }
-    window.location.href = '/';
+    setLoading(true); setError(''); setNotice('');
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password: pw });
+      if (error) { setError(error.message); setLoading(false); return; }
+      window.location.href = '/';
+    } catch {
+      setError('שגיאת רשת — נסה שוב.');
+      setLoading(false);
+    }
   }
 
   return (
@@ -26,6 +43,8 @@ export default function LoginPage() {
           </h1>
           <p className="text-[#6B8FA8] text-sm mt-1">ברוך השב 👋</p>
         </div>
+
+        {notice && <div className="bg-green-900/20 border border-green-500/30 text-green-400 text-xs rounded-lg px-3 py-2 mb-4 text-center">{notice}</div>}
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>

@@ -26,21 +26,26 @@ export default function RegisterPage() {
     if (form.pw.length < 6)   { setError('סיסמה — לפחות 6 תווים');  return; }
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.pw,
-      options: {
-        data: { name: form.name },
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/`,
-      },
-    });
+    let data, error;
+    try {
+      ({ data, error } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.pw,
+        options: {
+          data: { name: form.name },
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/`,
+        },
+      }));
+    } catch {
+      setError('שגיאת רשת — נסה שוב.'); setLoading(false); return;
+    }
 
     if (error) { setError(error.message); setLoading(false); return; }
 
     // Email-confirmation ON: a user is returned but no session yet.
     // TODO(anti-abuse): when confirmation is ON, gate the OTP step behind the
     // post-confirmation login (the /api/signup/* routes require a session).
-    if (data.user && !data.session) { setConfirmSent(true); setLoading(false); return; }
+    if (data?.user && !data.session) { setConfirmSent(true); setLoading(false); return; }
 
     // Confirmation OFF: session is live. Require phone verification ONLY when it's
     // switched on (NEXT_PUBLIC_SIGNUP_PHONE_VERIFICATION=true) — which the operator

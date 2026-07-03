@@ -35,7 +35,15 @@ export async function middleware(request: NextRequest) {
 
   // Public routes (no auth needed). NOTE: '/' is the dashboard (auth required).
   // The marketing homepage lives at '/welcome'.
-  const publicRoutes = ['/login', '/register', '/brief', '/approve', '/lp', '/welcome', '/features', '/pricing', '/how-it-works', '/faq', '/contact', '/blog'];
+  //
+  // Auth-flow routes MUST be public: a user confirming their email or resetting
+  // their password has NO session yet when they land on /auth/callback (it is the
+  // request that establishes the session). If middleware bounced them to /welcome,
+  // the `?code=` would be dropped and email-confirmation / password-recovery would
+  // silently break. /forgot-password and /reset-password must also be reachable
+  // while logged out so the "expired link, request a new one" path can render a
+  // message instead of a silent redirect.
+  const publicRoutes = ['/login', '/register', '/forgot-password', '/reset-password', '/auth', '/brief', '/approve', '/lp', '/welcome', '/features', '/pricing', '/how-it-works', '/faq', '/contact', '/blog'];
   const isPublic = publicRoutes.some(r => pathname === r || pathname.startsWith(`${r}/`));
 
   // Redirect unauthenticated users to the marketing homepage (root '/' is the dashboard)
