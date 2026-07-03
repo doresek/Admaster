@@ -6,6 +6,29 @@
 
 ---
 
+# ===== MARKETING CAPABILITIES — OVERNIGHT BUILD (2026-07-03/04) — plan: `docs/MARKETING-CAPABILITIES-SPEC.md` =====
+
+**Branch:** `feat/marketing-capabilities` off `origin/main` @ `9a9e718` (post-#42 epic merge + #43 H4 wiring). Baseline verified green: tsc clean, **644 tests**, prod build (verified at gates). Doctrine: excellence over volume; every capability atom-grounded, deeply tested, adversarially reviewed; branch stays green; additive migrations only; everything dry-run; no live/spend actions.
+
+**Scope (buildable-now from spec):** C-01 hypotheses · C-02 episodic (pgvector) · C-03 calibration · C-06 attention · C-07 brand-lint · C-08 VoC · C-10 strategy-objects. Wire-ins into shared files (decision engine, generation path) deliberately DEFERRED to a reviewed follow-up — capabilities expose typed modules; composition happens through contracts + the lifecycle engine.
+
+| Item | State | Notes |
+|---|---|---|
+| Foundation: migrations 034–037 authored + **applied to prod + verified** (6 tables, RLS all, `match_episodes` RPC, `learning_signals` CHECK widened additively) | **done** ✅ | preflight: tables absent, pgvector available; post-verify all green; down files authored |
+| Foundation: `lib/capability-contracts` (shared row types + Embedder seam; orchestrator-owned) | **done** ✅ | agents import, never edit — collision doctrine |
+| C-01 hypotheses (`lib/hypotheses` + read API) | **green ✅** (77 tests) | pure core (validate incl. §7 resolvability math / resolve vs frozen criteria / kill-rule boundaries) · resolution flows through `lib/intelligence` lifecycle ONLY (signal→claim→apply, insight_events audited) · two-layer CAS idempotency (`WHERE status='open'` + claimSignal) · immutability by supersession · priors-as-warnings dedup guard |
+| C-02 episodic (`lib/episodic` + backfill script) | **green ✅** (61 tests) | deterministic Situation/Action/Outcome/Lesson composition · Hebrew-aware PII/name abstraction (gershayim-tolerant, IL-anchored phone regex, too-short→null=fleet-excluded) · Google embedder behind `Embedder` seam + deterministic test embedder · 1-batch-embed/1-bulk-upsert ingest (N+1-proof) · backfill dry-run-by-default, verified no-op vs prod |
+| C-03 calibration (`lib/calibration`) | **green ✅** (45 tests) | Brier + PAV isotonic (exact L2, hand-computed expectations in tests) · exclusion semantics typed (inconclusive/killed excluded, documented WHY) · headline test: overconfident 'angle' domain exposed + corrected, calibrated 'offer' untouched |
+| C-06 attention (`lib/attention`) | **green ✅** (50 tests) | information-value ranking (headline: token-error & near-floor hypothesis outrank big quiet client; size NEVER feeds score) · peak-near-floor Gaussian · calendar decision-lag math (30d-out event with 45d lag = urgent NOW) · one-query-per-table loaders, test-enforced |
+| **Wave A integration gate** | **green ✅** | repo-wide tsc clean · **877 tests** (644 baseline + 233 new, 0 fail) · prod build clean · adversarial review passed (casts/any/silent-catch greps + behavior spot-runs) |
+| C-07 brand-lint · C-08 VoC · C-10 strategy-objects | **doing** (Wave B) | |
+
+**Orchestrator integration fixes during Wave A gate:** (1) supabase-js v2 type pathology — structural DB-seam assignment passes bare tsc but blows TS2589 under Next's build pass; standardized a runtime-guarded type-predicate bridge (zero casts) in `lib/attention/load.ts` + `lib/calibration/store.ts`; (2) removed a stray agent debug file (`__seamprobe.ts`).
+
+**Skipped/logged for morning:** `GOOGLE_AI_API_KEY` in `.env.local` is an empty placeholder — live embeddings (C-02 runtime/backfill `--execute`) need a real key; everything ships dormant-safe (deterministic embedder for tests, dry-run default). `meta_connections` is keyed to the legacy `meta_clients` id space and has no expiry column → C-06 errorStates are caller-injected until the meta-health wire-in (TODO in code).
+
+---
+
 # ===== AI MARKETER EPIC (active focus, 2026-07-01) — plan: `docs/AI-MARKETER-MASTERPLAN.md` =====
 
 **Branch:** `feat/ai-marketer-epic` (off `origin/main` @ `15ff2e4`). Baseline verified green: tsc clean, 376 tests, Node 20, Playwright present.
