@@ -38,6 +38,13 @@ export {
 } from './runner';
 export { masterStudioGenerator, type MasterStudioGeneratorOptions } from './generate';
 export {
+  decisionContextText,
+  episodicRecaller,
+  NO_PRECEDENTS,
+  type PrecedentBlock,
+  type RecallPrecedents,
+} from './precedents';
+export {
   publishCampaign,
   storedPlanResolver,
   isLivePublishEnabled,

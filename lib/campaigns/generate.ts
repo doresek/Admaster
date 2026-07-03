@@ -21,6 +21,8 @@ import type { MasterStudioInput } from '@/lib/master-studio';
 import { buildAiContext } from '@/lib/ai-context';
 import { recordArtifactWith, contextHash } from '@/lib/intelligence/artifacts';
 import { createAdminClient } from '@/lib/supabase/server';
+import { formatQuotesForPrompt, getQuoteBank } from '@/lib/voc';
+import { lintArtifact } from '@/lib/brand-lint';
 import type { GenerateCreative, GeneratedCreative } from './runner';
 
 /** Map the decision platform to a master-studio platform label. */
@@ -55,7 +57,16 @@ export function masterStudioGenerator(opts: MasterStudioGeneratorOptions): Gener
 
     // Brand / brief / insight context for THIS client, prepended to each stage.
     const ctx = await buildAiContext(opts.supabase, { userId: opts.userId, clientId });
-    const ctxPrefix = ctx.combined ? `${ctx.combined}\n\n═══ TASK ═══\n` : '';
+
+    // W2: episodic precedents recalled by the runner — what similar bets did
+    // for THIS client before — join the standing context of every stage.
+    const precedentsBlock =
+      req.precedents && req.precedents.length > 0
+        ? `═══ תקדימים (זיכרון אפיזודי) ═══\n${req.precedents.map((p) => `- ${p}`).join('\n')}\n\n`
+        : '';
+    const ctxPrefix =
+      (ctx.combined ? `${ctx.combined}\n\n` : '') + precedentsBlock +
+      (ctx.combined || precedentsBlock ? `═══ TASK ═══\n` : '');
 
     const run: StageRunner = withRetry(async (system, userPrompt, maxTokens) => {
       const msg = await anthropic.messages.create({
@@ -68,6 +79,20 @@ export function masterStudioGenerator(opts: MasterStudioGeneratorOptions): Gener
       return block && block.type === 'text' ? block.text : '';
     });
 
+    // W3 (C-08): verbatim customer language for this funnel stage — the best
+    // hooks are the customer's own words. Best-effort: an empty/failed bank
+    // never blocks generation.
+    let vocAmmunition = '';
+    try {
+      const quotes = await getQuoteBank(opts.supabase, clientId, req.ownerUserId, {
+        funnelFit: decision.funnel_stage,
+        limit: 6,
+      });
+      vocAmmunition = formatQuotesForPrompt(quotes);
+    } catch {
+      // quote bank unavailable (table empty / query failed) — proceed without.
+    }
+
     // The brief the studio writes against IS the insight-driven decision.
     const brief = [
       `Angle: ${decision.angle}`,
@@ -76,6 +101,9 @@ export function masterStudioGenerator(opts: MasterStudioGeneratorOptions): Gener
       `Objective: ${decision.objective}`,
       ``,
       `Why (insight-grounded): ${decision.rationale}`,
+      ...(vocAmmunition
+        ? ['', 'ציטוטי לקוחות אמיתיים (VoC) — העדף את המילים שלהם להוקים:', vocAmmunition]
+        : []),
     ].join('\n');
 
     const input: MasterStudioInput = {
@@ -92,6 +120,12 @@ export function masterStudioGenerator(opts: MasterStudioGeneratorOptions): Gener
 
     const out = result.output;
     const draft = out.winner.draft;
+
+    // W3 (C-07): lint the winning draft against the client's brand_voice atoms
+    // BEFORE recording — 100% mechanical brand coverage. Deterministic rules
+    // only here (no judge): the stamp must be fast and can never block on an
+    // LLM. Violations are STAMPED, not fatal — the publish gate reads them.
+    const lint = await lintArtifact(draft.post, req.insights ?? []);
 
     // Record the artifact tagged with the decision's grounded atoms (best-effort).
     const artifact = await recordArtifactWith(createAdminClient, {
@@ -115,6 +149,14 @@ export function masterStudioGenerator(opts: MasterStudioGeneratorOptions): Gener
         context_hash: contextHash(ctx.combined),
         platform: decision.platform,
         source: 'campaign-runner',
+        // W3 stamp: brand-lint verdict travels with the artifact (spec C-07).
+        lint: {
+          score: lint.score,
+          passed: lint.passed,
+          violations: lint.violations.map((v) => ({ rule: v.rule, severity: v.severity, message: v.message })),
+        },
+        // W2 stamp: which precedents were in context when this was written.
+        precedents_in_context: req.precedents?.length ?? 0,
       },
     });
 

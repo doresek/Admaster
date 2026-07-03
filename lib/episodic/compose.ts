@@ -11,6 +11,7 @@
 // .claude/skills/diagnosis-reasoning/SKILL.md §6 — a compressed causal
 // narrative, not a metrics dump.
 import type { EpisodeOutcome } from '@/lib/capability-contracts';
+import { stripEmails, stripPhones, stripTerm, stripUrls } from '@/lib/pii';
 import {
   isRecord,
   type AbstractionOptions,
@@ -256,34 +257,10 @@ export function outcomeOf(source: EpisodeSource): EpisodeOutcome {
 }
 
 // ── Fleet-safe abstraction ────────────────────────────────────────────────────
-
-/** Escape a literal for use inside a RegExp. */
-function escapeRegExp(literal: string): string {
-  return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Turn a name/term into a whitespace-tolerant, quote-variant-tolerant regex:
- * internal whitespace runs match any whitespace, and ASCII quotes match the
- * Hebrew gershayim variants too (client names like `ד"ר כהן` may be written
- * with ", ״ or ”).
- */
-function termToRegex(term: string): RegExp {
-  const pattern = term
-    .trim()
-    .split(/\s+/)
-    .map((token) => escapeRegExp(token).replace(/["״”]/g, '["״”]'))
-    .join('\\s+');
-  return new RegExp(pattern, 'giu');
-}
-
-// Order matters: URLs first (they may contain emails/digits), then emails,
-// then phones. Phone patterns are Israeli-anchored (+972 / leading 0) plus
-// generic international (+CC…) with a digit-run guard, so metric values and
-// ISO dates inside episode text are NOT falsely redacted.
-const URL_RE   = /\bhttps?:\/\/[^\s)>\]]+|\bwww\.[^\s)>\]]+/gi;
-const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
-const PHONE_RE = /(?<!\d)(?:\+972(?:[-\s.]?\d){8,9}|0(?:[-\s.]?\d){8,9}|\+\d(?:[-\s.]?\d){8,14})(?!\d)/g;
+// The regex PRIMITIVES (URL/email/IL-anchored phone stripping, gershayim-
+// tolerant term matching) live in lib/pii, shared with lib/voc's storage-time
+// stripping. This module owns the ABSTRACTION policy: {business}/{term}
+// placeholders + the residual-length fleet-safety gate.
 
 /** What remains after removing placeholders — the "is this still useful" measure. */
 function residualLength(text: string): number {
@@ -308,16 +285,14 @@ export function abstractEpisode(
 ): string | null {
   if (typeof episodeText !== 'string' || !episodeText.trim()) return null;
 
-  let out = episodeText
-    .replace(URL_RE, '{url}')
-    .replace(EMAIL_RE, '{email}')
-    .replace(PHONE_RE, '{phone}');
+  // Order matters (lib/pii doctrine): URLs → emails → phones → terms.
+  let out = stripPhones(stripEmails(stripUrls(episodeText, '{url}'), '{email}'), '{phone}');
 
   const clientName = options.clientName?.trim();
-  if (clientName) out = out.replace(termToRegex(clientName), '{business}');
+  if (clientName) out = stripTerm(out, clientName, '{business}');
 
   for (const term of options.businessTerms ?? []) {
-    if (term.trim()) out = out.replace(termToRegex(term), '{term}');
+    out = stripTerm(out, term, '{term}');
   }
 
   out = out.trim();
