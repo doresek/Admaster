@@ -155,11 +155,9 @@ export interface ReconcileQuotesInput {
  *       collected into owner_surfacings (skill §6.5).
  *     • trigger/identity matches additionally enrich structured evidence.
  *   no match + atom-worthy (pain/desire/objection/alternative) → createInsight
- *     at VOC_NEW_ATOM_CONFIDENCE (0.35, skill §3 seed range), source
- *     'user_signal' with source_ref {voc_quote_id, document_id}.
- *     ⚠ InsightSource has no 'voc' value (028 CHECK) — 'user_signal' +
- *     source_ref.voc marker is the closest truthful encoding; a dedicated
- *     'voc' source needs a CHECK-widening migration (orchestrator note).
+ *     at VOC_NEW_ATOM_CONFIDENCE (0.35, skill §3 seed range), source 'voc'
+ *     (first-class provenance since migration 038 widened the 028 CHECK) with
+ *     source_ref {voc: true, voc_quote_id, document_id} kept for traceability.
  *   no match + not atom-worthy (trigger/proof/identity) → 'skipped' with
  *     reason (proof stays in the quote bank pending the owner permission ask).
  *
@@ -325,7 +323,7 @@ async function reconcileOne(
           rationale: `voc ${quote.extractable} quote (verbatim customer language)`,
           voc:       { extractable: quote.extractable, segment_tags: quote.segment_tags },
         },
-        source:     'user_signal',
+        source:     'voc',
         sourceRef:  { voc: true, voc_quote_id: quote.id, document_id: quote.document_id },
         confidence: VOC_NEW_ATOM_CONFIDENCE,
       });

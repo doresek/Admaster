@@ -181,7 +181,7 @@ describe('reconcileQuotes — new atoms (no match + atom-worthy)', () => {
       layer: 'customers', kind: 'objection',
       content: 'כמה זה עולה?',       // quote first, abstraction second (§3)
       confidence: 0.35,               // seed range per §3
-      source: 'user_signal',          // 'voc' is not in the 028 CHECK — see module note
+      source: 'voc',                  // first-class provenance since migration 038
       evidence_count: 1,
       status: 'active',
     });
