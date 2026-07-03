@@ -33,4 +33,15 @@ export {
   type ResolveAndLearnOptions,
 } from './resolve-and-learn';
 
+export {
+  CAMPAIGN_ARM,
+  DEFAULT_DECISION_CONFIDENCE,
+  DEFAULT_METRIC_FLOOR,
+  REFUTED_WEIGHT,
+  SUPPORTED_WEIGHT,
+  hypothesisFromDecision,
+  metricForObjective,
+  type HypothesisFromDecisionParams,
+} from './from-decision';
+
 export * from './types';

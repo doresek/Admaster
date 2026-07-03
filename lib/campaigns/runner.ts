@@ -42,6 +42,11 @@ import {
 import { parseStrategyAnalysis } from '@/lib/validation';
 import { assertTransition } from './state';
 import { supabaseCampaignStore, type CampaignStore } from './store';
+import {
+  hypothesisFromDecision,
+  registerHypothesis as registerHypothesisInStore,
+  type RegisterHypothesisInput,
+} from '@/lib/hypotheses';
 import type {
   Campaign,
   CampaignChannel,
@@ -105,6 +110,16 @@ export interface RunCampaignDeps {
 
   /** Persistence. Default: supabaseCampaignStore(createAdminClient()). */
   store?: CampaignStore;
+
+  /**
+   * Pre-registration seam (C-01 wire-in): every executed decision is ALSO
+   * registered as a falsifiable hypothesis about the atoms that grounded it
+   * (hypothesisFromDecision). Default: registerHypothesis over the same admin
+   * client. Registration failures NEVER fail the run — a dry-run assembly must
+   * not be hostage to the ledger; the gap is surfaced in `notes`.
+   * Pass null to disable (tests that assert zero side effects).
+   */
+  registerHypothesis?: ((input: RegisterHypothesisInput) => Promise<{ id: string }>) | null;
 
   /** Dry-run Meta Ads client (meta_paid). Default: a dryRun MetaAdsClient. */
   metaAds?: MetaAdsClient;
@@ -194,6 +209,15 @@ export async function runCampaign(
   const loadClient = deps.loadClient ?? defaultLoadClient(admin!);
   const store = deps.store ?? supabaseCampaignStore(admin!);
   const decideFn = deps.decide ?? realDecide;
+  // Explicit fn/null wins. Otherwise: default registrar only when a real admin
+  // context exists (prod path); a fully-injected test context stays side-effect
+  // free unless it opts in — the same doctrine as the other defaults.
+  const registerHyp =
+    deps.registerHypothesis !== undefined
+      ? deps.registerHypothesis
+      : admin
+        ? (input: RegisterHypothesisInput) => registerHypothesisInStore(admin, input)
+        : null;
 
   // 1) load the living understanding ──────────────────────────────────────────
   const [insights, strategy, client] = await Promise.all([
@@ -389,6 +413,30 @@ export async function runCampaign(
   for (const di of decisionInserts) {
     const saved = await store.insertDecision(di);
     decisions.push(saved ?? { id: `unsaved_decision_${decisions.length + 1}`, ...di });
+  }
+
+  // 6) pre-register the decision's bet as a falsifiable hypothesis (C-01) ──────
+  // The verdict criteria are frozen NOW, before a shekel moves — resolution
+  // later grades the atoms in decision.grounded_in against these criteria.
+  // Failures degrade to a note (same doctrine as store persistence): the run
+  // must never be hostage to the ledger.
+  if (registerHyp !== null) {
+    const adItem = items.find((i) => i.item_type === 'ad' || i.item_type === 'post');
+    const hypInput = hypothesisFromDecision({
+      clientId,
+      ownerUserId,
+      decision,
+      campaignItemId: adItem && !adItem.id.startsWith('unsaved') ? adItem.id : null,
+    });
+    if (hypInput === null) {
+      notes.push('hypothesis not registered: decision carries no grounded_in atoms (ungrounded bet).');
+    } else {
+      try {
+        await registerHyp(hypInput);
+      } catch (err) {
+        notes.push(`hypothesis registration failed (run unaffected): ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
   }
 
   return { decision, campaign, items, decisions, notes, dryRun };
