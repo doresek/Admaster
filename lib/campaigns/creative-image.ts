@@ -67,6 +67,7 @@ const DALLE_SIZE: Record<string, string> = {
 /** True when ANY supported image provider is configured via env. */
 export function hasImageProvider(): boolean {
   return !!(
+    process.env.GOOGLE_AI_API_KEY ||           // Nano Banana 2 via the Gemini API (preferred)
     process.env.GOOGLE_SERVICE_ACCOUNT_JSON ||
     process.env.IDEOGRAM_API_KEY ||
     process.env.OPENAI_API_KEY
@@ -115,8 +116,45 @@ async function openaiBytes(prompt: string, aspectRatio: string): Promise<Creativ
   return fetchAsBase64(url);
 }
 
-/** Default provider selection — mirrors the /api/images route order. */
+/**
+ * Nano Banana (Gemini 2.5 Flash Image) / Nano Banana 2 (gemini-3-pro-image) via the
+ * STANDARD Gemini API + GOOGLE_AI_API_KEY — no Vertex / GCP service account needed.
+ * NOTE: image generation requires a BILLED Gemini API project; the free tier returns
+ * HTTP 429 "quota exceeded" (limit:0 for images), which the caller handles as a
+ * dormant null → placeholder. Once billing is enabled on the key, real images flow.
+ */
+async function geminiApiBytes(prompt: string, aspectRatio: string): Promise<CreativeImageBytes> {
+  const key = process.env.GOOGLE_AI_API_KEY!;
+  const model = process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image'; // Nano Banana 2
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: `${prompt}\n\nOutput a single image with aspect ratio ${aspectRatio}.` }] }],
+        generationConfig: { responseModalities: ['IMAGE'] },
+      }),
+    },
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data?.error?.message || `Gemini image error (${res.status})`;
+    if (res.status === 429) throw new Error(`${msg} — enable billing on the Gemini API to generate images`);
+    throw new Error(msg);
+  }
+  const parts: Array<{ inlineData?: { data?: string; mimeType?: string } }> =
+    data?.candidates?.[0]?.content?.parts || [];
+  const inline = parts.find((p) => p.inlineData)?.inlineData;
+  if (!inline?.data) throw new Error('Gemini returned no image');
+  return { base64: inline.data, mimeType: inline.mimeType || 'image/png' };
+}
+
+/** Default provider selection — Nano Banana (Gemini API) first, then the rest. */
 async function defaultGenerate(prompt: string, aspectRatio: string): Promise<CreativeImageBytes | null> {
+  if (process.env.GOOGLE_AI_API_KEY) {
+    return geminiApiBytes(prompt, aspectRatio);
+  }
   if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
     return callVertexImageGen({ prompt, aspectRatio, model: process.env.GEMINI_IMAGE_MODEL });
   }
