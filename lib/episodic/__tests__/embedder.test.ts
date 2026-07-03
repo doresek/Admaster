@@ -90,12 +90,12 @@ describe('GoogleEmbedder (mocked fetch — no live calls)', () => {
     const vectors = await new GoogleEmbedder(impl).embed(['אחת', 'two']);
 
     expect(calls).toHaveLength(1);
-    expect(calls[0].url).toContain('models/text-embedding-004:batchEmbedContents');
+    expect(calls[0].url).toContain('models/gemini-embedding-001:batchEmbedContents');
     expect(calls[0].url).toContain('key=test-key-123');
     expect(calls[0].body).toMatchObject({
       requests: [
-        { model: 'models/text-embedding-004', content: { parts: [{ text: 'אחת' }] } },
-        { model: 'models/text-embedding-004', content: { parts: [{ text: 'two' }] } },
+        { model: 'models/gemini-embedding-001', content: { parts: [{ text: 'אחת' }] }, outputDimensionality: EMBEDDING_DIMS },
+        { model: 'models/gemini-embedding-001', content: { parts: [{ text: 'two' }] }, outputDimensionality: EMBEDDING_DIMS },
       ],
     });
     expect(vectors).toHaveLength(2);
@@ -154,7 +154,7 @@ describe('GoogleEmbedder (mocked fetch — no live calls)', () => {
 describe('defaultEmbedder', () => {
   it('returns the Google embedder when the key is configured', () => {
     vi.stubEnv('GOOGLE_AI_API_KEY', 'test-key-123');
-    expect(defaultEmbedder().id).toBe('text-embedding-004');
+    expect(defaultEmbedder().id).toBe('gemini-embedding-001');
   });
 
   it('throws a config error (never a silent fallback) when the key is absent', () => {
