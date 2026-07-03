@@ -19,7 +19,12 @@ import { abstractEpisode, composeFromHypothesis, outcomeOf } from '@/lib/episodi
 import { DEFAULT_WEIGHTS, rankClients, scoreAttention } from '@/lib/attention';
 import { synthesizeArchitecture } from '@/lib/strategy-objects';
 import { lintArtifact } from '@/lib/brand-lint';
-import type { HypothesisRow } from '@/lib/capability-contracts';
+import { routeAction } from '@/lib/autonomy';
+import { planSlate } from '@/lib/experiments';
+import { computeFactor } from '@/lib/fleet';
+import type { HypothesisRow, AutonomyAction } from '@/lib/capability-contracts';
+import type { RouteContext } from '@/lib/autonomy';
+import type { HypothesisCandidate } from '@/lib/experiments';
 import type { ClientAttentionState } from '@/lib/attention';
 import type { ClientInsight } from '@/lib/intelligence/types';
 
@@ -178,5 +183,60 @@ describe('capabilities compose as one system', () => {
     const goodCopy = 'רוצה לחייך בביטחון בכל פגישה? בלי כאב, ובתשלומים נוחים. בואי לבדיקה ראשונה 🙂';
     const good = await lintArtifact(goodCopy, ATOMS);
     expect(good.passed).toBe(true);
+  });
+
+  it('Wave A composes: experiments plan the contested atom, autonomy modes gate the action, shock protects the verdict day', () => {
+    // C-11: a candidate resting on the CONTESTED angle atom (0.7 → decent
+    // belief movement) enters the weekly slate at an SMB budget.
+    const candidate: HypothesisCandidate = {
+      id: 'cand-1',
+      claim: 'זווית הביטחון תנצח על CTR',
+      insight_ids: ['a-angle', 'a-desire'],
+      domain: 'angle',
+      kind: 'contested_atom',
+      floor_spec: { metric_grade: 'ctr', per_arm: { impressions: 1000 } },
+      horizon: { max_days: 7 },
+      arm_count: 2,
+    };
+    const slate = planSlate({
+      candidates: [candidate],
+      insights: ATOMS,
+      dailyBudgetIls: 50,
+      unitCosts: { expected_cpm: 30 },
+    });
+    expect(slate.selected.map((s) => s.candidate.id)).toContain('cand-1');
+
+    // Autonomy (D1 modes): the SAME campaign-creation action executes under
+    // propose_approve (PAUSED creation is reversible) but only PROPOSES under
+    // draft_only — the user-chosen mode is the gate, end to end.
+    const createAction: AutonomyAction = {
+      kind: 'create_paid_paused',
+      rationale: `שיבוץ ניסוי: ${candidate.claim}`,
+      grounded_in: candidate.insight_ids,
+    };
+    const baseCtx: Omit<RouteContext, 'mode'> = {
+      caps: {}, todayActionCount: 0, todaySpendIls: 0, monthSpendIls: 0,
+    };
+    expect(routeAction(createAction, { ...baseCtx, mode: 'propose_approve' }).route).toBe('execute');
+    expect(routeAction(createAction, { ...baseCtx, mode: 'draft_only' }).route).toBe('propose');
+    // Protective pause executes even in over-cap conditions (the kill-switch).
+    expect(
+      routeAction(
+        { kind: 'pause_paid', rationale: 'kill rule', grounded_in: [] },
+        { ...baseCtx, mode: 'propose_approve', todayActionCount: 999 },
+      ).route,
+    ).toBe('execute');
+
+    // C-04: on a market-wide CPM spike (10 of 12 clients up ~40%), the fleet
+    // factor says "שוק, לא אתה" — shocked=true — which is what protects the
+    // slate's atoms from false weakening on that day.
+    const deltas = Array.from({ length: 12 }, (_, i) => ({
+      client_id: `c-${i}`,
+      metric: 'cpm' as const,
+      rel_delta: i < 10 ? 0.4 + i * 0.01 : -0.05,
+    }));
+    const factor = computeFactor('cpm', '2026-07-04', deltas);
+    expect(factor.shocked).toBe(true);
+    expect(factor.direction).toBe('up');
   });
 });
