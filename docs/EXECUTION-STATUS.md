@@ -6,6 +6,27 @@
 
 ---
 
+# ===== HEARTBEAT + REMAINING CAPABILITIES (2026-07-04) — plan: VISION-DEEP §1–§7 + spec C-04/09/11 =====
+
+**Branch:** `feat/heartbeat-and-capabilities` off `origin/main` @ `586ddf1` (post-#44 merge). Baseline verified green: tsc clean, **1,097 tests**. Same doctrine: disjoint folders, serial shared files, gate after each integration, branch always green, everything dry-run/PAUSED.
+
+| Item | State | Notes |
+|---|---|---|
+| Foundation: migrations **039–043 applied+verified** (heartbeat_runs, client_autonomy+autonomy_events, digests, competitor_entities+competitor_ads, fleet_daily_factors) — RLS 7/7; fleet table policy-less by design (service-role only, aggregate) + contracts extension | **done** ✅ (`e488a5b`) | |
+| Autonomy (`lib/autonomy` + API) — **retrofitted to D1's 3 user-selectable modes** (migration 044 applied): draft_only / propose_approve (default) / act_within_caps; protective-bypass, malformed-block ordering, rate limit, fail-safe audit downgrade (no un-audited execution EVER), graduation = mode SUGGESTION only | **green ✅** (78 tests) | all L0-L3 invariants preserved through the retrofit |
+| C-09 competitor watch (`lib/competitor-watch` + API) — longevity method (56d veteran / 28d churn boundaries), coverage map w/ hand-argued fixture, manual-paste fetcher (Hebrew metadata aliases, deterministic refs), audited atom emission | **green ✅** (80 tests) | learning_signals 'competitor_evidence' CHECK widening = logged follow-up |
+| C-04 shock detection (`lib/fleet`) — median+MAD, direction quorum, ≥8-client activation gate, IL calendar overlay (honesty-noted Gregorian windows), split-market contrast proven | **green ✅** (78 tests) | found+handled: live perf pipe stores `conversion_rate` not `cvr`, no `cpm` key (derived) |
+| C-11 experiments (`lib/experiments`) — info-value slates (Bernoulli-variance belief movement), deterministic seeded Thompson, floors-first allocation, pooling readiness; zero C-01 reimplementation | **green ✅** (70 tests) | ₪50/day headline scenario proven both maturity ways |
+| Digest composer (`lib/digest` + API) — deterministic narration; 3-layer structural anti-hallucination (no generative path, source-id accounting, ₪/% whitelist scan test); approved digests immutable (CAS) | **green ✅** (29 tests) | 'sent' gated on C2 by design |
+| **Wave A gate** | **green ✅** (`95d5dc5`) | 1,445 tests, build clean (118 pages), composition holds |
+| **D1 retrofit** (3 modes) + composition extension (slate→mode-gate→shock flow) | **green ✅** (`3fc0afe`, `9eb3630`) | 1,432+ tests (grid restructure −9 explained), migration 044 applied+verified |
+| **Marketing Heartbeat** (`lib/heartbeat` + cron API) — daily (shock-annotated hypothesis review: mercy kills routed through autonomy, floor-met → resolveAndLearn), weekly (attention-ordered "Monday plan": slate → register → ≤1 dry-run campaign → digest with the week's proposals), monthly (strategy re-synth + mode suggestion + monthly digest); claim-lease ledger (calendar-window idempotency, stale-lease reclaim); CRON_SECRET-gated API (fail-closed, Vercel-Cron GET compatible) | **green ✅** (58 tests) | knowledge actions (verdicts) don't route through the money gate — documented WHY; deterministic, zero LLM in the loop itself |
+| **FINAL GATE (whole branch)** | **green ✅** | repo-wide tsc clean · **1,495 tests, 0 fail** · prod build clean (119 pages) · composition suite (3 flows) passes |
+
+**Go-live flip (deliberately NOT wired — Eliran's call):** vercel.json crons `{/api/heartbeat?tick=daily @ 0 4 * * *, weekly @ 0 5 * * 1, monthly @ 0 6 1 * *}` + `CRON_SECRET` env. Until then the heartbeat is a fully-tested engine with no scheduler pulling it — no LLM spend, no rows written for real clients without opt-in. **Logged follow-ups:** partial unique index on heartbeat claims before any parallel-worker future · `learning_signals` 'competitor_evidence' CHECK widening · approvals surface (C2) for real proposal-resolution tracking.
+
+---
+
 # ===== MARKETING CAPABILITIES — OVERNIGHT BUILD (2026-07-03/04) — plan: `docs/MARKETING-CAPABILITIES-SPEC.md` =====
 
 **Branch:** `feat/marketing-capabilities` off `origin/main` @ `9a9e718` (post-#42 epic merge + #43 H4 wiring). Baseline verified green: tsc clean, **644 tests**, prod build (verified at gates). Doctrine: excellence over volume; every capability atom-grounded, deeply tested, adversarially reviewed; branch stays green; additive migrations only; everything dry-run; no live/spend actions.
