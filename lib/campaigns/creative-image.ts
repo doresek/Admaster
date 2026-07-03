@@ -28,10 +28,11 @@ export interface CreativeImageBytes {
   mimeType: string;
 }
 
-/** Injectable generator: prompt + aspect ratio → bytes (or null to skip). */
+/** Injectable generator: prompt + aspect ratio (+ maxImpact) → bytes (or null). */
 export type CreativeImageGenerator = (
   prompt: string,
   aspectRatio: string,
+  maxImpact?: boolean,
 ) => Promise<CreativeImageBytes | null>;
 
 export interface CreativeImageDeps {
@@ -45,6 +46,13 @@ export interface CreativeImageDeps {
 export interface CreativeImageOptions {
   /** Vertex-style aspect ratio ("1:1", "16:9", ...). Default: feed-ad square. */
   aspectRatio?: string;
+  /**
+   * SCROLL-STOP priority: this creative must be maximally thumb-stopping. When
+   * true AND OPENAI_API_KEY is configured, we route to OpenAI gpt-image-1 (its
+   * text/prompt fidelity is worth the ~8x cost for a hero, arresting creative).
+   * Otherwise the cheap default provider (Nano Banana) is used.
+   */
+  maxImpact?: boolean;
   deps?: CreativeImageDeps;
 }
 
@@ -103,17 +111,20 @@ async function ideogramBytes(prompt: string, aspectRatio: string): Promise<Creat
   return fetchAsBase64(url);
 }
 
+// OpenAI gpt-image-1 (current flagship; DALL·E was retired from the API). Returns
+// base64 directly (no URL). Used as the scroll-stop override when maxImpact is set.
 async function openaiBytes(prompt: string, aspectRatio: string): Promise<CreativeImageBytes> {
+  const model = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1';
   const res = await fetch('https://api.openai.com/v1/images/generations', {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: DALLE_SIZE[aspectRatio] || '1024x1024', quality: 'hd' }),
+    body: JSON.stringify({ model, prompt, n: 1, size: DALLE_SIZE[aspectRatio] || '1024x1024', quality: 'high' }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error?.message || `DALL-E error (${res.status})`);
-  const url = data?.data?.[0]?.url;
-  if (!url) throw new Error('DALL-E returned no image');
-  return fetchAsBase64(url);
+  if (!res.ok) throw new Error(data?.error?.message || `gpt-image error (${res.status})`);
+  const b64 = data?.data?.[0]?.b64_json;
+  if (!b64) throw new Error('gpt-image returned no image');
+  return { base64: b64, mimeType: 'image/png' };
 }
 
 /**
@@ -125,7 +136,9 @@ async function openaiBytes(prompt: string, aspectRatio: string): Promise<Creativ
  */
 async function geminiApiBytes(prompt: string, aspectRatio: string): Promise<CreativeImageBytes> {
   const key = process.env.GOOGLE_AI_API_KEY!;
-  const model = process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image'; // Nano Banana 2
+  // Default: Nano Banana (cheap, ~$0.04). One-line swap to Nano Banana 2 / Pro via
+  // GEMINI_IMAGE_MODEL=gemini-3-pro-image (or gemini-3.1-flash-image).
+  const model = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
     {
@@ -150,8 +163,15 @@ async function geminiApiBytes(prompt: string, aspectRatio: string): Promise<Crea
   return { base64: inline.data, mimeType: inline.mimeType || 'image/png' };
 }
 
-/** Default provider selection — Nano Banana (Gemini API) first, then the rest. */
-async function defaultGenerate(prompt: string, aspectRatio: string): Promise<CreativeImageBytes | null> {
+/**
+ * Provider selection. Scroll-stop override first: when a creative needs MAXIMUM
+ * thumb-stopping impact (maxImpact) and OpenAI is configured, use gpt-image-1.
+ * Otherwise the cheap default: Nano Banana (Gemini API) → Vertex → Ideogram → OpenAI.
+ */
+async function defaultGenerate(prompt: string, aspectRatio: string, maxImpact?: boolean): Promise<CreativeImageBytes | null> {
+  if (maxImpact && process.env.OPENAI_API_KEY) {
+    return openaiBytes(prompt, aspectRatio);
+  }
   if (process.env.GOOGLE_AI_API_KEY) {
     return geminiApiBytes(prompt, aspectRatio);
   }
@@ -191,7 +211,7 @@ export async function generateAndStoreCreativeImage(
   const aspectRatio = opts.aspectRatio || '1:1';
 
   try {
-    const bytes = await generate(prompt, aspectRatio);
+    const bytes = await generate(prompt, aspectRatio, opts.maxImpact);
     if (!bytes?.base64) return null;
     return await uploadToStorage(supabase, ownerUserId, bytes.base64, bytes.mimeType || 'image/png');
   } catch (err) {

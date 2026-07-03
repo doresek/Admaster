@@ -39,15 +39,20 @@ ${avatarBlock}
 - ${hook}
 - Platform: ${input.platform} | Tone: ${input.tone ?? '—'} | Post type: ${input.type ?? '—'}
 
+═══ SCROLL-STOP (🛑 עצירת-גלילה — קריטי) ═══
+מודעה מנצחת חייבת לעצור פיזית את האגודל בחצי-השנייה הראשונה, לפני שקוראים מילה אחת. עצירת-הגלילה היא לרוב המניע הכי חזק של ביצועי מודעה — ובנה אותה מתוך הכאב/התשוקה/החלום של האווטאר הספציפי הזה, לא מ"יופי" גנרי.
+• ההוק הפותח (המשפט הראשון ב-POST): pattern-interrupt שנוגע מיד ב-fears/desires של האווטאר — לא פתיח נעים ושקוף. שיעצור מישהו שמרגיש <הכאב שלו> ורוצה <התשוקה שלו>.
+• ה-IMAGE_PROMPT: תאר תמונה ARRESTING — נועזת, ניגודיות גבוהה, מוקד-מבט יחיד וחזק, משיכה רגשית מיידית, שוברת דפוס. תאר תמונה שעוצרת את הגלילה עבור מישהו שחי את <הכאב> ומשתוקק ל-<התשוקה> — לא סצנת סטוק גנרית. כלול: הנושא/המוקד היחיד, הרגש שהוא משדר, בחירת צבע/ניגודיות/תאורה, והזווית שהופכת אותו לבלתי-ניתן-לגלילה. באנגלית, מפורט.
+
 ═══ OUTPUT CONTRACT (החזר רק את התגיות, בסדר הזה) ═══
 [PRINCIPLES_APPLIED]
 - עקרון: "<שם>" → איך התבטא: <משפט קצר>
 - עקרון: "<שם>" → איך התבטא: <משפט קצר>
 - עקרון: "<שם>" → איך התבטא: <משפט קצר>
 [/PRINCIPLES_APPLIED]
-[POST]הפוסט המלא עם אמוג'ים וקריאה לפעולה[/POST]
+[POST]הפוסט המלא — פתח בהוק עוצר-גלילה, ואז אמוג'ים וקריאה לפעולה[/POST]
 [HASHTAGS]12-15 האשטגים[/HASHTAGS]
-[IMAGE_PROMPT]Detailed English prompt for image generation[/IMAGE_PROMPT]
+[IMAGE_PROMPT]Detailed English prompt — a scroll-STOPPING image (bold, high-contrast, single strong focal point, pattern-interrupt, emotional pull) engineered for THIS avatar's pain/desire, not a generic stock scene[/IMAGE_PROMPT]
 [TIPS]3 טיפים לפרסום[/TIPS]
 [WHATSAPP]גרסה קצרה לוואטסאפ[/WHATSAPP]`;
 

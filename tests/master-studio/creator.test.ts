@@ -26,6 +26,15 @@ describe('composeCreatorPrompt', () => {
     expect(system).toContain('בעל העסק'); // generic fallback, never an invented name
     expect(system).toContain('גובר על הנטייה להוסיף "צבע"');
   });
+  it('engineers a scroll-stopping image + hook derived from the avatar atoms', () => {
+    const { system } = composeCreatorPrompt(
+      { brief: 'x', platform: 'FB' }, MARKETERS_BY_ID.halbert, avatar);
+    expect(system).toContain('עצירת-גלילה');          // scroll-stop directive present
+    expect(system).toContain('pattern-interrupt');    // craft cue for the image
+    expect(system).toMatch(/scroll-STOPPING image/);  // the IMAGE_PROMPT tag is enriched
+    expect(system).toContain('[IMAGE_PROMPT]');        // parser tag still intact
+    expect(system).toContain('[POST]');                // parser tag still intact
+  });
 });
 
 describe('parseCreator', () => {
