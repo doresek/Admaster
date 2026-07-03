@@ -271,3 +271,159 @@ export interface FunnelRow {
 
 /** New signal types the capabilities emit through the existing lifecycle. */
 export type CapabilitySignalType = 'hypothesis_supported' | 'hypothesis_refuted' | 'voc_evidence';
+
+// ── Autonomy ladder (migration 040; VISION-DEEP §1.4) ─────────────────────────
+
+/** L0 draft-only · L1 propose+approve (default) · L2 act-within-caps · L3 autonomous. */
+export type AutonomyLevel = 'L0' | 'L1' | 'L2' | 'L3';
+
+/** Caps bounding L2/L3 action. All optional — absent = the level's built-in default. */
+export interface AutonomyCaps {
+  daily_spend_cap?:    number;   // ILS
+  monthly_spend_cap?:  number;   // ILS
+  max_daily_delta_pct?: number;  // e.g. 25 = ±25%/day budget moves
+}
+
+/**
+ * An action asking to route through the ladder. `kind` names the verb;
+ * `impact` is what the ladder judges (spend/delta); `rationale` + grounded_in
+ * keep the WHY-trail intact end to end.
+ */
+export interface AutonomyAction {
+  kind:        'publish_organic' | 'create_paid_paused' | 'unpause_paid' | 'pause_paid'
+             | 'reallocate_budget' | 'send_message' | 'propose_only';
+  ref?:        string;                       // campaign/item/digest id
+  impact?:     { spend_ils?: number; delta_pct?: number };
+  rationale:   string;
+  grounded_in: string[];
+}
+
+/** The ladder's verdict on one action. */
+export type AutonomyRoute =
+  | { route: 'execute';  reason: string }
+  | { route: 'propose';  reason: string }    // queued for one-tap approval
+  | { route: 'block';    reason: string };   // over caps / below level, with the why
+
+export interface ClientAutonomyRow {
+  id:                 string;
+  client_id:          string;
+  owner_user_id:      string;
+  level:              AutonomyLevel;
+  caps:               AutonomyCaps;
+  approvals_total:    number;
+  approvals_approved: number;
+  level_since:        string;
+  created_at:         string;
+  updated_at:         string;
+}
+
+// ── Heartbeat (migration 039; VISION-DEEP §1.2) ───────────────────────────────
+
+export type HeartbeatTick   = 'daily' | 'weekly' | 'monthly';
+export type HeartbeatStatus = 'claimed' | 'running' | 'succeeded' | 'failed' | 'skipped';
+
+/** One action a tick took/proposed, with its ladder route — the WHY-trail unit. */
+export interface HeartbeatAction {
+  kind:      string;
+  ref?:      string;
+  rationale: string;
+  route:     AutonomyRoute['route'];
+}
+
+export interface HeartbeatRunRow {
+  id:            string;
+  client_id:     string;
+  owner_user_id: string;
+  tick_type:     HeartbeatTick;
+  status:        HeartbeatStatus;
+  attention:     Record<string, unknown>;
+  actions:       HeartbeatAction[];
+  notes:         string[];
+  tokens_used:   number | null;
+  error:         string | null;
+  lease_until:   string | null;
+  started_at:    string | null;
+  finished_at:   string | null;
+  created_at:    string;
+}
+
+// ── Digest (migration 041; VISION-DEEP §1.3) ──────────────────────────────────
+
+export type DigestKind   = 'weekly' | 'monthly';
+export type DigestStatus = 'draft' | 'approved' | 'sent';
+
+/** The audit trail: every id whose row contributed a clause to the narrative. */
+export interface DigestSources {
+  decision_ids:   string[];
+  diagnosis_ids:  string[];
+  hypothesis_ids: string[];
+  campaign_ids:   string[];
+}
+
+export interface DigestRow {
+  id:            string;
+  client_id:     string;
+  owner_user_id: string;
+  kind:          DigestKind;
+  period_start:  string;
+  period_end:    string;
+  content:       Record<string, unknown>;
+  rendered_text: string;
+  sources:       DigestSources;
+  status:        DigestStatus;
+  created_at:    string;
+}
+
+// ── Competitor watch (migration 042; spec C-09) ───────────────────────────────
+
+export type CompetitorRing = 'direct' | 'category' | 'non_consumption';
+
+export interface CompetitorEntityRow {
+  id:            string;
+  client_id:     string;
+  owner_user_id: string;
+  name:          string;
+  page_ref:      string | null;
+  ring:          CompetitorRing;
+  active:        boolean;
+  created_at:    string;
+  updated_at:    string;
+}
+
+export interface CompetitorAdRow {
+  id:              string;
+  entity_id:       string;
+  client_id:       string;
+  owner_user_id:   string;
+  platform_ad_ref: string;
+  first_seen:      string;
+  last_seen:       string;
+  active:          boolean;
+  creative:        Record<string, unknown>;
+  decoded:         { angle?: string; awareness?: string; offer?: string; confidence?: number } | null;
+  created_at:      string;
+}
+
+// ── Fleet factors (migration 043; spec C-04) ──────────────────────────────────
+
+export interface FleetFactorRow {
+  id:           string;
+  date:         string;
+  platform:     string;
+  metric:       string;
+  median_delta: number | null;
+  mad:          number | null;
+  sample_n:     number;
+  shocked:      boolean;
+  direction:    'up' | 'down' | null;
+  note:         string | null;
+  created_at:   string;
+}
+
+/** What diagnosis/verdict consumers ask the shock module. */
+export interface ShockState {
+  shocked:   boolean;
+  factor:    number | null;    // median fleet delta for the metric that day
+  direction: 'up' | 'down' | null;
+  note:      string | null;
+}
