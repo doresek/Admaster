@@ -13,7 +13,7 @@ const SCORE_MODEL = process.env.CLAUDE_SCORE_MODEL || 'claude-haiku-4-5-20251001
 const MAX_ITERATIONS = 2;
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

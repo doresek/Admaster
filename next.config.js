@@ -1,10 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ['@anthropic-ai/sdk'],
-  },
+  serverExternalPackages: ['@anthropic-ai/sdk'],
   images: {
-    domains: ['graph.facebook.com', 'scontent.cdninstagram.com'],
+    remotePatterns: [
+      { protocol: 'https', hostname: 'graph.facebook.com' },
+      { protocol: 'https', hostname: 'scontent.cdninstagram.com' },
+    ],
   },
 };
 

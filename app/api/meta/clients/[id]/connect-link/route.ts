@@ -10,17 +10,17 @@ import { connectLink } from '@/lib/share';
 
 export async function POST(
   _req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     // mintConnectLink verifies ownership (404 if the client isn't the caller's)
     // and persists connect_token/expires/consumed on the owner meta_clients row,
     // retrying on a unique-index collision.
-    const minted = await mintConnectLink(supabase, user.id, params.id);
+    const minted = await mintConnectLink(supabase, user.id, (await params).id);
 
     return NextResponse.json({
       link: connectLink(minted.token),

@@ -29,15 +29,15 @@ type ReportSnapshot = {
 export default async function ReportTokenPage({
   params,
 }: {
-  params: { token: string };
+  params: Promise<{ token: string }>;
 }) {
   // Cheap rejection of malformed tokens — saves a DB roundtrip on bot traffic.
-  if (!REPORT_TOKEN_REGEX.test(params.token)) {
+  if (!REPORT_TOKEN_REGEX.test((await params).token)) {
     return <InvalidView />;
   }
 
   const admin = createAdminClient();
-  const resolved = await resolveReportShare(admin, params.token);
+  const resolved = await resolveReportShare(admin, (await params).token);
 
   if (!resolved.valid) {
     return resolved.expired ? <ExpiredView /> : <InvalidView />;

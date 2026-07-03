@@ -14,7 +14,7 @@ function slugify(s: string): string {
 
 // GET /api/landing — list user's pages
 export async function GET() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -29,7 +29,7 @@ export async function GET() {
 
 // POST /api/landing — create a new landing page (from template or via AI)
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/landing?id=... — update a landing page
 export async function PATCH(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -118,7 +118,7 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE /api/landing?id=...
 export async function DELETE(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

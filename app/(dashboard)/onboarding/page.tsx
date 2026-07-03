@@ -9,7 +9,7 @@ import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 export const metadata = { title: 'התחלה' };
 
 export default async function OnboardingPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 

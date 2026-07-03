@@ -7,7 +7,7 @@ const GRAPH = META_GRAPH_BASE;
 
 // GET /api/pixel?clientId=xxx — list pixels
 export async function GET(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/pixel — create pixel
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

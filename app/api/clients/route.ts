@@ -9,7 +9,7 @@ import { createClient as createClientRecord, listClients } from '@/lib/clients';
 // a credential. Meta connect stays an optional step on the client workspace.
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createSupabaseClient();
+    const supabase = await createSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 // GET /api/clients — list the authenticated user's clients (newest first).
 export async function GET() {
   try {
-    const supabase = createSupabaseClient();
+    const supabase = await createSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

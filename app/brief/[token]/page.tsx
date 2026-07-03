@@ -14,10 +14,10 @@ const TOKEN_REGEX = /^[a-f0-9]{64}$/;
 export default async function BriefTokenPage({
   params,
 }: {
-  params: { token: string };
+  params: Promise<{ token: string }>;
 }) {
   // Cheap rejection of malformed tokens — saves a DB roundtrip on bot traffic.
-  if (!TOKEN_REGEX.test(params.token)) {
+  if (!TOKEN_REGEX.test((await params).token)) {
     return <InvalidView />;
   }
 
@@ -29,7 +29,7 @@ export default async function BriefTokenPage({
   const { data: code, error } = await admin
     .from('brief_codes')
     .select('agency_name, client_id, created_at')
-    .eq('token', params.token)
+    .eq('token', (await params).token)
     .maybeSingle();
 
   if (error || !code) {
@@ -48,7 +48,7 @@ export default async function BriefTokenPage({
   // [single-use hook] Reusable in v1 — the same link may be submitted multiple
   // times, matching the legacy code behavior. A consumed_at check would go here.
 
-  return <TokenBriefForm token={params.token} agencyName={code.agency_name ?? ''} />;
+  return <TokenBriefForm token={(await params).token} agencyName={code.agency_name ?? ''} />;
 }
 
 // ── Plain-state views ───────────────────────────────────────────────────────

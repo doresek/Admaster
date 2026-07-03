@@ -15,15 +15,15 @@ export const revalidate = 0;
 export default async function ConnectTokenPage({
   params,
 }: {
-  params: { token: string };
+  params: Promise<{ token: string }>;
 }) {
   // Cheap rejection of malformed tokens — saves a DB roundtrip on bot traffic.
-  if (!CONNECT_TOKEN_REGEX.test(params.token)) {
+  if (!CONNECT_TOKEN_REGEX.test((await params).token)) {
     return <InvalidView />;
   }
 
   const admin = createAdminClient();
-  const client = await lookupConnectClient(admin, params.token);
+  const client = await lookupConnectClient(admin, (await params).token);
   const state = connectLinkState(client);
 
   if (state === 'invalid' || !client) return <InvalidView />;
@@ -39,7 +39,7 @@ export default async function ConnectTokenPage({
 
   return (
     <ConnectView
-      token={params.token}
+      token={(await params).token}
       agencyName={agency?.name ?? null}
       clientName={client.name ?? null}
     />

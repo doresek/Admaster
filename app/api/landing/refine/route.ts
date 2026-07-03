@@ -16,7 +16,7 @@ const xt = (raw: string, t: string) => {
 // instruction: free-form Hebrew/English "make this shorter / sharper / more emotional / change CTA to 'now buy' / etc."
 // Returns: updated content fragment, applies to DB, deducts 3 credits.
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

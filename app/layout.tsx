@@ -9,9 +9,10 @@ export const metadata: Metadata = {
   description: 'AI Social Media Platform — Powered by Claude',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Read locale from cookie at SSR time to avoid FOUC
-  const locale = parseLocale(cookies().get(LOCALE_COOKIE)?.value);
+  const cookieStore = await cookies();
+  const locale = parseLocale(cookieStore.get(LOCALE_COOKIE)?.value);
   const dir    = getDir(locale);
   const lang   = locale === 'ar' ? 'ar' : locale === 'en' ? 'en' : 'he';
 

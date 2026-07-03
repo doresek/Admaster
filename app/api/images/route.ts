@@ -162,7 +162,7 @@ async function generateDallE(prompt: string, size: string) {
 //   mode='adapt'       — adapt existing image to a different aspect ratio
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -412,7 +412,7 @@ export async function POST(req: NextRequest) {
 
 // GET /api/images — list generated images
 export async function GET() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

@@ -8,7 +8,7 @@ import { issueBriefCode, BriefCodeError } from './issue';
 // Body (required): { client_id: string } — must belong to the authed user.
 // Returns: { code, client_id }
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
