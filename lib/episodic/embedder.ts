@@ -9,16 +9,26 @@
 import { EMBEDDING_DIMS, type Embedder } from '@/lib/capability-contracts';
 import { isNumberArray, isRecord } from './types';
 
-const GOOGLE_MODEL = 'text-embedding-004';
+const GOOGLE_MODEL = 'gemini-embedding-001';
 const GOOGLE_ENDPOINT =
   `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_MODEL}:batchEmbedContents`;
 
 /** The documented batchEmbedContents limit is 100 requests per call. */
 const GOOGLE_BATCH_LIMIT = 100;
 
+// gemini-embedding-001 defaults to 3072 dims and MUST be asked for 768 to match
+// the 035 migration's vector(768). Unlike text-embedding-004, its sub-3072-dim
+// outputs are NOT pre-normalized, so we L2-normalize below for cosine recall.
 interface GoogleEmbedRequest {
-  model:   string;
-  content: { parts: Array<{ text: string }> };
+  model:                string;
+  content:              { parts: Array<{ text: string }> };
+  outputDimensionality: number;
+}
+
+/** L2-normalize so cosine distance in the pgvector index is well-defined. */
+function l2normalize(values: number[]): number[] {
+  const norm = Math.sqrt(values.reduce((sum, x) => sum + x * x, 0));
+  return norm > 0 ? values.map((x) => x / norm) : values;
 }
 
 /**
@@ -45,7 +55,7 @@ function parseGoogleEmbeddings(payload: unknown, expected: number): number[][] {
         `[GoogleEmbedder] embedding #${i} has ${entry.values.length} dims, expected ${EMBEDDING_DIMS}`,
       );
     }
-    return entry.values;
+    return l2normalize(entry.values);
   });
 }
 
@@ -75,8 +85,9 @@ export class GoogleEmbedder implements Embedder {
     for (let offset = 0; offset < texts.length; offset += GOOGLE_BATCH_LIMIT) {
       const chunk = texts.slice(offset, offset + GOOGLE_BATCH_LIMIT);
       const requests: GoogleEmbedRequest[] = chunk.map((text) => ({
-        model:   `models/${GOOGLE_MODEL}`,
-        content: { parts: [{ text }] },
+        model:                `models/${GOOGLE_MODEL}`,
+        content:              { parts: [{ text }] },
+        outputDimensionality: EMBEDDING_DIMS,
       }));
 
       const response = await this.fetchImpl(
