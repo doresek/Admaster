@@ -46,6 +46,27 @@
 
 ---
 
+# ===== SECURITY AUDIT + WAVE-1 HARDENING (2026-07-03) — reports: `docs/SECURITY-AUDIT.md`, `docs/HARDENING-PLAN.md` =====
+
+**Audit:** 6 parallel auditors (RLS/IDOR/AuthN · secrets/OAuth/webhooks/deps · injection/XSS/prompt · money-gate · correctness/reliability · code-health). 32 findings: **1 CRITICAL · 8 HIGH · 15 MED · 6 LOW**. Verified SAFE: RLS owner-only on all 026–031 tables, AuthN, AES-256-GCM token crypto, OAuth CSRF state, Stripe webhook sig+idempotency, no SQL-injection, no committed secrets. **💰 MONEY-GATE VERDICT: holds structurally** — every Meta object hard-coded PAUSED, no code path unpauses/activates, live path fails CLOSED. (Forward-looking R1: gate the autopilot `launch` step before `feat/meta-ads-launcher` merges.)
+
+**Wave-1 fixes — DONE + VERIFIED ✅ (commit `9a96430`, migration `032` applied):**
+
+| # | Sev | Finding | Fix | Proof |
+|---|---|---|---|---|
+| S1 | CRITICAL | cross-tenant BOLA on `/api/client-core/run` | orchestrator verifies `clients.owner_user_id` under admin client + unconditional `brief.client_id===clientId` (null-bypass removed); route RLS pre-check | tests (e)+(f) |
+| C1 | HIGH | concurrent brief double-build/charge | atomic `claim_client_build` RPC (CAS on `core_building_at`) | test (g) |
+| S2 | HIGH | stored XSS in public landing pages | `lib/safe-url.ts` at render+write, sandboxed host-allowlisted iframe, global CSP | 14 tests |
+| S3 | HIGH | serverless-ineffective rate limiter | durable `check_rate_limit` RPC (`checkRateLimitDurable`), fail-open | 5 tests + live DB (t/f) |
+| S4 | HIGH | unauth brief-submit → unbounded LLM cost | hard per-client durable throttle (5/hr) before orchestrator; brief still saved | brief-resubmit tests |
+| S6 | MED | competitor/reports ungated LLM spend | deduct+refund + per-user durable limit | tsc+suite |
+
+**Migration 032 (additive/idempotent/reversible) APPLIED + verified on prod:** `briefs_client_id_uniq`, `client_strategy.core_building_at` + `claim_client_build()`, `rate_limits` (RLS on, 0 policies, DEFINER-only) + `check_rate_limit()` (both `SECURITY DEFINER`, live behavior confirmed).
+
+**Green:** tsc clean · **603 tests** (+22) · prod build 110/110 pages. **PR #42 merge-ready** re: CRITICAL/HIGH security (all closed). **Remaining before/at-merge:** Wave-2 (C2/C3/C4/C5/C6 reliability) + Wave-3 (H1 validation, S5 Next.js CVE bump, S7 prompt-fencing, hygiene) per `HARDENING-PLAN.md` — none block the money gate; R1 gates the sibling launcher branch.
+
+---
+
 
 ## Capability-blocker register (human/external — orchestrator cannot do these)
 These are surfaced (not me pausing for approval) — all other work proceeds around them.
