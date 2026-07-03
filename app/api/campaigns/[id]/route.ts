@@ -9,14 +9,14 @@ import { supabaseCampaignStore } from '@/lib/campaigns/store';
 
 export const runtime = 'nodejs';
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const store = supabaseCampaignStore(createAdminClient());
-    const campaign = await store.getCampaign(params.id, user.id);
+    const campaign = await store.getCampaign((await params).id, user.id);
     if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const [items, decisions] = await Promise.all([

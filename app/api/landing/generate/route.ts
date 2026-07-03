@@ -20,7 +20,7 @@ const xt = (raw: string, t: string) => {
 // Approach A: Single Claude call with the full ui-ux-pro-max skill knowledge
 // loaded as a CACHED system prompt block (paid once, then ~free).
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

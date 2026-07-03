@@ -20,7 +20,7 @@ export type OwnershipCheck =
   | { ok: false; response: NextResponse };
 
 export async function requireOwnedClient(clientId: string): Promise<OwnershipCheck> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };

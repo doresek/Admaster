@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Btn, CopyBtn, Tabs, OutputBox, Alert, PageHeader, CostBadge, Select } from '@/components/ui';
@@ -319,7 +320,7 @@ export default function BriefsPage() {
         <CardLabel>לאיזה לקוח הבריף?</CardLabel>
         {clients.length === 0 ? (
           <Alert type="amber">
-            אין לקוחות שמורים — <a href="/clients" className="underline">הוסף לקוח</a> כדי ליצור קוד בריף
+            אין לקוחות שמורים — <Link href="/clients" className="underline">הוסף לקוח</Link> כדי ליצור קוד בריף
           </Alert>
         ) : (
           <Select

@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Btn, Alert, PageHeader, Select } from '@/components/ui';
@@ -118,9 +119,9 @@ export default function AnalyticsPage() {
       )}
 
       {clients.length === 0 && (
-        <Alert type="amber">⚠️ חבר לקוח Meta תחילה ← <a href="/clients" className="font-bold underline">לדף לקוחות</a></Alert>
+        <Alert type="amber">⚠️ חבר לקוח Meta תחילה ← <Link href="/clients" className="font-bold underline">לדף לקוחות</Link></Alert>
       )}
-      {error && <Alert type="red">❌ {error} — {error.includes('ad account')?<a href="/clients" className="font-bold underline">בחר חשבון מודעות</a>:null}</Alert>}
+      {error && <Alert type="red">❌ {error} — {error.includes('ad account')?<Link href="/clients" className="font-bold underline">בחר חשבון מודעות</Link>:null}</Alert>}
 
       {loading && (
         <div className="flex items-center justify-center py-16 gap-3 text-[#6B8FA8]">

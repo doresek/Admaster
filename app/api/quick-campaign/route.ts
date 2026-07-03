@@ -23,7 +23,7 @@ const xt = (raw: string, t: string) => {
 //
 // "Campaign" = 3 ad variants in 3 different frameworks + matching image prompts (and optionally generated images)
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

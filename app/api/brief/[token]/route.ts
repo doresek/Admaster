@@ -10,10 +10,10 @@ const TOKEN_REGEX = /^[a-f0-9]{64}$/;
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { token: string } },
+  { params }: { params: Promise<{ token: string }> },
 ) {
   // Cheap rejection of malformed tokens — no DB hit for bot/scan traffic.
-  if (!TOKEN_REGEX.test(params.token)) {
+  if (!TOKEN_REGEX.test((await params).token)) {
     return NextResponse.json({ error: 'Invalid token' }, { status: 400 });
   }
 
@@ -32,7 +32,7 @@ export async function GET(
   const { data, error } = await admin
     .from('brief_codes')
     .select('agency_name, created_at')
-    .eq('token', params.token)
+    .eq('token', (await params).token)
     .maybeSingle();
 
   if (error) {

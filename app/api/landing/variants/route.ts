@@ -18,7 +18,7 @@ const xt = (raw: string, t: string) => {
 // The page's content (text) stays the same — only design tokens vary.
 // Cost: 3 credits.
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

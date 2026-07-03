@@ -17,7 +17,7 @@ import { AUTOPILOT_CREDIT_COSTS, deductExplicit, refundExplicit } from '@/lib/au
 export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

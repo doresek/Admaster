@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { clsx } from 'clsx';
@@ -98,7 +99,7 @@ export function ClientSwitcher({ initialActive }: { initialActive: string | null
             {clients.length === 0 && (
               <div className="px-4 py-6 text-center text-xs text-[#2E4459]">
                 אין לקוחות שמורים<br/>
-                <a href="/clients" className="text-[#3D9FFF] hover:underline">+ הוסף לקוח ראשון</a>
+                <Link href="/clients" className="text-[#3D9FFF] hover:underline">+ הוסף לקוח ראשון</Link>
               </div>
             )}
             {clients.map(c => (
@@ -123,7 +124,7 @@ export function ClientSwitcher({ initialActive }: { initialActive: string | null
           </div>
 
           <div className="px-4 py-2 border-t border-[#1E2F42] text-center">
-            <a href="/clients" className="text-[11px] text-[#6B8FA8] hover:text-[#3D9FFF]">ניהול לקוחות →</a>
+            <Link href="/clients" className="text-[11px] text-[#6B8FA8] hover:text-[#3D9FFF]">ניהול לקוחות →</Link>
           </div>
         </div>
       )}

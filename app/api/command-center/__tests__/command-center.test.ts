@@ -165,19 +165,19 @@ describe('GET /api/command-center/diagnoses', () => {
 describe('PATCH /api/command-center/campaigns/[id]', () => {
   it('401s when unauthenticated', async () => {
     H.authUser = null;
-    const res = await patchCampaign(patchReq({ action: 'pause' }), { params: { id: 'camp-1' } });
+    const res = await patchCampaign(patchReq({ action: 'pause' }), { params: Promise.resolve({ id: 'camp-1' }) });
     expect(res.status).toBe(401);
   });
 
   it('400s on an unknown action (no status written)', async () => {
-    const res = await patchCampaign(patchReq({ action: 'delete' }), { params: { id: 'camp-1' } });
+    const res = await patchCampaign(patchReq({ action: 'delete' }), { params: Promise.resolve({ id: 'camp-1' }) });
     expect(res.status).toBe(400);
     expect(H.updatePayload).toBeUndefined();
   });
 
   it('pause → status "paused", scoped to owner, never touches spend', async () => {
     H.tables = { campaigns: { rows: [{ id: 'camp-1', status: 'paused', dry_run: true }] } };
-    const res = await patchCampaign(patchReq({ action: 'pause' }), { params: { id: 'camp-1' } });
+    const res = await patchCampaign(patchReq({ action: 'pause' }), { params: Promise.resolve({ id: 'camp-1' }) });
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.status).toBe('paused');
@@ -191,7 +191,7 @@ describe('PATCH /api/command-center/campaigns/[id]', () => {
 
   it('approve → status "approved" and keeps dry_run unchanged', async () => {
     H.tables = { campaigns: { rows: [{ id: 'camp-1', status: 'approved', dry_run: true }] } };
-    const res = await patchCampaign(patchReq({ action: 'approve' }), { params: { id: 'camp-1' } });
+    const res = await patchCampaign(patchReq({ action: 'approve' }), { params: Promise.resolve({ id: 'camp-1' }) });
     const data = await res.json();
     expect(data.status).toBe('approved');
     expect(data.dry_run).toBe(true); // approving a dry-run campaign stays dry-run
@@ -200,14 +200,14 @@ describe('PATCH /api/command-center/campaigns/[id]', () => {
 
   it('resume → status "active"', async () => {
     H.tables = { campaigns: { rows: [{ id: 'camp-1', status: 'active', dry_run: false }] } };
-    const res = await patchCampaign(patchReq({ action: 'resume' }), { params: { id: 'camp-1' } });
+    const res = await patchCampaign(patchReq({ action: 'resume' }), { params: Promise.resolve({ id: 'camp-1' }) });
     const data = await res.json();
     expect(data.status).toBe('active');
   });
 
   it('404s when the campaigns table is absent', async () => {
     H.tables = { campaigns: { error: MISSING } };
-    const res = await patchCampaign(patchReq({ action: 'pause' }), { params: { id: 'camp-1' } });
+    const res = await patchCampaign(patchReq({ action: 'pause' }), { params: Promise.resolve({ id: 'camp-1' }) });
     expect(res.status).toBe(404);
   });
 });

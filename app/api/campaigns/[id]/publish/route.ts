@@ -18,9 +18,9 @@ import { canTransition, isLivePublishEnabled, publishCampaign, storedPlanResolve
 
 export const runtime = 'nodejs';
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
       const admin = createAdminClient();
       const result = await publishCampaign(
-        { campaignId: params.id, ownerUserId: user.id, live: true },
+        { campaignId: (await params).id, ownerUserId: user.id, live: true },
         { resolvePlan: storedPlanResolver(admin) },
       );
       // A safety refusal (no token / over budget / not found) → 409; success → 200.
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     const store = supabaseCampaignStore(createAdminClient());
-    const campaign = await store.getCampaign(params.id, user.id);
+    const campaign = await store.getCampaign((await params).id, user.id);
     if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     // Dry-run "publish" is a no-op confirmation: it never leaves dry-run and never

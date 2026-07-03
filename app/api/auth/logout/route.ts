@@ -12,7 +12,7 @@ export const runtime = 'nodejs';
 // headers that actually delete the session. The client then hard-navigates so the next
 // request is made with the cleared cookies.
 export async function POST() {
-  const supabase = createClient();
+  const supabase = await createClient();
   await supabase.auth.signOut();
   return NextResponse.json({ ok: true });
 }

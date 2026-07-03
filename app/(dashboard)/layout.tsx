@@ -19,14 +19,14 @@ export const metadata: Metadata = {
 const COLLAPSE_COOKIE = 'admaster_sidebar_collapsed';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
   const { data: profile } = await supabase
     .from('users').select('name, credits, plan').eq('id', user.id).single();
 
-  const c          = cookies();
+  const c          = await cookies();
   const locale     = parseLocale(c.get(LOCALE_COOKIE)?.value);
   const activeClientId = readActiveClientCookie(`${ACTIVE_CLIENT_COOKIE}=${c.get(ACTIVE_CLIENT_COOKIE)?.value ?? ''}`);
   const dir        = getDir(locale);

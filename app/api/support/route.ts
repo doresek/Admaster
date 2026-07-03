@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 // GET /api/support — list tickets (with first message preview)
 // GET /api/support?id=... — fetch ticket + messages
 export async function GET(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/support — create ticket (or add message to existing one)
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/support?id=... — close ticket
 export async function PATCH(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

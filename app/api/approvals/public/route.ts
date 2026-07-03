@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const token = new URL(req.url).searchParams.get('token');
   if (!token) return NextResponse.json({ error: 'Missing token' }, { status: 400 });
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   const { token, status, feedback } = await req.json();
   if (!token || !status) return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

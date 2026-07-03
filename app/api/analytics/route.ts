@@ -35,7 +35,7 @@ async function fetchTopAds(adAccountId: string, token: string) {
 // GET /api/analytics?clientId=xxx&datePreset=last_30d
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

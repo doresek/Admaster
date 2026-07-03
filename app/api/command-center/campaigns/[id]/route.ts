@@ -21,10 +21,10 @@ const ACTION_STATUS: Record<string, string> = {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -43,7 +43,7 @@ export async function PATCH(
     const { data, error } = await supabase
       .from('campaigns')
       .update({ status })
-      .eq('id', params.id)
+      .eq('id', (await params).id)
       .eq('owner_user_id', user.id)
       .select('id, status, dry_run')
       .single();

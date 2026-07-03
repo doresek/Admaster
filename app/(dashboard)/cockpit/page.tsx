@@ -11,11 +11,11 @@ import { CockpitBoard } from '@/components/cockpit/CockpitBoard';
 export const metadata = { title: 'קוקפיט' };
 
 export default async function CockpitPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const c = cookies();
+  const c = await cookies();
   const clientId = readActiveClientCookie(`${ACTIVE_CLIENT_COOKIE}=${c.get(ACTIVE_CLIENT_COOKIE)?.value ?? ''}`);
 
   const journey = await getJourney(supabase, user.id, clientId);

@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useState } from 'react';
 import { Card, Input, Btn, Alert, PageHeader, CostBadge } from '@/components/ui';
 import { useMetaClients } from '@/lib/hooks/useMetaClients';
@@ -45,7 +46,7 @@ export default function CampaignPage() {
   }
 
   if (clients.length===0) return (
-    <div><PageHeader eyebrow="Meta Ads" title="בנה קמפיין" /><Alert type="amber">⚠️ הוסף לקוח Meta תחילה <a href="/clients" className="font-bold underline">לדף לקוחות →</a></Alert></div>
+    <div><PageHeader eyebrow="Meta Ads" title="בנה קמפיין" /><Alert type="amber">⚠️ הוסף לקוח Meta תחילה <Link href="/clients" className="font-bold underline">לדף לקוחות →</Link></Alert></div>
   );
 
   const STEPS = ['לקוח','מטרה','תקציב','קריאייטיב','✅'];

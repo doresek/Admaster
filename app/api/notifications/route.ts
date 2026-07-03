@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 
 // GET /api/notifications — list (newest first) + unread count
 export async function GET() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -18,7 +18,7 @@ export async function GET() {
 // PATCH /api/notifications?id=... — mark one as read
 // PATCH /api/notifications?all=true — mark all as read
 export async function PATCH(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -41,7 +41,7 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE /api/notifications?id=...
 export async function DELETE(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
