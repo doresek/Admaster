@@ -17,7 +17,7 @@ import { listActiveInsights } from '@/lib/intelligence/insights';
 import type { ClientInsight } from '@/lib/intelligence/types';
 import { buildCoverageMap, computeDelta, strategicFlags } from './analyze';
 import { DECODE_BATCH_SIZE, decodeAngles, type DecodeItem, type LlmComplete } from './decode';
-import type { AdSourceFetcher } from './fetcher';
+import { MAX_ADS_PER_RUN, type AdSourceFetcher } from './fetcher';
 import { emitAtomActions, listAds, listEntities, updateAdDecoded, upsertObservedAds } from './store';
 import {
   isCompetitorAngle,
@@ -118,9 +118,24 @@ export async function runWatch(
   const angleAtoms  = bridgeAtoms.filter((a) => a.kind === 'angle');
   const { ready: ownAngles, toDecode: atomsToDecode } = splitOwnAngleAtoms(angleAtoms);
 
-  const adItems: DecodeItem[] = ads
+  const allAdItems: DecodeItem[] = ads
     .filter((ad) => ad.decoded === null && typeof ad.creative.text === 'string' && ad.creative.text.trim() !== '')
     .map((ad) => ({ id: ad.id, text: String(ad.creative.text) }));
+
+  // Cost/DoS guard (F1): decode at most MAX_ADS_PER_RUN ads per pass, so a
+  // single POST can never fan out into an unbounded number of LLM calls
+  // regardless of how many undecoded ads have accumulated. The excess stays
+  // stored undecoded (a later run picks it up) — reported, never silently lost.
+  let ads_capped = 0;
+  let adItems = allAdItems;
+  if (allAdItems.length > MAX_ADS_PER_RUN) {
+    ads_capped = allAdItems.length - MAX_ADS_PER_RUN;
+    adItems = allAdItems.slice(0, MAX_ADS_PER_RUN);
+    console.warn(
+      `[runWatch] ${allAdItems.length} undecoded ads exceed MAX_ADS_PER_RUN=${MAX_ADS_PER_RUN}; ` +
+      `decoding the first ${MAX_ADS_PER_RUN}, deferring ${ads_capped} to a later run`,
+    );
+  }
   const atomItems: DecodeItem[] = atomsToDecode.map((a) => ({ id: `${ATOM_ITEM_PREFIX}${a.id}`, text: a.content }));
 
   const adsById = new Map(ads.map((ad) => [ad.id, ad]));
@@ -182,5 +197,5 @@ export async function runWatch(
     errors.push({ stage: 'emit', error: errMessage(e) });
   }
 
-  return { delta, map, flags, atomActions, errors, decoded_count, decode_dropped };
+  return { delta, map, flags, atomActions, errors, decoded_count, decode_dropped, ads_capped };
 }

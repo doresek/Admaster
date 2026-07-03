@@ -20,6 +20,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import type { VocExtractable, VocSource } from '@/lib/capability-contracts';
 import { createAnthropicLlm, getQuoteBank, ingestDocument, type VocFunnelFit } from '@/lib/voc';
+import { deductCredits, refundCredits } from '@/lib/credits';
+import { checkRateLimitDurable } from '@/lib/rate-limit';
 
 // LLM extraction can take a while on a large paste.
 export const runtime = 'nodejs';
@@ -78,19 +80,47 @@ export async function POST(req: NextRequest) {
     if (!owned) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     const ownedClient: { id: string; name: string | null } = owned;
 
-    const result = await ingestDocument(createAdminClient(), createAnthropicLlm(), {
-      clientId,
-      ownerUserId: user.id,
-      source:      source as VocSource,
-      sourceMeta:  body.sourceMeta,
-      rawText,
-      // The client's own name is the one name we reliably know to strip
-      // (voc-mining §4 PII rule); reviewers naming the business is fine, but
-      // the same string often doubles as the owner's personal name in SMBs.
-      piiNames: ownedClient.name ? [ownedClient.name] : [],
-    });
+    // ── abuse guards (this endpoint spends an Anthropic call on user input) ──
+    // Durable, cross-instance rate limit BEFORE the LLM work, so a caller can't
+    // loop the endpoint for unbounded provider cost (SECURITY-AUDIT-2 F2).
+    const rl = await checkRateLimitDurable(`voc:${user.id}`, { max: 20, windowMs: 60_000 });
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'יותר מדי בקשות — נסה שוב בעוד מספר שניות', retryAfter: rl.retryAfter },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
+      );
+    }
 
-    return NextResponse.json(result, { status: result.ok ? 200 : 502 });
+    // Deduct credits up front; refund below if the provider work fails.
+    const deduct = await deductCredits(supabase, user.id, 'analyze');
+    if (!deduct.ok) {
+      return NextResponse.json({ error: deduct.error, credits: deduct.credits ?? 0 }, { status: deduct.status });
+    }
+
+    let result;
+    try {
+      result = await ingestDocument(createAdminClient(), createAnthropicLlm(), {
+        clientId,
+        ownerUserId: user.id,
+        source:      source as VocSource,
+        sourceMeta:  body.sourceMeta,
+        rawText,
+        // The client's own name is the one name we reliably know to strip
+        // (voc-mining §4 PII rule); reviewers naming the business is fine, but
+        // the same string often doubles as the owner's personal name in SMBs.
+        piiNames: ownedClient.name ? [ownedClient.name] : [],
+      });
+    } catch (err) {
+      await refundCredits(supabase, user.id, 'analyze', deduct.cost);
+      throw err;
+    }
+
+    if (!result.ok) {
+      await refundCredits(supabase, user.id, 'analyze', deduct.cost);
+      return NextResponse.json(result, { status: 502 });
+    }
+
+    return NextResponse.json({ ...result, credits: deduct.credits }, { status: 200 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });

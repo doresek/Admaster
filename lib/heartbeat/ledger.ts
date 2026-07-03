@@ -17,12 +17,15 @@
 // morning plan" (§1.2) is a calendar ritual, and a Sunday-night retry must
 // not eat Monday's tick.
 //
-// CONCURRENCY HONESTY: claim is check-then-insert, not a DB-atomic upsert —
-// 039 carries no unique constraint over (client, tick, period). That is
-// sufficient for the MVP's single Vercel-Cron invoker (one runHeartbeat at a
-// time, sequential fan-out); if concurrent workers ever run, add a partial
-// unique index and turn the insert into the arbiter (noted for the
-// orchestrator).
+// CONCURRENCY: the claim is arbitrated by the DB, not by the check-then-insert
+// read. Migration 045 adds a partial UNIQUE index over
+// (client_id, tick_type, period_key) restricted to the live/done statuses
+// ('claimed','running','succeeded'), and the INSERT below is the arbiter: two
+// concurrent runHeartbeat invocations may both pass the period read, but only
+// one INSERT can land — the loser gets a Postgres unique-violation (23505) and
+// backs off cleanly (returns null, same as "already claimed"). The pre-insert
+// reads remain as a cheap fast-path (avoid a doomed insert in the common case)
+// and to drive stale-lease reclaim; correctness no longer depends on them.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
@@ -67,6 +70,17 @@ export function periodStart(tick: HeartbeatTick, now: Date): Date {
   if (tick === 'daily') return utcDayStart(now);
   if (tick === 'weekly') return isoWeekStart(now);
   return utcMonthStart(now);
+}
+
+/**
+ * The stable per-period identity written to heartbeat_runs.period_key and keyed
+ * by the 045 partial-unique index (client_id, tick_type, period_key). It is the
+ * UTC period-start date as 'YYYY-MM-DD'; because periodStart() always returns a
+ * midnight-UTC boundary, the date alone is an unambiguous window id. MUST match
+ * the migration 045 backfill (date_trunc day/week/month at UTC, 'YYYY-MM-DD').
+ */
+export function periodKey(tick: HeartbeatTick, now: Date): string {
+  return periodStart(tick, now).toISOString().slice(0, 10);
 }
 
 // ── claim ─────────────────────────────────────────────────────────────────────
@@ -149,12 +163,17 @@ export async function claimTick(
 
   // 3) Claim: insert the row with its lease. Every column is explicit so the
   //    returned row is a complete HeartbeatRunRow regardless of DB defaults.
+  //    The INSERT is the arbiter (045 partial-unique index): a concurrent
+  //    winner that landed its row in our read->insert gap makes this fail with
+  //    Postgres 23505 (unique_violation) — a lost race, not an error, so we
+  //    back off cleanly with null (the caller treats null as 'claim_skipped').
   const { data: claimed, error: claimErr } = await admin
     .from('heartbeat_runs')
     .insert({
       client_id:     clientId,
       owner_user_id: ownerUserId,
       tick_type:     tick,
+      period_key:    periodKey(tick, now),
       status:        'claimed',
       attention:     opts.attention ?? {},
       actions:       [],
@@ -169,7 +188,12 @@ export async function claimTick(
     .select(HEARTBEAT_RUN_COLUMNS)
     .single()
     .overrideTypes<HeartbeatRunRow, { merge: false }>();
-  if (claimErr) throw new HeartbeatLedgerError('claimTick.insert', claimErr.message);
+  if (claimErr) {
+    // 23505 = unique_violation: another invocation won this (client, tick,
+    // period) claim. A clean no-op, exactly like the fast-path checks above.
+    if ((claimErr as { code?: string }).code === '23505') return null;
+    throw new HeartbeatLedgerError('claimTick.insert', claimErr.message);
+  }
   return claimed;
 }
 

@@ -12,15 +12,27 @@ export type MockRow = Record<string, unknown>;
 
 interface MockResult {
   data:   unknown;
-  error:  { message: string } | null;
+  error:  { message: string; code?: string } | null;
   count?: number | null;
 }
 
+/**
+ * A registered partial-unique constraint. `conflict(payload, rows)` returns true
+ * when inserting `payload` would collide with an existing row — the stub then
+ * fails the insert with a Postgres unique_violation (code '23505'), letting
+ * tests exercise the DB-arbitrated claim race (heartbeat_runs_claim_uniq).
+ */
+interface UniqueConstraint {
+  table:    string;
+  conflict: (payload: MockRow, rows: MockRow[]) => boolean;
+}
+
 interface HarnessState {
-  tables: Map<string, MockRow[]>;
-  log:    string[];
-  failOn: Set<string>; // e.g. 'select:hypotheses', 'update:heartbeat_runs'
-  seq:    number;
+  tables:  Map<string, MockRow[]>;
+  log:     string[];
+  failOn:  Set<string>; // e.g. 'select:hypotheses', 'update:heartbeat_runs'
+  uniques: UniqueConstraint[];
+  seq:     number;
 }
 
 type Filter = (row: MockRow) => boolean;
@@ -127,6 +139,20 @@ class MockQuery {
     if (this.state.failOn.has(`${this.action}:${this.table}`)) {
       return { data: null, error: { message: `forced failure: ${this.action}:${this.table}` }, count: null };
     }
+    // Partial-unique enforcement: an insert that collides with a registered
+    // constraint fails with Postgres unique_violation (23505), like the real DB.
+    if (this.action === 'insert') {
+      const existing = this.state.tables.get(this.table) ?? [];
+      for (const u of this.state.uniques) {
+        if (u.table === this.table && u.conflict(this.payload, existing)) {
+          return {
+            data:  null,
+            error: { message: 'duplicate key value violates unique constraint', code: '23505' },
+            count: null,
+          };
+        }
+      }
+    }
     let rows = this.run();
     if (this.orderBy) {
       const { column, ascending } = this.orderBy;
@@ -186,10 +212,16 @@ export interface SupabaseMock {
   log: string[];
   /** Force '<action>:<table>' operations to return an error. */
   failOn: Set<string>;
+  /**
+   * Register a partial-unique constraint. On an insert into `table`, if
+   * `conflict(payload, existingRows)` is true the insert fails with a Postgres
+   * unique_violation (code '23505') — used to exercise the claim race.
+   */
+  enforceUnique(table: string, conflict: (payload: MockRow, rows: MockRow[]) => boolean): void;
 }
 
 export function mockSupabase(): SupabaseMock {
-  const state: HarnessState = { tables: new Map(), log: [], failOn: new Set(), seq: 0 };
+  const state: HarnessState = { tables: new Map(), log: [], failOn: new Set(), uniques: [], seq: 0 };
   const shape = { from: (table: string) => new MockQuery(state, table) };
   // The real SupabaseClient is a class with protected members, so no structural
   // stub can satisfy its nominal type — this ONE widening at the test boundary
@@ -201,5 +233,6 @@ export function mockSupabase(): SupabaseMock {
     rows: (table) => state.tables.get(table) ?? [],
     log:    state.log,
     failOn: state.failOn,
+    enforceUnique: (table, conflict) => { state.uniques.push({ table, conflict }); },
   };
 }

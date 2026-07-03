@@ -24,6 +24,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import type { CompetitorEntityRow, CompetitorRing } from '@/lib/capability-contracts';
 import { listActiveInsights } from '@/lib/intelligence/insights';
+import { deductCredits, refundCredits } from '@/lib/credits';
+import { checkRateLimitDurable } from '@/lib/rate-limit';
 import {
   ManualPasteFetcher,
   buildCoverageMap,
@@ -187,6 +189,24 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // ── abuse guards (the paste path runs batched Anthropic decode calls) ──
+      // Durable, cross-instance rate limit BEFORE the LLM work, so a caller
+      // can't loop the endpoint for unbounded provider cost (AUDIT-2 F2). The
+      // per-paste fan-out is separately capped by MAX_ADS_PER_RUN (F1).
+      const rl = await checkRateLimitDurable(`competitor-watch:${user.id}`, { max: 20, windowMs: 60_000 });
+      if (!rl.ok) {
+        return NextResponse.json(
+          { error: 'יותר מדי בקשות — נסה שוב בעוד מספר שניות', retryAfter: rl.retryAfter },
+          { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
+        );
+      }
+
+      // Deduct credits up front; refund below if the decode work wholly failed.
+      const deduct = await deductCredits(supabase, user.id, 'analyze');
+      if (!deduct.ok) {
+        return NextResponse.json({ error: deduct.error, credits: deduct.credits ?? 0 }, { status: deduct.status });
+      }
+
       // Scope the paste to its entity; other entities contribute no new
       // observations this run (their stored ads still feed the analysis).
       const paste = new ManualPasteFetcher(rawText);
@@ -198,11 +218,26 @@ export async function POST(req: NextRequest) {
         },
       };
 
-      const result = await runWatch(admin, createAnthropicLlm(), scoped, {
-        clientId,
-        ownerUserId: user.id,
-      });
-      return NextResponse.json(result);
+      let result;
+      try {
+        result = await runWatch(admin, createAnthropicLlm(), scoped, {
+          clientId,
+          ownerUserId: user.id,
+        });
+      } catch (err) {
+        await refundCredits(supabase, user.id, 'analyze', deduct.cost);
+        throw err;
+      }
+
+      // runWatch isolates failures rather than throwing. If the Anthropic
+      // decode failed outright (nothing decoded AND a decode-stage error),
+      // the user got no value from the LLM spend → refund.
+      if (result.decoded_count === 0 && result.errors.some((e) => e.stage === 'decode')) {
+        await refundCredits(supabase, user.id, 'analyze', deduct.cost);
+        return NextResponse.json({ ...result, credits: deduct.credits + deduct.cost });
+      }
+
+      return NextResponse.json({ ...result, credits: deduct.credits });
     }
 
     return NextResponse.json(

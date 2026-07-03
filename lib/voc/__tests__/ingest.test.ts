@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { hashRawText, ingestDocument } from '../ingest';
+import { stripPii } from '../pii';
 import type { IngestInput } from '../types';
 import {
   DENTAL_EXTRACTION_JSON,
@@ -66,8 +67,13 @@ describe('ingestDocument — happy path', () => {
     expect(result.atom_actions_summary).toEqual({ corroborated: 1, created: 2, contradicted: 0, skipped: 1 });
 
     const doc = sb.rows('voc_documents')[0];
+    // Dedup hash is still computed over the ORIGINAL (idempotency unchanged)…
     expect(doc).toMatchObject({ status: 'reconciled', quote_count: 4, raw_hash: hashRawText(GOOGLE_REVIEWS_DENTAL) });
-    expect(doc.raw_text).toBe(GOOGLE_REVIEWS_DENTAL);
+    // …but the AT-REST raw_text is the STRIPPED copy — no PII persists (PII-1).
+    expect(doc.raw_text).toBe(stripPii(GOOGLE_REVIEWS_DENTAL, { names: ['ד"ר לוי'] }));
+    expect(doc.raw_text).not.toContain('050-1234567');
+    expect(doc.raw_text).not.toBe(GOOGLE_REVIEWS_DENTAL);
+    expect(String(doc.raw_text)).toContain('{phone}');
 
     // Every stored quote is stamped with its outcome.
     const quotes = sb.rows('voc_quotes');
