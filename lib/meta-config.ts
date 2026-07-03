@@ -17,14 +17,21 @@ export const META_OAUTH_DIALOG = `https://www.facebook.com/${META_GRAPH_VERSION}
 
 // Permissions requested when a marketer connects a client's Meta account.
 // pages_show_list + pages_read_engagement → list/read the client's Pages.
-// ads_read + ads_management → read insights and create/manage campaigns.
+// ads_read + ads_management → read insights and create/manage campaigns (PAID).
 // business_management → required for the System-User / Business-Login path.
+// pages_manage_posts → publish ORGANIC posts to the Page.
+// instagram_basic + instagram_content_publish → publish to Instagram.
+// The organic scopes let a single consent cover BOTH paid and organic; they work
+// for the connector's OWN assets in dev-mode without App Review.
 export const META_OAUTH_SCOPES = [
   'ads_management',
   'ads_read',
   'pages_read_engagement',
   'pages_show_list',
   'business_management',
+  'pages_manage_posts',
+  'instagram_basic',
+  'instagram_content_publish',
 ] as const;
 
 export const META_APP_ID = process.env.META_APP_ID || '';
