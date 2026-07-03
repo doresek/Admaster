@@ -20,7 +20,10 @@
 | Digest composer (`lib/digest` + API) — deterministic narration; 3-layer structural anti-hallucination (no generative path, source-id accounting, ₪/% whitelist scan test); approved digests immutable (CAS) | **green ✅** (29 tests) | 'sent' gated on C2 by design |
 | **Wave A gate** | **green ✅** (`95d5dc5`) | 1,445 tests, build clean (118 pages), composition holds |
 | **D1 retrofit** (3 modes) + composition extension (slate→mode-gate→shock flow) | **green ✅** (`3fc0afe`, `9eb3630`) | 1,432+ tests (grid restructure −9 explained), migration 044 applied+verified |
-| Marketing Heartbeat (`lib/heartbeat` + cron API) — daily/weekly/monthly ticks | **doing** (Wave B — composing all landed libraries) | |
+| **Marketing Heartbeat** (`lib/heartbeat` + cron API) — daily (shock-annotated hypothesis review: mercy kills routed through autonomy, floor-met → resolveAndLearn), weekly (attention-ordered "Monday plan": slate → register → ≤1 dry-run campaign → digest with the week's proposals), monthly (strategy re-synth + mode suggestion + monthly digest); claim-lease ledger (calendar-window idempotency, stale-lease reclaim); CRON_SECRET-gated API (fail-closed, Vercel-Cron GET compatible) | **green ✅** (58 tests) | knowledge actions (verdicts) don't route through the money gate — documented WHY; deterministic, zero LLM in the loop itself |
+| **FINAL GATE (whole branch)** | **green ✅** | repo-wide tsc clean · **1,495 tests, 0 fail** · prod build clean (119 pages) · composition suite (3 flows) passes |
+
+**Go-live flip (deliberately NOT wired — Eliran's call):** vercel.json crons `{/api/heartbeat?tick=daily @ 0 4 * * *, weekly @ 0 5 * * 1, monthly @ 0 6 1 * *}` + `CRON_SECRET` env. Until then the heartbeat is a fully-tested engine with no scheduler pulling it — no LLM spend, no rows written for real clients without opt-in. **Logged follow-ups:** partial unique index on heartbeat claims before any parallel-worker future · `learning_signals` 'competitor_evidence' CHECK widening · approvals surface (C2) for real proposal-resolution tracking.
 
 ---
 
