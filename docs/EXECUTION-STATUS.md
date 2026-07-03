@@ -6,6 +6,22 @@
 
 ---
 
+# ===== HEARTBEAT + REMAINING CAPABILITIES (2026-07-04) — plan: VISION-DEEP §1–§7 + spec C-04/09/11 =====
+
+**Branch:** `feat/heartbeat-and-capabilities` off `origin/main` @ `586ddf1` (post-#44 merge). Baseline verified green: tsc clean, **1,097 tests**. Same doctrine: disjoint folders, serial shared files, gate after each integration, branch always green, everything dry-run/PAUSED.
+
+| Item | State | Notes |
+|---|---|---|
+| Foundation: migrations **039–043 applied+verified** (heartbeat_runs, client_autonomy+autonomy_events, digests, competitor_entities+competitor_ads, fleet_daily_factors) — RLS 7/7; fleet table policy-less by design (service-role only, aggregate) + contracts extension | **done** ✅ (`e488a5b`) | |
+| Autonomy ladder (`lib/autonomy` + API) — L0–L3 policy table, protective bypass, caps, rate limit, graduation, fail-safe audit | **doing** (Wave A) | |
+| C-09 competitor watch (`lib/competitor-watch` + API) — longevity method, coverage map, manual-paste fetcher, atom emission | **doing** (Wave A) | |
+| C-04 shock detection (`lib/fleet`) — median+MAD fleet factors, IL calendar overlay, ≥8-client activation gate | **doing** (Wave A) | |
+| C-11 experiment portfolio manager (`lib/experiments`) — info-value slates, deterministic Thompson allocation, hierarchical pooling | **doing** (Wave A) | |
+| Weekly digest composer (`lib/digest` + API) — deterministic narration of the decision ledger, anti-hallucination invariant | **doing** (Wave A) | |
+| Marketing Heartbeat (`lib/heartbeat` + cron API) — daily/weekly/monthly ticks | **queued** (Wave B — imports Wave A contracts) | |
+
+---
+
 # ===== MARKETING CAPABILITIES — OVERNIGHT BUILD (2026-07-03/04) — plan: `docs/MARKETING-CAPABILITIES-SPEC.md` =====
 
 **Branch:** `feat/marketing-capabilities` off `origin/main` @ `9a9e718` (post-#42 epic merge + #43 H4 wiring). Baseline verified green: tsc clean, **644 tests**, prod build (verified at gates). Doctrine: excellence over volume; every capability atom-grounded, deeply tested, adversarially reviewed; branch stays green; additive migrations only; everything dry-run; no live/spend actions.

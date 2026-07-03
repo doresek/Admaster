@@ -313,7 +313,7 @@ Per-client spend caps enforced in code (exists) + a global daily spend anomaly m
 
 | # | Decision | My recommendation |
 |---|---|---|
-| D1 | **Autonomy default** for new clients | L1 (propose+approve via digest), earn L2 after 2 green weeks — trust is the product early |
+| D1 | **Autonomy default** for new clients | **✅ DECIDED (Eliran, 2026-07-04): 3 user-selectable MODES per client, replacing the L0–L3 ladder** — Mode 1 `draft_only` (system prepares, user does everything) · Mode 2 `propose_approve` (one-tap approval before any publish/spend; the default) · Mode 3 `act_within_caps` (autonomous inside user-set caps). The mode is the gate every publish/spend action routes through; graduation becomes a mode-switch *suggestion* ("92% אישורים — לעבור למצב 3?"), never automatic — the user always chooses. |
 | D2 | **Pricing model** | Flat tiers (390/890/2,490), no % of spend at launch; credits fold into quotas |
 | D3 | **GTM sequence** | Self-affiliate first (weeks 1–4) → 3–5 design-partner agencies at founder price → public launch with case studies |
 | D4 | **Playbook layer timing** | Author the schema + start *capturing* candidates now (cheap); build promotion/consumption after ≥3 real clients |
