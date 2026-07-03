@@ -12,11 +12,16 @@ export default function ForgotPasswordPage() {
   async function handleReset(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true); setError('');
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-    });
-    if (error) { setError(error.message); setLoading(false); return; }
-    setSent(true); setLoading(false);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+      });
+      if (error) { setError(error.message); setLoading(false); return; }
+      setSent(true); setLoading(false);
+    } catch {
+      setError('שגיאת רשת — נסה שוב.');
+      setLoading(false);
+    }
   }
 
   return (

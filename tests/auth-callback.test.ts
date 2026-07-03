@@ -2,6 +2,7 @@
 // return a local absolute path, never an off-site target.
 import { describe, it, expect } from 'vitest';
 import { safeNextPath } from '@/lib/safe-next-path';
+import { friendlyAuthError } from '@/lib/auth-messages';
 
 describe('safeNextPath', () => {
   it('falls back to / for null', () => {
@@ -26,5 +27,27 @@ describe('safeNextPath', () => {
 
   it('rejects a backslash protocol-relative trick', () => {
     expect(safeNextPath('/\\evil.com')).toBe('/');
+  });
+
+  it('preserves the password-recovery target with a query', () => {
+    expect(safeNextPath('/reset-password')).toBe('/reset-password');
+    expect(safeNextPath('/reset-password?token=abc')).toBe('/reset-password?token=abc');
+  });
+});
+
+// The callback redirects failures to /login?error=<code>; the login page must
+// turn that code into a clear message rather than showing a blank bounce.
+describe('friendlyAuthError', () => {
+  it('explains a missing code', () => {
+    expect(friendlyAuthError('missing_code')).toContain('קישור');
+  });
+
+  it('explains an expired/invalid PKCE code (any casing)', () => {
+    expect(friendlyAuthError('Email link is invalid or has expired')).toContain('תוקף');
+    expect(friendlyAuthError('CODE_VERIFIER_MISMATCH')).toContain('תוקף');
+  });
+
+  it('passes through an unrecognised message unchanged', () => {
+    expect(friendlyAuthError('Something else')).toBe('Something else');
   });
 });
