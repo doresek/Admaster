@@ -151,6 +151,34 @@ export async function autoImprove(
   const applySignal = deps.applySignal ?? applyLearningSignal;
   const weight = deps.signalWeight ?? PERFORMANCE_SIGNAL_WEIGHT;
 
+  // ── 0. Per-diagnosis idempotency guard (C5) ────────────────────────────────
+  // The diagnosis row IS the idempotency key: this function marks it
+  // applied=true (step 5) once it has queued the challenger + emitted/applied
+  // the single learning_signal. A re-ingest of the same Meta window that
+  // re-triggers the SAME diagnosis must NOT re-weaken the target atoms or emit a
+  // second signal — so if the diagnosis is already applied, short-circuit to a
+  // no-op. (Best-effort: if the diagnoses table is unreadable we fall through
+  // and process, matching the graceful-degradation contract.)
+  if (admin) {
+    try {
+      const { data, error } = await admin
+        .from('diagnoses')
+        .select('applied, applied_item_id')
+        .eq('id', diagnosis.id)
+        .maybeSingle();
+      if (!error && data && (data as any).applied === true) {
+        return {
+          newItemId:         (data as any).applied_item_id ?? null,
+          signalId:          null,
+          polarity:          diagnosis.failed_link === 'none' ? 'positive' : 'negative',
+          appliedToInsights: 0,
+          diagnosisApplied:  true,
+          regenerated:       {},
+        };
+      }
+    } catch { /* best-effort — process the diagnosis */ }
+  }
+
   // ── 1. Load CURRENT insights to ground regeneration + resolve target atoms ──
   let insights: Insight[] = [];
   const loader =

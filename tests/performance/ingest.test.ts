@@ -109,4 +109,32 @@ describe('ingestPerformance', () => {
     expect(res.persisted).toBe(0);
     expect(res.persistedTable).toBe(false);
   });
+
+  it('C5: re-ingesting the SAME window UPSERTs — no duplicate content_performance rows', async () => {
+    const fake = makeFakeSupabase();
+    const window: PerformanceInputRow[] = [
+      { artifact_id: 'a1', ad_id: 'ad_1', client_id: 'c1', owner_user_id: 'u1',
+        period_start: '2026-06-01', period_end: '2026-06-07',
+        metrics: { impressions: 5000, clicks: 100, conversions: 10, spend: 300, roas: 2 } },
+    ];
+
+    const first = await ingestPerformance(window, { admin: fake.client as any });
+    expect(first.persisted).toBe(1);
+    expect(fake.tables['content_performance']).toHaveLength(1);
+
+    // Meta re-pulled the same 7-day window → upsert refreshes the row in place.
+    const second = await ingestPerformance(window, { admin: fake.client as any });
+    expect(second.persisted).toBe(1);
+    expect(fake.tables['content_performance']).toHaveLength(1); // NOT 2 — same unique key
+  });
+
+  it('C5: manual rows (null ad_id) remain plain inserts — distinct, never merged', async () => {
+    const fake = makeFakeSupabase();
+    const manual: PerformanceInputRow[] = [
+      { client_id: 'c1', owner_user_id: 'u1', source: 'manual', metrics: { impressions: 5000, clicks: 100 } },
+    ];
+    await ingestPerformance(manual, { admin: fake.client as any });
+    await ingestPerformance(manual, { admin: fake.client as any });
+    expect(fake.tables['content_performance']).toHaveLength(2);
+  });
 });

@@ -9,6 +9,7 @@ import {
   type GeneratedCreative,
 } from '@/lib/campaigns';
 import { decide } from '@/lib/decision-engine';
+import { parseStrategyAnalysis } from '@/lib/validation';
 import { sampleInsights } from '@/lib/decision-engine/__tests__/fixtures';
 import { MetaAdsClient } from '@/lib/meta-ads';
 import { MetaPublishClient } from '@/lib/meta-publish';
@@ -171,6 +172,35 @@ describe('runCampaign — meta_organic (dry-run)', () => {
     expect(publisher.calls[0].path).toBe('/page_42/feed');
     expect(publisher.calls[0].payload.message).toBe('אורגני!');
     // decision log is still complete
+    expect(res.decisions).toHaveLength(7);
+  });
+});
+
+describe('runCampaign — H1 boundary: malformed strategy degrades to the fallback', () => {
+  it('does NOT throw and produces a coherent decision when business_analysis is malformed', async () => {
+    const store = inMemoryCampaignStore();
+    const ads = new MetaAdsClient({ accessToken: 't', adAccountId: '123', dryRun: true });
+
+    // A partially-null LLM object of the WRONG shape, exactly as it could be
+    // read off client_strategy.business_analysis. The runner's validated read
+    // (parseStrategyAnalysis) rejects it → strategy = null → decide() fallback.
+    const malformed = { strategic_summary: { goal: 'only a goal' }, platform_funnel: null } as unknown;
+    expect(parseStrategyAnalysis(malformed)).toBeNull();
+
+    const res = await runCampaign(
+      { clientId: CLIENT_ID, channel: 'meta_paid', ownerUserId: OWNER },
+      {
+        ...commonDeps(store, stubGenerate()),
+        // Mirror defaultLoadStrategy's validated read: garbage → null.
+        loadStrategy: async () => parseStrategyAnalysis(malformed),
+        metaAds: ads,
+      },
+    );
+
+    // Same decision as strategy:null (the fallback path) — never a crash.
+    expect(res.decision.grounded_in).toEqual(expectedDecision.grounded_in);
+    expect(res.campaign.rationale).toBe(expectedDecision.rationale);
+    expect(res.items).toHaveLength(3);
     expect(res.decisions).toHaveLength(7);
   });
 });

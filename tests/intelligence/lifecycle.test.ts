@@ -6,6 +6,7 @@ import {
   contentMatches,
   reconcileCandidates,
   applyLearningSignal,
+  claimSignal,
 } from '@/lib/intelligence/lifecycle';
 import { CONFIDENCE, type ClientInsight, type InsightCandidate } from '@/lib/intelligence/types';
 import { makeFakeDb } from './fake-admin';
@@ -179,5 +180,25 @@ describe('applyLearningSignal (Part-2 entry point)', () => {
     expect(out?.confidence).toBeCloseTo(0.62, 5);
     expect(db.client_insights[0].evidence_count).toBe(2);
     expect(db.insight_events.some((e) => e.event === 'corroborated' && e.signal_id === 'sig-9')).toBe(true);
+  });
+});
+
+describe('claimSignal (C4 idempotency CAS)', () => {
+  it('first claim wins (true) & flips processed; a replay of the SAME row loses (false)', async () => {
+    const db = makeFakeDb({ signals: [{ id: 'sig-1', processed: false }] });
+
+    // First caller wins the compare-and-set.
+    expect(await claimSignal(db.admin, 'sig-1')).toBe(true);
+    expect(db.learning_signals[0].processed).toBe(true);
+
+    // A replay / concurrent double-apply of the SAME signal row loses → skipped.
+    expect(await claimSignal(db.admin, 'sig-1')).toBe(false);
+    // processed stays true; the row was only ever "applied" once.
+    expect(db.learning_signals[0].processed).toBe(true);
+  });
+
+  it('a signal that starts already-processed can never be claimed', async () => {
+    const db = makeFakeDb({ signals: [{ id: 'sig-2', processed: true }] });
+    expect(await claimSignal(db.admin, 'sig-2')).toBe(false);
   });
 });

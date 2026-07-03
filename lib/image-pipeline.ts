@@ -15,6 +15,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { callVertexImageGen, GEMINI_ASPECT } from '@/lib/vertex-ai';
 import { uploadToStorage } from '@/lib/image-storage';
 import { buildAiContext } from '@/lib/ai-context';
+import { safeJsonParse, isRecord, type Guard } from '@/lib/validation';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
@@ -93,8 +94,13 @@ export interface PipelineResult {
 
 // ─── JSON parsing helper ─────────────────────────────────
 
-/** Strip ```json fences / stray prose and parse. Throws on hard failure. */
-function parseJsonLoose<T>(text: string): T {
+/**
+ * Strip ```json fences / stray prose, then parse + validate at the seam.
+ * Returns the (optionally guard-verified) value, or `null` on invalid JSON /
+ * guard mismatch — NEVER throws, so every caller degrades to its fallback
+ * instead of a mis-typed object propagating downstream (H1).
+ */
+function parseJsonLoose<T>(text: string, guard?: Guard<T>): T | null {
   let t = text.trim();
   // Remove leading ```json / ``` and trailing ```
   t = t.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
@@ -103,7 +109,7 @@ function parseJsonLoose<T>(text: string): T {
     const m = t.match(/[{[][\s\S]*[}\]]/);
     if (m) t = m[0];
   }
-  return JSON.parse(t) as T;
+  return safeJsonParse<T>(t, guard);
 }
 
 async function claudeText(opts: {
@@ -161,13 +167,12 @@ export async function expandBrief(
 
   const raw = await claudeText({ system, content: userMsg, maxTokens: 700 });
 
-  let parsed: Partial<CreativeBrief>;
-  try {
-    parsed = parseJsonLoose<Partial<CreativeBrief>>(raw);
-  } catch {
+  // Guard: any JSON object is an acceptable Partial<CreativeBrief>; the field
+  // reads below normalize each key. A non-object / invalid JSON → null → fallback.
+  const parsed: Partial<CreativeBrief> =
+    parseJsonLoose<Partial<CreativeBrief>>(raw, isRecord as Guard<Partial<CreativeBrief>>)
     // Fallback: treat the raw input as the subject so the pipeline still runs.
-    parsed = { subject: args.source.text.slice(0, 200) };
-  }
+    ?? { subject: args.source.text.slice(0, 200) };
 
   // Brand colors come only from what Claude detects in the brief/copy now.
   const brandColors = (parsed.brandColors && parsed.brandColors.length)
@@ -223,15 +228,12 @@ export async function generatePromptVariations(
     maxTokens: 1100,
   });
 
-  let variations: PromptVariation[] = [];
-  try {
-    const parsed = parseJsonLoose<{ variations: PromptVariation[] }>(raw);
-    variations = (parsed.variations || [])
-      .filter(v => v && typeof v.prompt === 'string' && v.prompt.trim())
-      .map(v => ({ concept: v.concept || 'Variation', prompt: v.prompt.trim() }));
-  } catch {
-    variations = [];
-  }
+  const parsed = parseJsonLoose<{ variations?: unknown }>(raw, isRecord as Guard<{ variations?: unknown }>);
+  const rawVariations = Array.isArray(parsed?.variations) ? parsed!.variations : [];
+  let variations: PromptVariation[] = (rawVariations as unknown[])
+    .filter((v): v is { prompt: string; concept?: unknown } =>
+      isRecord(v) && typeof v.prompt === 'string' && v.prompt.trim().length > 0)
+    .map(v => ({ concept: typeof v.concept === 'string' && v.concept ? v.concept : 'Variation', prompt: v.prompt.trim() }));
 
   // Fallback so the pipeline never dies on a bad LLM response: synthesize a prompt from the brief.
   if (variations.length === 0) {
@@ -321,23 +323,22 @@ export async function judgeCandidates(
   const raw = await claudeText({ model: JUDGE_MODEL, system: JUDGE_SYSTEM, content, maxTokens: 900 });
 
   const validIndexes = new Set(candidates.map(c => c.index));
-  try {
-    const parsed = parseJsonLoose<JudgeResult>(raw);
+  const parsed = parseJsonLoose<JudgeResult>(raw, isRecord as unknown as Guard<JudgeResult>);
+  if (parsed) {
     if (!validIndexes.has(parsed.winnerIndex)) {
       parsed.winnerIndex = candidates[0].index;
     }
     if (!Array.isArray(parsed.scores)) parsed.scores = [];
     if (!parsed.rationale) parsed.rationale = 'נבחרה הגרסה החזקה ביותר';
     return parsed;
-  } catch {
-    // Judge JSON malformed — we still have valid images; default to the first.
-    return {
-      winnerIndex: candidates[0].index,
-      scores: candidates.map(c => ({ index: c.index, intentMatch: 0, marketingQuality: 0,
-        brandFit: 0, aesthetics: 0, textLegibility: 0, total: 0, notes: 'judge parse failed' })),
-      rationale: 'נבחרה גרסה ברירת מחדל (השיפוט לא הוחזר תקין)',
-    };
   }
+  // Judge JSON malformed — we still have valid images; default to the first.
+  return {
+    winnerIndex: candidates[0].index,
+    scores: candidates.map(c => ({ index: c.index, intentMatch: 0, marketingQuality: 0,
+      brandFit: 0, aesthetics: 0, textLegibility: 0, total: 0, notes: 'judge parse failed' })),
+    rationale: 'נבחרה גרסה ברירת מחדל (השיפוט לא הוחזר תקין)',
+  };
 }
 
 // ─── Orchestrator ────────────────────────────────────────

@@ -39,6 +39,7 @@ import {
   mapPublisherPlatforms,
   mapTargeting,
 } from './targeting-map';
+import { parseStrategyAnalysis } from '@/lib/validation';
 import { assertTransition } from './state';
 import { supabaseCampaignStore, type CampaignStore } from './store';
 import type {
@@ -149,7 +150,19 @@ function defaultLoadInsights(admin: ReturnType<typeof createAdminClient>) {
 function defaultLoadStrategy(admin: ReturnType<typeof createAdminClient>) {
   return async (clientId: string): Promise<StrategyAnalysis | null> => {
     const row = await getClientStrategy(admin, clientId);
-    return (row?.business_analysis as unknown as StrategyAnalysis | undefined) ?? null;
+    // H1 boundary: business_analysis is LLM-produced JSONB. VALIDATE its shape
+    // before trusting it as a StrategyAnalysis — never feed the decision engine
+    // a blindly-cast object. On mismatch, degrade to null so decide() takes its
+    // built-in strategyFallback path (a coherent no-op) instead of propagating
+    // a malformed/partially-null strategy as a "valid" decision input.
+    const raw = row?.business_analysis;
+    const strategy = parseStrategyAnalysis(raw);
+    if (raw != null && strategy === null) {
+      console.warn(
+        `[runner] client_strategy.business_analysis for client ${clientId} failed StrategyAnalysis validation; degrading to strategy=null (decision engine uses its fallback path).`,
+      );
+    }
+    return strategy;
   };
 }
 

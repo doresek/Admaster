@@ -128,6 +128,31 @@ describe('autoImprove', () => {
     expect(res.appliedToInsights).toBe(1);
   });
 
+  it('C5: re-running on an already-applied diagnosis is a NO-OP — atoms not re-weakened, no second signal', async () => {
+    const fake = makeFakeSupabase({
+      campaign_items: [{ id: 'ci1', artifact_id: 'a1', campaign_id: 'camp1' }],
+      client_insights: [objection({ confidence: 0.7 })],
+      diagnoses: [{ id: 'd1', applied: false }],
+    });
+    const regenerate = vi.fn(regenStub);
+
+    // First run: closes the loop and marks the diagnosis applied.
+    await autoImprove(offerDiagnosis(), { admin: fake.client as any, regenerate });
+    const afterFirst = fake.tables['client_insights'].find((i) => i.id === 'ins-obj').confidence;
+    expect(regenerate).toHaveBeenCalledTimes(1);
+    expect(fake.tables['learning_signals']).toHaveLength(1);
+    expect(afterFirst).toBeLessThan(0.7);
+
+    // Second run (e.g. the same Meta window re-ingested & re-diagnosed): guarded.
+    const second = await autoImprove(offerDiagnosis(), { admin: fake.client as any, regenerate });
+    expect(regenerate).toHaveBeenCalledTimes(1);            // NOT regenerated again
+    expect(fake.tables['learning_signals']).toHaveLength(1); // NO second signal emitted
+    expect(second.appliedToInsights).toBe(0);               // atoms not touched again
+    expect(second.diagnosisApplied).toBe(true);
+    // The atom's confidence is unchanged from after the first run.
+    expect(fake.tables['client_insights'].find((i) => i.id === 'ins-obj').confidence).toBe(afterFirst);
+  });
+
   it('emits a positive performance_win signal when the diagnosis is "none"', async () => {
     const fake = makeFakeSupabase({
       client_insights: [objection()],

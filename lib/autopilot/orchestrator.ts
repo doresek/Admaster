@@ -7,7 +7,71 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getJourney, transition, type Journey, type JourneyState } from '@/lib/journey';
 import { STEP_FNS } from './steps';
-import { PIPELINE, type StepCtx, type StepName, type RunStepRecord } from './types';
+import { AUTOPILOT_CREDIT_COSTS, refundExplicit } from './credits';
+import { PIPELINE, type StepCtx, type StepName, type RunStepRecord, type PipelineAcc } from './types';
+
+// A run older than the function budget (maxDuration) whose status is still
+// 'running' is provably dead: the invocation that created it cannot outlive
+// maxDuration, so nothing is still driving it.
+const STALE_RUN_MS = 5 * 60 * 1000;
+
+/**
+ * C2 self-heal: a hard serverless timeout kills the function before any
+ * in-request cleanup can run, so we reconcile OPPORTUNISTICALLY on the next
+ * invocation (called at the top of POST /api/autopilot/run). Sweep this user's
+ * stale ('running' + older than the function budget) runs:
+ *   - Prefer to RESUME the most-recent stale run for the SAME client from its
+ *     `current_step` — its orchestration credit was already charged, so the
+ *     caller reuses that run instead of paying + inserting a duplicate.
+ *   - Fail + refund every other stale run so the lost credit is returned.
+ * Best-effort: any failure here must never block starting the new run. The
+ * status flip is done first with a `status='running'` guard and RETURNING, so
+ * only the invocation that wins the flip issues the refund (no double-refund
+ * under concurrent invocations).
+ *
+ * Note: resume is only offered for provably-dead (stale) runs, so there is no
+ * risk of double-executing a live run. A non-stale 'running' run is left alone
+ * (it may still be executing in a concurrent invocation).
+ */
+export async function reconcileStaleRuns(
+  supabase: SupabaseClient,
+  userId: string,
+  clientId: string | null,
+): Promise<{ id: string; fromStep: StepName } | null> {
+  try {
+    const cutoff = new Date(Date.now() - STALE_RUN_MS).toISOString();
+    const { data: stale } = await supabase
+      .from('autopilot_runs')
+      .select('id, client_id, current_step')
+      .eq('user_id', userId)
+      .eq('status', 'running')
+      .lt('created_at', cutoff)
+      .order('created_at', { ascending: false });
+    if (!stale?.length) return null;
+
+    const resumable =
+      stale.find((r) => (r.client_id ?? null) === (clientId ?? null) && r.current_step) ?? null;
+
+    for (const r of stale) {
+      if (resumable && r.id === resumable.id) continue;
+      // Claim-then-refund: only the winner of the status flip refunds.
+      const { data: claimed } = await supabase
+        .from('autopilot_runs')
+        .update({ status: 'failed', error: 'timed_out (reconciled on next run)', updated_at: new Date().toISOString() })
+        .eq('id', r.id)
+        .eq('status', 'running')
+        .select('id');
+      if (claimed?.length) {
+        await refundExplicit(supabase, userId, 'autopilot_run', AUTOPILOT_CREDIT_COSTS.autopilot_run);
+      }
+    }
+
+    return resumable ? { id: resumable.id, fromStep: resumable.current_step as StepName } : null;
+  } catch (e) {
+    console.error('[autopilot orchestrator] reconcileStaleRuns failed (non-blocking):', e);
+    return null;
+  }
+}
 
 // State the journey enters when a step *starts* / succeeds.
 const STEP_STATE: Partial<Record<StepName, JourneyState>> = {
@@ -39,7 +103,7 @@ export interface RunOutcome {
   stoppedAt: StepName | null;
   steps: RunStepRecord[];
   error?: string;
-  acc: Record<string, any>;
+  acc: PipelineAcc;
 }
 
 export async function runAutopilot(rc: RunCtx, fromStep?: StepName): Promise<RunOutcome> {
@@ -54,7 +118,7 @@ export async function runAutopilot(rc: RunCtx, fromStep?: StepName): Promise<Run
     .eq('id', runId)
     .maybeSingle();
   const steps: RunStepRecord[] = Array.isArray(runRow?.steps) ? runRow!.steps : [];
-  let acc: Record<string, any> = (runRow?.result as any)?.acc ?? {};
+  let acc: PipelineAcc = (runRow?.result as { acc?: PipelineAcc } | null)?.acc ?? {};
 
   let journeyRow = journey;
 

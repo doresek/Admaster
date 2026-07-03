@@ -172,32 +172,24 @@ export async function orchestrateClientCore(
       console.error('[orchestrateClientCore] analyze/reconcile failed:', e?.message);
     }
 
-    // (4) SYNTHESIZE — project active atoms into client_strategy (stamps
-    //     core_generated_at). Deduct the avatar credit when an avatar materializes.
+    // (4) SYNTHESIZE — only when the client has active atoms (C6). synthesizeStrategy
+    //     stamps core_generated_at ("brain ready"); gating it on real atoms means the
+    //     dashboard never shows "ready" over an empty/failed build. When there are no
+    //     atoms at all (e.g. analyze failed on a brand-new client), we deliberately
+    //     leave core_generated_at UNSET so the UI reflects not-ready (retriable via
+    //     /api/client-core/run) instead of a false ready-but-empty state. Deduct the
+    //     avatar credit when an avatar materializes.
     try {
-      const snapshot = await synthesizeStrategy(admin, clientId);
-      if (snapshot && avatarHasContent(snapshot.avatar)) {
-        await deductCredits(admin, userId, 'avatar');
-        result.avatar = true;
+      const activeAtoms = await listActiveInsights(admin, clientId);
+      if (activeAtoms.length > 0) {
+        const snapshot = await synthesizeStrategy(admin, clientId);
+        if (snapshot && avatarHasContent(snapshot.avatar)) {
+          await deductCredits(admin, userId, 'avatar');
+          result.avatar = true;
+        }
       }
     } catch (e: any) {
       console.error('[orchestrateClientCore] synthesize failed:', e?.message);
-    }
-
-    // (5) Readiness stamp — always, even on partial failure, so the dashboard can
-    //     stop polling. synthesizeStrategy already stamps on success; this is the
-    //     best-effort safety net (upsert touches only core_generated_at).
-    try {
-      const now = new Date().toISOString();
-      const { error } = await admin
-        .from('client_strategy')
-        .upsert(
-          { client_id: clientId, owner_user_id: userId, core_generated_at: now, updated_at: now },
-          { onConflict: 'client_id' },
-        );
-      if (error) console.error('[orchestrateClientCore] stamp failed:', error.message);
-    } catch (e: any) {
-      console.error('[orchestrateClientCore] stamp exception:', e?.message);
     }
   } catch (e: any) {
     // Never throw out of the orchestrator — it runs fire-and-forget.

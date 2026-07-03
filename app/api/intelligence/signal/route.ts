@@ -11,7 +11,7 @@
 // and return the updated insight summaries.
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { applyLearningSignal } from '@/lib/intelligence/lifecycle';
+import { applyLearningSignal, claimSignal } from '@/lib/intelligence/lifecycle';
 import { synthesizeStrategy } from '@/lib/intelligence/synthesize';
 import { INSIGHT_COLUMNS, type ClientInsight, type LearningSignal } from '@/lib/intelligence/types';
 
@@ -19,6 +19,12 @@ import { INSIGHT_COLUMNS, type ClientInsight, type LearningSignal } from '@/lib/
 // hard on "worked", and on "wrong" crosses the DECISIVE_WEIGHT (0.70) threshold so
 // a single confident "this is wrong" refutes the belief.
 const USER_SIGNAL_WEIGHT = 0.8;
+
+// Two DISTINCT rapid clicks (a double-submit) on the same target+kind within this
+// window are treated as ONE human opinion: we skip creating the second signal so
+// the atom isn't bumped twice. (Replays of the SAME signal row are guarded
+// separately by the processed-CAS claim below.)
+const DEDUP_WINDOW_MS = 5000;
 
 interface SignalBody {
   artifactId?: string;
@@ -84,9 +90,40 @@ export async function POST(req: NextRequest) {
   // Derive the client from an insight when we didn't get it from an artifact.
   if (!clientId && insights[0]) clientId = insights[0].client_id;
 
+  const summarize = (list: ClientInsight[]): InsightSummary[] =>
+    list.map((i) => ({
+      id: i.id, layer: i.layer, kind: i.kind, content: i.content,
+      confidence: i.confidence, status: i.status,
+    }));
+
   // ── 3. Insert the learning_signals row ─────────────────────────────────────
   const polarity: 'positive' | 'negative' = kind === 'worked' ? 'positive' : 'negative';
   const signalType = kind === 'worked' ? 'user_worked' : 'user_wrong';
+
+  // 3a. De-dupe two DISTINCT rapid clicks (double-submit) for the same
+  //     target+kind: if a signal for this (target, signal_type, owner) was
+  //     created within DEDUP_WINDOW_MS, skip — one human opinion, one bump.
+  const dedupCol = artifactId ? 'artifact_id' : 'insight_id';
+  const dedupVal = artifactId ?? insightId ?? insights[0]?.id ?? null;
+  if (dedupVal) {
+    const { data: recent } = await admin
+      .from('learning_signals')
+      .select('id, created_at')
+      .eq('owner_user_id', user.id)
+      .eq('signal_type', signalType)
+      .eq(dedupCol, dedupVal);
+    const now = Date.now();
+    const dup = (recent ?? []).find((r: any) => {
+      const t = r.created_at ? Date.parse(r.created_at) : NaN;
+      return Number.isFinite(t) && now - t < DEDUP_WINDOW_MS;
+    });
+    if (dup) {
+      return NextResponse.json({
+        ok: true, deduped: true, signalId: (dup as any).id,
+        applied: 0, insights: summarize(insights),
+      });
+    }
+  }
 
   const { data: sigRow, error: sigErr } = await admin
     .from('learning_signals')
@@ -106,7 +143,17 @@ export async function POST(req: NextRequest) {
   if (sigErr) return NextResponse.json({ error: sigErr.message }, { status: 500 });
   const signalId = (sigRow as { id: string }).id;
 
-  // ── 4. Apply the signal to each resolved insight (writes insight_events) ────
+  // ── 4. CAS-claim the signal, then apply it once. The claim atomically flips
+  //      processed false→true; if we lose the race (a concurrent request already
+  //      claimed & applied this row) we skip applying so no double-count occurs.
+  const claimed = await claimSignal(admin, signalId);
+  if (!claimed) {
+    return NextResponse.json({
+      ok: true, alreadyProcessed: true, signalId,
+      applied: 0, insights: summarize(insights),
+    });
+  }
+
   const signal: LearningSignal = {
     polarity,
     weight:   USER_SIGNAL_WEIGHT,
@@ -127,9 +174,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // ── 5. Mark the signal processed, then re-synthesize the snapshot ──────────
-  await admin.from('learning_signals').update({ processed: true }).eq('id', signalId);
-
+  // ── 5. Re-synthesize the snapshot (the claim already marked processed=true) ─
   if (clientId) {
     try {
       await synthesizeStrategy(admin, clientId);

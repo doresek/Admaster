@@ -99,7 +99,7 @@ describe('orchestrateClientCore (Phase-A)', () => {
     expect(actions).toContain('avatar');
   });
 
-  it('(c2) empty analysis: no atoms, no analysis credit, still stamps core_generated_at', async () => {
+  it('(c2) C6: empty analysis (no atoms) does NOT stamp readiness (no false ready-but-empty)', async () => {
     const db = makeAdmin({
       brief: { values: { biz_name: 'X' }, submitted_at: '2026-03-01T00:00:00Z', user_id: 'u1', client_id: 'c1' },
     });
@@ -109,8 +109,9 @@ describe('orchestrateClientCore (Phase-A)', () => {
     expect(result.analysis).toBe(false);
     expect(db.client_insights).toHaveLength(0);
     expect(db.rpcCalls.some((c) => c.args.p_action === 'analyze_brief')).toBe(false);
-    // synthesize still ran (owner resolvable via clients) and stamped readiness
-    expect(db.client_strategy[0]?.core_generated_at).toBeTruthy();
+    // C6: with zero atoms we must NOT stamp a ready-but-empty snapshot — the dashboard
+    // stays in "building/retry", not a false "ready".
+    expect(db.client_strategy.find((r) => r.client_id === 'c1')?.core_generated_at).toBeFalsy();
   });
 
   it('(d) no-op when the brief does not belong to the user', async () => {

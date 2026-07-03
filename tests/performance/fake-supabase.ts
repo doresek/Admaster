@@ -8,6 +8,8 @@
 // Supported chains:
 //   insert(payload).select(cols).single()      -> create, returns row
 //   insert(payload)            (awaited)        -> append (no return body)
+//   upsert(payload, { onConflict }) (awaited)   -> insert or merge on the
+//                                                  (comma-separated) conflict key
 //   update(payload).eq(...)... (awaited)        -> patch many
 //   update(payload).eq(...).select().single()   -> patch one, returns row
 //   select(cols).eq(...)/.in(...).maybeSingle() -> one | null
@@ -61,6 +63,16 @@ export function makeFakeSupabase(
     const builder: any = {
       insert(payload: any) { state.op = 'insert'; state.payload = payload; return builder; },
       update(payload: any) { state.op = 'update'; state.payload = payload; return builder; },
+      // Idempotent insert-or-merge on a (possibly composite) conflict key. Used
+      // by the C5 idempotent-ingest path. Awaited directly.
+      upsert(payload: any, opts?: { onConflict?: string }) {
+        if (dbError) return Promise.resolve({ data: null, error: dbError });
+        const keys = (opts?.onConflict ?? 'id').split(',').map((k) => k.trim());
+        const existing = store(table).find((r) => keys.every((k) => r[k] === payload[k]));
+        if (existing) Object.assign(existing, payload);
+        else store(table).push({ id: `row-${++idCounter}`, created_at: new Date().toISOString(), ...payload });
+        return Promise.resolve({ data: null, error: null });
+      },
       select() { if (!state.op) state.op = 'select'; return builder; },
       eq(col: string, val: any) { state.filters.push([col, val]); return builder; },
       in(col: string, vals: any[]) { state.inFilters.push([col, vals]); return builder; },

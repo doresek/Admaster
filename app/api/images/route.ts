@@ -288,13 +288,18 @@ export async function POST(req: NextRequest) {
     // (Smart mode already routes through buildAiContext, so it is untouched.)
     let genPrompt = finalPrompt;
     if (!isEdit && !isAdapt && activeClientId) {
-      const { data: clientRow } = await supabase
-        .from('meta_clients')
+      // The v2 avatar lives on client_strategy.avatar (one row per client),
+      // keyed by the active v2 clients.id — NOT the legacy meta_clients.avatar
+      // column, which does not exist on prod (that read failed silently, so
+      // avatar image-grounding was dead). Mirrors lib/ai-context.ts.
+      const { data: stratRow, error: stratErr } = await supabase
+        .from('client_strategy')
         .select('avatar')
-        .eq('id', activeClientId)
-        .eq('user_id', user.id)
+        .eq('client_id', activeClientId)
+        .eq('owner_user_id', user.id)
         .maybeSingle();
-      const grounding = buildAvatarImageGrounding(clientRow?.avatar);
+      if (stratErr) console.error('[images] avatar-grounding read failed:', stratErr);
+      const grounding = buildAvatarImageGrounding(stratRow?.avatar);
       if (grounding) genPrompt = `${grounding}\n\n${finalPrompt}`;
     }
 

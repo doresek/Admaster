@@ -257,7 +257,7 @@ export async function ingestPerformance(
   let tableOk = true;
   for (const row of rows) {
     try {
-      const { error } = await admin.from('content_performance').insert({
+      const payload = {
         artifact_id:      row.artifact_id,
         campaign_item_id: row.campaign_item_id,
         client_id:        row.client_id,
@@ -268,7 +268,16 @@ export async function ingestPerformance(
         period_start:     row.period_start,
         period_end:       row.period_end,
         verdict:          row.verdict,
-      });
+      };
+      // IDEMPOTENT INGEST (C5): re-ingesting the same Meta window must not create
+      // duplicate rows. Rows keyed by ad_id UPSERT on the migration-033 unique
+      // index (client_id, ad_id, period_start, period_end) — a replay refreshes
+      // the metrics/verdict in place. Manual rows (null ad_id) aren't covered by
+      // that partial-uniqueness contract, so they stay plain inserts.
+      const table = admin.from('content_performance');
+      const { error } = row.ad_id
+        ? await table.upsert(payload, { onConflict: 'client_id,ad_id,period_start,period_end' })
+        : await table.insert(payload);
       if (error) {
         tableOk = false;
         console.error('[ingestPerformance] insert failed:', error.message);

@@ -5,6 +5,7 @@ import { Card, CardLabel, Btn, CopyBtn, Tabs, OutputBox, Alert, PageHeader, Cost
 import { useAI } from '@/lib/hooks/useAI';
 import { useMetaClients } from '@/lib/hooks/useMetaClients';
 import { briefLink, whatsappShareLink } from '@/lib/share';
+import { AVATAR_SYSTEM_PROMPT, AVATAR_MAX_TOKENS, buildAvatarUserPrompt } from '@/lib/avatar-prompt';
 import type { Brief } from '@/types';
 import { clsx } from 'clsx';
 
@@ -33,23 +34,8 @@ function BriefWorkspace({ brief, onBack, onUpdate }: { brief: Brief; onBack: ()=
 
   async function buildAvatar() {
     const text = await call('avatar',
-      `מומחה אווטאר — Alex Hormozi + Eugene Schwartz. בנה פרופיל לקוח מלא.
-[AN]שם האווטאר[/AN][AE]אמוג'י[/AE]
-[DEMO]דמוגרפיה מפורטת[/DEMO]
-[PSYCH]פסיכוגרפיה — ערכים, אמונות, פחדים[/PSYCH]
-[MONO]מונולוג פנימי — ציטוטים[/MONO]
-[PAIN]כאב חיצוני | כאב פנימי | כאב פילוסופי[/PAIN]
-[DREAM]תוצאת החלום המפורטת[/DREAM]
-[BA]לפני הפתרון / אחרי הפתרון[/BA]
-[OBJ]3 התנגדויות + תשובה לכל אחת[/OBJ]
-[AWR]שלב מודעות Schwartz + הסבר[/AWR]
-[TRIG]3 טריגרים לרכישה[/TRIG]
-[ANGLE]3 זוויות מסר[/ANGLE]
-[VEQ]משוואת ערך Hormozi: תוצאה/סבירות/זמן/מאמץ[/VEQ]`,
-      `עסק:${v.biz_name}|${v.biz_what}|תוצאה:${v.biz_result}
-לקוח:${v.cust_who}|כאב:${v.pain_main}|פנימי:${v.pain_internal}
-חלום:${v.desire_dream}|התנגדות:${v.obj_main}|פחד:${v.obj_fear}
-מודעות:${v.mkt_awareness}`, 2000);
+      AVATAR_SYSTEM_PROMPT,
+      buildAvatarUserPrompt(v), AVATAR_MAX_TOKENS);
     if (!text) return;
     setAv(text); await save('avatar', text); setTab('avatar');
   }

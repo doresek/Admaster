@@ -1,6 +1,7 @@
 // ════════════════════════════════════════════
 // Performance Score — prompt composition & parsing
 // ════════════════════════════════════════════
+import { safeJsonParse } from '@/lib/validation';
 
 export type ScoreChannel =
   | 'meta_feed' | 'meta_story' | 'meta_reel'
@@ -97,13 +98,13 @@ function stripFence(raw: string): string {
 }
 
 export function parseScoreResponse(raw: string): ParseOk | ParseErr {
-  let obj: any;
-  try {
-    obj = JSON.parse(stripFence(raw));
-  } catch {
-    return { ok: false, error: 'invalid_json' };
-  }
-  if (typeof obj !== 'object' || obj === null) return { ok: false, error: 'not_object' };
+  // Validation boundary (H1): the LLM reply is untrusted text. safeJsonParse
+  // returns null on invalid JSON (no throw); every field below is then read
+  // defensively so a partially-shaped object can never masquerade as a
+  // structurally-valid ScoreResult.
+  const obj: any = safeJsonParse<unknown>(stripFence(raw));
+  if (obj === null) return { ok: false, error: 'invalid_json' };
+  if (typeof obj !== 'object') return { ok: false, error: 'not_object' };
 
   const score = Number(obj.score);
   if (!Number.isInteger(score) || score < 0 || score > 100) {
