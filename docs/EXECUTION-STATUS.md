@@ -13,12 +13,14 @@
 | Item | State | Notes |
 |---|---|---|
 | Foundation: migrations **039–043 applied+verified** (heartbeat_runs, client_autonomy+autonomy_events, digests, competitor_entities+competitor_ads, fleet_daily_factors) — RLS 7/7; fleet table policy-less by design (service-role only, aggregate) + contracts extension | **done** ✅ (`e488a5b`) | |
-| Autonomy ladder (`lib/autonomy` + API) — L0–L3 policy table, protective bypass, caps, rate limit, graduation, fail-safe audit | **doing** (Wave A) | |
-| C-09 competitor watch (`lib/competitor-watch` + API) — longevity method, coverage map, manual-paste fetcher, atom emission | **doing** (Wave A) | |
-| C-04 shock detection (`lib/fleet`) — median+MAD fleet factors, IL calendar overlay, ≥8-client activation gate | **doing** (Wave A) | |
-| C-11 experiment portfolio manager (`lib/experiments`) — info-value slates, deterministic Thompson allocation, hierarchical pooling | **doing** (Wave A) | |
-| Weekly digest composer (`lib/digest` + API) — deterministic narration of the decision ledger, anti-hallucination invariant | **doing** (Wave A) | |
-| Marketing Heartbeat (`lib/heartbeat` + cron API) — daily/weekly/monthly ticks | **queued** (Wave B — imports Wave A contracts) | |
+| Autonomy (`lib/autonomy` + API) — **retrofitted to D1's 3 user-selectable modes** (migration 044 applied): draft_only / propose_approve (default) / act_within_caps; protective-bypass, malformed-block ordering, rate limit, fail-safe audit downgrade (no un-audited execution EVER), graduation = mode SUGGESTION only | **green ✅** (78 tests) | all L0-L3 invariants preserved through the retrofit |
+| C-09 competitor watch (`lib/competitor-watch` + API) — longevity method (56d veteran / 28d churn boundaries), coverage map w/ hand-argued fixture, manual-paste fetcher (Hebrew metadata aliases, deterministic refs), audited atom emission | **green ✅** (80 tests) | learning_signals 'competitor_evidence' CHECK widening = logged follow-up |
+| C-04 shock detection (`lib/fleet`) — median+MAD, direction quorum, ≥8-client activation gate, IL calendar overlay (honesty-noted Gregorian windows), split-market contrast proven | **green ✅** (78 tests) | found+handled: live perf pipe stores `conversion_rate` not `cvr`, no `cpm` key (derived) |
+| C-11 experiments (`lib/experiments`) — info-value slates (Bernoulli-variance belief movement), deterministic seeded Thompson, floors-first allocation, pooling readiness; zero C-01 reimplementation | **green ✅** (70 tests) | ₪50/day headline scenario proven both maturity ways |
+| Digest composer (`lib/digest` + API) — deterministic narration; 3-layer structural anti-hallucination (no generative path, source-id accounting, ₪/% whitelist scan test); approved digests immutable (CAS) | **green ✅** (29 tests) | 'sent' gated on C2 by design |
+| **Wave A gate** | **green ✅** (`95d5dc5`) | 1,445 tests, build clean (118 pages), composition holds |
+| **D1 retrofit** (3 modes) + composition extension (slate→mode-gate→shock flow) | **green ✅** (`3fc0afe`, `9eb3630`) | 1,432+ tests (grid restructure −9 explained), migration 044 applied+verified |
+| Marketing Heartbeat (`lib/heartbeat` + cron API) — daily/weekly/monthly ticks | **doing** (Wave B — composing all landed libraries) | |
 
 ---
 
