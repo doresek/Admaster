@@ -8,6 +8,10 @@ const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
+  // connect-src MUST allow cross-origin XHR/fetch/WebSocket, or the browser Supabase
+  // client (auth login, realtime) and other https APIs are blocked → "Failed to fetch"
+  // on login. Without this directive it falls back to default-src 'self' and breaks auth.
+  "connect-src 'self' https: wss:",
   "frame-src https://www.youtube.com https://youtube.com https://youtube-nocookie.com https://player.vimeo.com https://vimeo.com",
   "img-src 'self' data: https:",
   "object-src 'none'",
