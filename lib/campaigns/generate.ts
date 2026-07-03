@@ -81,16 +81,18 @@ export function masterStudioGenerator(opts: MasterStudioGeneratorOptions): Gener
 
     // W3 (C-08): verbatim customer language for this funnel stage — the best
     // hooks are the customer's own words. Best-effort: an empty/failed bank
-    // never blocks generation.
+    // never blocks generation, but the failure REASON is stamped onto the
+    // artifact (generated_from.voc_bank_error) so it is observable, not lost.
     let vocAmmunition = '';
+    let vocBankError: string | null = null;
     try {
       const quotes = await getQuoteBank(opts.supabase, clientId, req.ownerUserId, {
         funnelFit: decision.funnel_stage,
         limit: 6,
       });
       vocAmmunition = formatQuotesForPrompt(quotes);
-    } catch {
-      // quote bank unavailable (table empty / query failed) — proceed without.
+    } catch (err) {
+      vocBankError = err instanceof Error ? err.message : String(err);
     }
 
     // The brief the studio writes against IS the insight-driven decision.
@@ -157,6 +159,7 @@ export function masterStudioGenerator(opts: MasterStudioGeneratorOptions): Gener
         },
         // W2 stamp: which precedents were in context when this was written.
         precedents_in_context: req.precedents?.length ?? 0,
+        ...(vocBankError ? { voc_bank_error: vocBankError } : {}),
       },
     });
 
