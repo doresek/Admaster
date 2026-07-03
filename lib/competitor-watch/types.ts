@@ -226,4 +226,8 @@ export interface RunWatchResult {
   errors:         WatchError[];
   decoded_count:  number;
   decode_dropped: DecodeDrop[];
+  /** How many undecoded ads were left UN-decoded this run because the run hit
+   *  the MAX_ADS_PER_RUN fan-out cap (cost/DoS guard — SECURITY-AUDIT-2 F1).
+   *  0 in the normal case; > 0 means the excess is deferred, not lost. */
+  ads_capped:     number;
 }

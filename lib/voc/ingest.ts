@@ -84,6 +84,14 @@ export async function ingestDocument(
     return { ok: true, deduped: true, document_id: existing.id, status: existing.status, quote_count: existing.quote_count };
   }
 
+  // ── PII-strip up front (privacy: never persist the raw original) ────────────
+  // The at-rest copy in voc_documents.raw_text is stored ALREADY STRIPPED — the
+  // same redacted text the LLM sees — so no customer phone/email/name/handle
+  // ever lands in the database (Israeli-privacy exposure; audit PII-1). Dedup
+  // still hashes the ORIGINAL (rawHash above), so idempotency is unaffected: we
+  // hash the original but persist only the stripped version.
+  const strippedText = stripPii(input.rawText, { names: input.piiNames });
+
   // ── insert the document (status 'ingested') ─────────────────────────────────
   const { data: docData, error: insertError } = await supabase
     .from('voc_documents')
@@ -92,7 +100,7 @@ export async function ingestDocument(
       owner_user_id: input.ownerUserId,
       source:        input.source,
       source_meta:   input.sourceMeta ?? {},
-      raw_text:      input.rawText,
+      raw_text:      strippedText,
       raw_hash:      rawHash,
       status:        'ingested',
     })
@@ -121,9 +129,7 @@ export async function ingestDocument(
   }
   const doc = docData;
 
-  // ── PII-strip, then extract (the model never sees the PII) ──────────────────
-  const strippedText = stripPii(input.rawText, { names: input.piiNames });
-
+  // ── extract (the model never sees the PII — strippedText computed above) ────
   let extraction;
   try {
     const existingAtoms = await listActiveInsights(supabase, input.clientId);

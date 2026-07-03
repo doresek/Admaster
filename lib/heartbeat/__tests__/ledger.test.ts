@@ -9,6 +9,7 @@ import {
   markSkipped,
   markSucceeded,
   isoWeekStart,
+  periodKey,
   periodStart,
   utcDayStart,
   utcMonthStart,
@@ -52,6 +53,18 @@ describe('period boundaries (pure)', () => {
   it('monthly period = the UTC calendar month', () => {
     expect(utcMonthStart(new Date('2026-07-31T23:00:00.000Z')).toISOString())
       .toBe('2026-07-01T00:00:00.000Z');
+  });
+
+  it('periodKey = the UTC period-start date (YYYY-MM-DD), stable within a period', () => {
+    // Matches the migration 045 backfill (date_trunc day/week/month at UTC).
+    expect(periodKey('daily', NOW)).toBe('2026-07-01');
+    // 2026-07-01 is a Wednesday -> ISO week opens Monday 2026-06-29.
+    expect(periodKey('weekly', NOW)).toBe('2026-06-29');
+    expect(periodKey('monthly', NOW)).toBe('2026-07-01');
+    // Same key for any instant inside the same day/week/month...
+    expect(periodKey('daily', new Date('2026-07-01T23:59:59.999Z'))).toBe('2026-07-01');
+    // ...and a fresh key once the window rolls over.
+    expect(periodKey('daily', new Date('2026-07-02T00:00:00.000Z'))).toBe('2026-07-02');
   });
 });
 
@@ -134,6 +147,69 @@ describe('claimTick idempotency', () => {
       attention: { score: 0.7, components: { anomaly: { value: 1, reason: 'spike' } } },
     });
     expect(run?.attention).toEqual({ score: 0.7, components: { anomaly: { value: 1, reason: 'spike' } } });
+  });
+});
+
+// The HB-1 fix: with the 045 partial-unique index on
+// (client_id, tick_type, period_key), the INSERT is the atomic arbiter. Two
+// runHeartbeat invocations may both pass the check-then-insert reads (the
+// TOCTOU window), but only one INSERT lands; the loser gets a Postgres 23505
+// and must back off cleanly — a null claim, NOT a thrown error and NOT a
+// second row.
+describe('claim race (HB-1: INSERT is the arbiter, 23505 -> clean null)', () => {
+  /** The heartbeat_runs_claim_uniq partial index, as the fake would enforce it. */
+  const LIVE = ['claimed', 'running', 'succeeded'];
+  function enforceClaimUniq(mock: SupabaseMock): void {
+    mock.enforceUnique('heartbeat_runs', (payload, rows) =>
+      rows.some(
+        (r) =>
+          r.client_id === payload.client_id &&
+          r.tick_type === payload.tick_type &&
+          r.period_key === payload.period_key &&
+          LIVE.includes(r.status as string),
+      ),
+    );
+  }
+
+  it('a second claim for the same (client, tick, period) is rejected with null', async () => {
+    enforceClaimUniq(db);
+
+    // Winner claims normally, landing a live 'claimed' row (with its period_key).
+    const winner = await claimTick(db.client, CLIENT, OWNER, 'daily', { now: NOW });
+    expect(winner).not.toBeNull();
+
+    // A concurrent worker that read the ledger inside the winner's read->insert
+    // gap: force its reads to see NO live claim so it reaches the INSERT, where
+    // the unique index (the fake) rejects it with 23505.
+    const loserView = mockSupabase();
+    // Model the race precisely: the loser's pre-checks see an empty ledger, but
+    // by the time its INSERT hits, the winner's row is committed. We reproduce
+    // that by pointing the loser at a table that is empty at read time and
+    // seeding the winner into it only at insert-check time.
+    let committed = false;
+    loserView.enforceUnique('heartbeat_runs', (payload, rows) => {
+      if (!committed) {
+        committed = true; // the concurrent winner commits in our read->insert gap
+        rows.push({ id: 'winner', ...payload, status: 'claimed' });
+        return true;      // ...so our INSERT now violates the unique index
+      }
+      return false;
+    });
+
+    const lost = await claimTick(loserView.client, CLIENT, OWNER, 'daily', { now: NOW });
+    expect(lost).toBeNull();                                  // clean no-op, no throw
+    expect(loserView.rows('heartbeat_runs')).toHaveLength(1); // only the winner's row
+  });
+
+  it('a non-23505 insert error still throws (only unique-violation is swallowed)', async () => {
+    db.failOn.add('insert:heartbeat_runs');
+    await expect(claimTick(db.client, CLIENT, OWNER, 'daily', { now: NOW }))
+      .rejects.toThrow('claimTick.insert');
+  });
+
+  it('stamps period_key on the claimed row so the index has a key to enforce', async () => {
+    await claimTick(db.client, CLIENT, OWNER, 'weekly', { now: NOW });
+    expect(db.rows('heartbeat_runs')[0].period_key).toBe(periodKey('weekly', NOW));
   });
 });
 

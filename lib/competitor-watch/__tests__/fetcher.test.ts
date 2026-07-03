@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FixtureFetcher,
   LiveAdLibraryFetcher,
+  MAX_ADS_PER_RUN,
   ManualPasteFetcher,
   manualRef,
   parsePastedAds,
@@ -63,6 +64,22 @@ describe('parsePastedAds — the paste format', () => {
   it('an invalid first_seen date is ignored rather than stored malformed', () => {
     const ads = parsePastedAds('first_seen: 01/03/2026\nטקסט מודעה');
     expect(ads[0].first_seen).toBeUndefined();
+  });
+
+  it('caps the fan-out at MAX_ADS_PER_RUN — a huge paste cannot spawn unbounded decode calls (F1)', () => {
+    // Build a paste with far more ad blocks than the cap allows.
+    const count = MAX_ADS_PER_RUN * 3;
+    const paste = Array.from({ length: count }, (_, i) => `מודעה מספר ${i}`).join('\n\n');
+    const ads = parsePastedAds(paste);
+    expect(ads).toHaveLength(MAX_ADS_PER_RUN);
+    // The kept ads are the FIRST MAX_ADS_PER_RUN (deterministic truncation).
+    expect(ads[0].text).toBe('מודעה מספר 0');
+    expect(ads[MAX_ADS_PER_RUN - 1].text).toBe(`מודעה מספר ${MAX_ADS_PER_RUN - 1}`);
+  });
+
+  it('does not truncate when the paste is at or under the cap', () => {
+    const paste = Array.from({ length: MAX_ADS_PER_RUN }, (_, i) => `מודעה ${i}`).join('\n\n');
+    expect(parsePastedAds(paste)).toHaveLength(MAX_ADS_PER_RUN);
   });
 });
 

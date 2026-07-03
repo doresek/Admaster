@@ -68,6 +68,16 @@ const META_KEY_ALIASES: Record<string, 'format' | 'platforms' | 'landing' | 'fir
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * Hard cap on how many ads one paste (or any single fetch) may yield. Each ad
+ * costs an LLM decode call, so an uncapped 30k paste could fan out into
+ * hundreds of Sonnet calls per POST (cost/DoS — SECURITY-AUDIT-2 F1). The cap
+ * bounds the fan-out at the source; runWatch enforces the same bound again on
+ * the decode batch (defense in depth). Truncation is NEVER silent — the excess
+ * count is logged here and surfaced as `ads_capped` in the run result.
+ */
+export const MAX_ADS_PER_RUN = 40;
+
 /** Normalize ad text for hashing: lowercase + collapse ALL whitespace, so a
  *  re-paste with different wrapping produces the identical ref. */
 const normalizeForHash = (text: string): string =>
@@ -143,6 +153,17 @@ export function parsePastedAds(rawText: string): RawObservedAd[] {
       ...(meta.first_seen !== undefined ? { first_seen: meta.first_seen } : {}),
       still_active: !meta.inactive,
     });
+  }
+
+  // Cost/DoS guard (F1): cap the fan-out so one paste can never spawn an
+  // unbounded number of LLM decode calls. Truncate, but log the drop count —
+  // no silent evidence loss.
+  if (ads.length > MAX_ADS_PER_RUN) {
+    console.warn(
+      `[competitor-watch] paste yielded ${ads.length} ads; capping to MAX_ADS_PER_RUN=${MAX_ADS_PER_RUN} ` +
+      `(${ads.length - MAX_ADS_PER_RUN} dropped — split the paste to process the rest)`,
+    );
+    return ads.slice(0, MAX_ADS_PER_RUN);
   }
   return ads;
 }

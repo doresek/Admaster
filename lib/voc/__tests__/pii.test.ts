@@ -37,6 +37,25 @@ describe('stripPii — emails and URLs', () => {
   });
 });
 
+describe('stripPii — third-party contact info NOT in the names list (PII-2)', () => {
+  it('redacts a third-party email/phone even when no names are supplied', () => {
+    // The contact belongs to someone the caller never listed; pattern still wins.
+    const out = stripPii('דברו עם דנה: dana.levi@clinic.co.il או 054-9876543');
+    expect(out).toBe('דברו עם דנה: {email} או {phone}');
+    expect(out).not.toContain('dana.levi');
+    expect(out).not.toContain('9876543');
+  });
+
+  it('redacts bare social/contact handles the email primitive misses', () => {
+    expect(stripPii('עקבו אחרי @dana_k בטיקטוק')).toBe('עקבו אחרי {handle} בטיקטוק');
+    expect(stripPii('הדף שלהם @clinic.tlv מעולה')).toBe('הדף שלהם {handle} מעולה');
+  });
+
+  it('a real email still becomes {email}, not {handle} (order preserved)', () => {
+    expect(stripPii('מייל: ruti@gmail.com')).toBe('מייל: {email}');
+  });
+});
+
 describe('stripPii — supplied names', () => {
   it('strips supplied names case/whitespace tolerant across a run of spaces', () => {
     const out = stripPii('טופלתי אצל רותי   כהן והיה מצוין', { names: ['רותי כהן'] });

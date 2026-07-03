@@ -6,7 +6,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { CompetitorEntityRow } from '@/lib/capability-contracts';
 import type { LlmComplete } from '../decode';
-import { FixtureFetcher, type AdSourceFetcher } from '../fetcher';
+import { FixtureFetcher, MAX_ADS_PER_RUN, type AdSourceFetcher } from '../fetcher';
 import { runWatch } from '../run-watch';
 import type { FetchResult, RawObservedAd } from '../types';
 import { CLIENT_ID, E1, E2, E3, NOW, OWNER_ID } from './fixtures';
@@ -141,6 +141,32 @@ describe('runWatch — full pipeline', () => {
     expect(second.decoded_count).toBe(0);                        // nothing left to decode
     expect(second.delta.new_veterans).toEqual([]);               // no re-reporting
     expect(second.errors).toEqual([]);
+  });
+});
+
+describe('runWatch — fan-out cap (F1)', () => {
+  it('decodes at most MAX_ADS_PER_RUN ads and reports the deferred excess in ads_capped', async () => {
+    const excess = 12;
+    const total = MAX_ADS_PER_RUN + excess;
+    const many: RawObservedAd[] = Array.from({ length: total }, (_, i) => ({
+      ref: `lib:e1-bulk-${i}`, text: `מודעה ${i}`, still_active: true,
+    }));
+
+    const result = await runWatch(db.client, mockLlm, new FixtureFetcher({ [E1.id]: many }), opts);
+
+    // All observations are STORED (longevity data is never dropped)...
+    expect(db.rows('competitor_ads')).toHaveLength(total);
+    // ...but only MAX_ADS_PER_RUN are decoded this run, the rest are deferred.
+    expect(result.decoded_count).toBe(MAX_ADS_PER_RUN);
+    expect(result.ads_capped).toBe(excess);
+    // The deferred ads stay undecoded, ready for a later pass — not lost.
+    const undecoded = db.rows('competitor_ads').filter((a) => a.decoded === null);
+    expect(undecoded).toHaveLength(excess);
+  });
+
+  it('ads_capped is 0 when the run is within the cap', async () => {
+    const result = await runWatch(db.client, mockLlm, new FixtureFetcher(FIXTURE_ADS), opts);
+    expect(result.ads_capped).toBe(0);
   });
 });
 
