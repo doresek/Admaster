@@ -1,19 +1,19 @@
 // Tests for the PURE routing policy — the policy table IS the spec, so it is
-// asserted exhaustively: every (level × kind) cell, the cap boundaries (AT the
+// asserted exhaustively: every (mode × kind) cell, the cap boundaries (AT the
 // cap executes, one agora over proposes), the protective bypass, the rate
-// limit, malformed-input totality, and graduation thresholds.
+// limit, malformed-input totality, and the mode-suggestion thresholds.
 
 import { describe, expect, it } from 'vitest';
-import type { AutonomyAction, AutonomyLevel, AutonomyRoute, ClientAutonomyRow } from '@/lib/capability-contracts';
+import type { AutonomyAction, AutonomyMode, AutonomyRoute, ClientAutonomyRow } from '@/lib/capability-contracts';
 import {
-  assessGraduation,
+  assessModeSuggestion,
   DEFAULT_DAILY_SPEND_CAP_ILS,
   DEFAULT_MAX_DAILY_DELTA_PCT,
   DEFAULT_MONTHLY_SPEND_CAP_ILS,
-  GRADUATION_MIN_APPROVALS,
-  GRADUATION_MIN_DAYS,
   MAX_ACTIONS_PER_DAY,
   routeAction,
+  SUGGESTION_MIN_APPROVALS,
+  SUGGESTION_MIN_DAYS,
 } from '../policy';
 import type { RouteContext } from '../types';
 
@@ -28,7 +28,7 @@ const act = (
 });
 
 const ctx = (over: Partial<RouteContext> = {}): RouteContext => ({
-  level:            'L1',
+  mode:             'propose_approve',
   caps:             {},
   todayActionCount: 0,
   todaySpendIls:    0,
@@ -36,70 +36,63 @@ const ctx = (over: Partial<RouteContext> = {}): RouteContext => ({
   ...over,
 });
 
-// ── THE POLICY TABLE — every (level × kind) cell, in-caps context ─────────────
+// ── THE POLICY TABLE — every (mode × kind) cell, in-caps context ──────────────
 
 type Verdict = AutonomyRoute['route'];
 
 /** The spec grid: modest in-caps impact (spend 10 ILS, delta 5%), count 0. */
-const POLICY_TABLE: Array<[AutonomyLevel, AutonomyAction['kind'], Verdict]> = [
-  // L0 — draft mode: the system may only ask, for EVERYTHING (even pause).
-  ['L0', 'publish_organic',    'propose'],
-  ['L0', 'create_paid_paused', 'propose'],
-  ['L0', 'pause_paid',         'propose'],
-  ['L0', 'unpause_paid',       'propose'],
-  ['L0', 'reallocate_budget',  'propose'],
-  ['L0', 'send_message',       'propose'],
-  ['L0', 'propose_only',       'propose'],
-  // L1 — default: no-money kinds execute; money kinds ask; pause protects.
-  ['L1', 'publish_organic',    'execute'],
-  ['L1', 'create_paid_paused', 'execute'],
-  ['L1', 'pause_paid',         'execute'],
-  ['L1', 'unpause_paid',       'propose'],
-  ['L1', 'reallocate_budget',  'propose'],
-  ['L1', 'send_message',       'propose'],
-  ['L1', 'propose_only',       'propose'],
-  // L2 — money kinds execute within caps (this grid is within caps).
-  ['L2', 'publish_organic',    'execute'],
-  ['L2', 'create_paid_paused', 'execute'],
-  ['L2', 'pause_paid',         'execute'],
-  ['L2', 'unpause_paid',       'execute'],
-  ['L2', 'reallocate_budget',  'execute'],
-  ['L2', 'send_message',       'execute'],
-  ['L2', 'propose_only',       'propose'],
-  // L3 — as L2 (monthly budget the only spend bound; still within here).
-  ['L3', 'publish_organic',    'execute'],
-  ['L3', 'create_paid_paused', 'execute'],
-  ['L3', 'pause_paid',         'execute'],
-  ['L3', 'unpause_paid',       'execute'],
-  ['L3', 'reallocate_budget',  'execute'],
-  ['L3', 'send_message',       'execute'],
-  ['L3', 'propose_only',       'propose'],
+const POLICY_TABLE: Array<[AutonomyMode, AutonomyAction['kind'], Verdict]> = [
+  // draft_only — system prepares, user does everything: only asks (even pause).
+  ['draft_only', 'publish_organic',    'propose'],
+  ['draft_only', 'create_paid_paused', 'propose'],
+  ['draft_only', 'pause_paid',         'propose'],
+  ['draft_only', 'unpause_paid',       'propose'],
+  ['draft_only', 'reallocate_budget',  'propose'],
+  ['draft_only', 'send_message',       'propose'],
+  ['draft_only', 'propose_only',       'propose'],
+  // propose_approve (DEFAULT) — no-money kinds execute; money kinds ask;
+  // pause protects.
+  ['propose_approve', 'publish_organic',    'execute'],
+  ['propose_approve', 'create_paid_paused', 'execute'],
+  ['propose_approve', 'pause_paid',         'execute'],
+  ['propose_approve', 'unpause_paid',       'propose'],
+  ['propose_approve', 'reallocate_budget',  'propose'],
+  ['propose_approve', 'send_message',       'propose'],
+  ['propose_approve', 'propose_only',       'propose'],
+  // act_within_caps — money kinds execute within caps (this grid is within).
+  ['act_within_caps', 'publish_organic',    'execute'],
+  ['act_within_caps', 'create_paid_paused', 'execute'],
+  ['act_within_caps', 'pause_paid',         'execute'],
+  ['act_within_caps', 'unpause_paid',       'execute'],
+  ['act_within_caps', 'reallocate_budget',  'execute'],
+  ['act_within_caps', 'send_message',       'execute'],
+  ['act_within_caps', 'propose_only',       'propose'],
 ];
 
 describe('routeAction — the policy table', () => {
-  it.each(POLICY_TABLE)('%s × %s → %s', (level, kind, expected) => {
+  it.each(POLICY_TABLE)('%s × %s → %s', (mode, kind, expected) => {
     const result = routeAction(
       act(kind, { spend_ils: 10, delta_pct: 5 }),
-      ctx({ level }),
+      ctx({ mode }),
     );
     expect(result.route).toBe(expected);
     expect(result.reason.length).toBeGreaterThan(0);
   });
 
-  it('unknown level is treated as L0 (assume no trust)', () => {
-    const garbageLevel: AutonomyLevel = JSON.parse('"L9"');
-    expect(routeAction(act('publish_organic'), ctx({ level: garbageLevel })).route).toBe('propose');
-    expect(routeAction(act('pause_paid'), ctx({ level: garbageLevel })).route).toBe('propose');
+  it('unknown mode is treated as draft_only (assume no trust)', () => {
+    const garbageMode: AutonomyMode = JSON.parse('"turbo_mode"');
+    expect(routeAction(act('publish_organic'), ctx({ mode: garbageMode })).route).toBe('propose');
+    expect(routeAction(act('pause_paid'), ctx({ mode: garbageMode })).route).toBe('propose');
   });
 });
 
 // ── Cap boundaries — AT the cap executes, one agora over proposes ─────────────
 
-describe('routeAction — L2 caps', () => {
+describe('routeAction — act_within_caps caps', () => {
   it('spend exactly AT the remaining daily cap executes', () => {
     const r = routeAction(
       act('unpause_paid', { spend_ils: 60 }),
-      ctx({ level: 'L2', caps: { daily_spend_cap: 100 }, todaySpendIls: 40 }),
+      ctx({ mode: 'act_within_caps', caps: { daily_spend_cap: 100 }, todaySpendIls: 40 }),
     );
     expect(r.route).toBe('execute');
   });
@@ -107,7 +100,7 @@ describe('routeAction — L2 caps', () => {
   it('one agora over the remaining daily cap proposes, with cap + number in the reason', () => {
     const r = routeAction(
       act('unpause_paid', { spend_ils: 60.01 }),
-      ctx({ level: 'L2', caps: { daily_spend_cap: 100 }, todaySpendIls: 40 }),
+      ctx({ mode: 'act_within_caps', caps: { daily_spend_cap: 100 }, todaySpendIls: 40 }),
     );
     expect(r.route).toBe('propose');
     expect(r.reason).toContain('60.01');
@@ -116,7 +109,7 @@ describe('routeAction — L2 caps', () => {
   });
 
   it('spend exactly AT the remaining monthly cap executes; over proposes', () => {
-    const base = ctx({ level: 'L2', caps: { monthly_spend_cap: 2000 }, monthSpendIls: 1990 });
+    const base = ctx({ mode: 'act_within_caps', caps: { monthly_spend_cap: 2000 }, monthSpendIls: 1990 });
     expect(routeAction(act('reallocate_budget', { spend_ils: 10 }), base).route).toBe('execute');
     const over = routeAction(act('reallocate_budget', { spend_ils: 10.01 }), base);
     expect(over.route).toBe('propose');
@@ -125,7 +118,7 @@ describe('routeAction — L2 caps', () => {
   });
 
   it('delta exactly AT the cap executes; 25.1 proposes', () => {
-    const base = ctx({ level: 'L2', caps: { max_daily_delta_pct: 25 } });
+    const base = ctx({ mode: 'act_within_caps', caps: { max_daily_delta_pct: 25 } });
     expect(routeAction(act('reallocate_budget', { delta_pct: 25 }), base).route).toBe('execute');
     const over = routeAction(act('reallocate_budget', { delta_pct: 25.1 }), base);
     expect(over.route).toBe('propose');
@@ -134,17 +127,20 @@ describe('routeAction — L2 caps', () => {
   });
 
   it('absent caps fall back to the conservative defaults (100 / 2000 / 25)', () => {
-    const l2 = ctx({ level: 'L2' });
-    expect(routeAction(act('unpause_paid', { spend_ils: DEFAULT_DAILY_SPEND_CAP_ILS }), l2).route).toBe('execute');
-    expect(routeAction(act('unpause_paid', { spend_ils: DEFAULT_DAILY_SPEND_CAP_ILS + 0.01 }), l2).route).toBe('propose');
-    expect(routeAction(act('send_message', { delta_pct: DEFAULT_MAX_DAILY_DELTA_PCT + 0.1 }), l2).route).toBe('propose');
+    const awc = ctx({ mode: 'act_within_caps' });
+    expect(routeAction(act('unpause_paid', { spend_ils: DEFAULT_DAILY_SPEND_CAP_ILS }), awc).route).toBe('execute');
+    expect(routeAction(act('unpause_paid', { spend_ils: DEFAULT_DAILY_SPEND_CAP_ILS + 0.01 }), awc).route).toBe('propose');
+    expect(routeAction(act('send_message', { delta_pct: DEFAULT_MAX_DAILY_DELTA_PCT + 0.1 }), awc).route).toBe('propose');
     expect(
-      routeAction(act('unpause_paid', { spend_ils: 60 }), ctx({ level: 'L2', monthSpendIls: DEFAULT_MONTHLY_SPEND_CAP_ILS - 50 })).route,
+      routeAction(
+        act('unpause_paid', { spend_ils: 60 }),
+        ctx({ mode: 'act_within_caps', monthSpendIls: DEFAULT_MONTHLY_SPEND_CAP_ILS - 50 }),
+      ).route,
     ).toBe('propose'); // only 50 ILS left of the default monthly cap
   });
 
   it('an owner-set cap of 0 is a freeze: any positive spend proposes, zero-spend executes', () => {
-    const frozen = ctx({ level: 'L2', caps: { daily_spend_cap: 0 } });
+    const frozen = ctx({ mode: 'act_within_caps', caps: { daily_spend_cap: 0 } });
     expect(routeAction(act('unpause_paid', { spend_ils: 1 }), frozen).route).toBe('propose');
     expect(routeAction(act('send_message'), frozen).route).toBe('execute');
   });
@@ -152,43 +148,21 @@ describe('routeAction — L2 caps', () => {
   it('unknown spend context proposes (caps we cannot verify are caps exceeded)', () => {
     const r = routeAction(
       act('unpause_paid', { spend_ils: 50 }),
-      ctx({ level: 'L2', todaySpendIls: Number.NaN }),
+      ctx({ mode: 'act_within_caps', todaySpendIls: Number.NaN }),
     );
     expect(r.route).toBe('propose');
     expect(r.reason).toContain('spend context unavailable');
   });
 });
 
-describe('routeAction — L3 caps', () => {
-  it('ignores the daily cap: spend over the daily default executes when the month allows', () => {
-    const r = routeAction(act('unpause_paid', { spend_ils: 500 }), ctx({ level: 'L3' }));
-    expect(r.route).toBe('execute'); // 500 > default daily 100, but L3 is monthly-bounded
-  });
-
-  it('still bounded by the monthly cap: over proposes with the numbers', () => {
-    const r = routeAction(
-      act('unpause_paid', { spend_ils: DEFAULT_MONTHLY_SPEND_CAP_ILS + 0.01 }),
-      ctx({ level: 'L3' }),
-    );
-    expect(r.route).toBe('propose');
-    expect(r.reason).toContain(String(DEFAULT_MONTHLY_SPEND_CAP_ILS));
-  });
-
-  it('delta cap still applies at L3 (thrash protection is not a trust question)', () => {
-    const r = routeAction(act('reallocate_budget', { delta_pct: 25.1 }), ctx({ level: 'L3' }));
-    expect(r.route).toBe('propose');
-    expect(r.reason).toContain('25.1');
-  });
-});
-
 // ── Protective bypass ─────────────────────────────────────────────────────────
 
 describe('routeAction — protective bypass (pause_paid)', () => {
-  it('executes at L1/L2/L3 even with impact far over every cap', () => {
-    for (const level of ['L1', 'L2', 'L3'] as const) {
+  it('executes in propose_approve and act_within_caps even with impact far over every cap', () => {
+    for (const mode of ['propose_approve', 'act_within_caps'] as const) {
       const r = routeAction(
         act('pause_paid', { spend_ils: 999_999, delta_pct: 100 }),
-        ctx({ level, todaySpendIls: 5000, monthSpendIls: 50_000 }),
+        ctx({ mode, todaySpendIls: 5000, monthSpendIls: 50_000 }),
       );
       expect(r.route).toBe('execute');
       expect(r.reason).toContain('protective');
@@ -196,18 +170,20 @@ describe('routeAction — protective bypass (pause_paid)', () => {
   });
 
   it('bypasses the rate limit too — a pause can only stop spend', () => {
-    for (const level of ['L1', 'L2', 'L3'] as const) {
-      const r = routeAction(act('pause_paid'), ctx({ level, todayActionCount: MAX_ACTIONS_PER_DAY + 5 }));
+    for (const mode of ['propose_approve', 'act_within_caps'] as const) {
+      const r = routeAction(act('pause_paid'), ctx({ mode, todayActionCount: MAX_ACTIONS_PER_DAY + 5 }));
       expect(r.route).toBe('execute');
     }
   });
 
-  it('at L0 even pause is a proposal (L0 has no execution authority)', () => {
-    expect(routeAction(act('pause_paid'), ctx({ level: 'L0' })).route).toBe('propose');
+  it('in draft_only even pause is a proposal (that mode has no execution authority)', () => {
+    expect(routeAction(act('pause_paid'), ctx({ mode: 'draft_only' })).route).toBe('propose');
   });
 
-  it('at L0 under the rate limit even pause blocks (no execute authority to protect with)', () => {
-    expect(routeAction(act('pause_paid'), ctx({ level: 'L0', todayActionCount: MAX_ACTIONS_PER_DAY })).route).toBe('block');
+  it('in draft_only under the rate limit even pause blocks (no execute authority to protect with)', () => {
+    expect(
+      routeAction(act('pause_paid'), ctx({ mode: 'draft_only', todayActionCount: MAX_ACTIONS_PER_DAY })).route,
+    ).toBe('block');
   });
 });
 
@@ -223,16 +199,16 @@ describe('routeAction — rate limit', () => {
     expect(blocked.reason).toContain(String(MAX_ACTIONS_PER_DAY));
   });
 
-  it('blocks everything at every level — including propose_only (a looping system must not spam either)', () => {
-    for (const level of ['L0', 'L1', 'L2', 'L3'] as const) {
+  it('blocks everything in every mode — including propose_only (a looping system must not spam either)', () => {
+    for (const mode of ['draft_only', 'propose_approve', 'act_within_caps'] as const) {
       for (const kind of ['publish_organic', 'unpause_paid', 'propose_only'] as const) {
-        expect(routeAction(act(kind), ctx({ level, todayActionCount: 25 })).route).toBe('block');
+        expect(routeAction(act(kind), ctx({ mode, todayActionCount: 25 })).route).toBe('block');
       }
     }
   });
 
-  it('pause still executes past the limit at L1+ (covered above), and unknown count blocks', () => {
-    expect(routeAction(act('pause_paid'), ctx({ level: 'L2', todayActionCount: 25 })).route).toBe('execute');
+  it('pause still executes past the limit outside draft_only, and unknown count blocks', () => {
+    expect(routeAction(act('pause_paid'), ctx({ mode: 'act_within_caps', todayActionCount: 25 })).route).toBe('execute');
     const blind = routeAction(act('publish_organic'), ctx({ todayActionCount: Number.NaN }));
     expect(blind.route).toBe('block');
     expect(blind.reason).toContain('unavailable');
@@ -258,90 +234,92 @@ describe('routeAction — malformed actions', () => {
     ['null action',         JSON.parse('null')],
   ];
 
-  it.each(malformed)('%s → block at every level, never a throw', (_label, action) => {
-    for (const level of ['L0', 'L1', 'L2', 'L3'] as const) {
-      const r = routeAction(action, ctx({ level }));
+  it.each(malformed)('%s → block in every mode, never a throw', (_label, action) => {
+    for (const mode of ['draft_only', 'propose_approve', 'act_within_caps'] as const) {
+      const r = routeAction(action, ctx({ mode }));
       expect(r.route).toBe('block');
       expect(r.reason).toContain('malformed');
     }
   });
 
   it('a malformed pause is blocked too — garbage is more likely a bug than a rescue', () => {
-    const r = routeAction(act('pause_paid', { spend_ils: Number.NaN }), ctx({ level: 'L2' }));
+    const r = routeAction(act('pause_paid', { spend_ils: Number.NaN }), ctx({ mode: 'act_within_caps' }));
     expect(r.route).toBe('block');
   });
 });
 
-// ── Graduation ────────────────────────────────────────────────────────────────
+// ── Mode suggestion (the system only ever SUGGESTS — the owner decides) ──────
 
 const NOW = new Date('2026-07-03T12:00:00.000Z');
 const daysAgo = (d: number): string => new Date(NOW.getTime() - d * 86_400_000).toISOString();
 
-const gradRow = (over: Partial<ClientAutonomyRow> = {}): ClientAutonomyRow => ({
+const trustRow = (over: Partial<ClientAutonomyRow> = {}): ClientAutonomyRow => ({
   id:                 'aut-1',
   client_id:          'client-1',
   owner_user_id:      'user-1',
-  level:              'L1',
+  mode:               'propose_approve',
   caps:               {},
   approvals_total:    13,
   approvals_approved: 12,
-  level_since:        daysAgo(21),
+  mode_since:         daysAgo(21),
   created_at:         daysAgo(30),
   updated_at:         daysAgo(1),
   ...over,
 });
 
-describe('assessGraduation', () => {
-  it('proposes the next level when earned, with the numbers in the reason', () => {
-    const a = assessGraduation(gradRow(), NOW); // 21 days, 12/13 ≈ 92%
+describe('assessModeSuggestion', () => {
+  it('suggests the next mode when earned, with the numbers in the reason', () => {
+    const a = assessModeSuggestion(trustRow(), NOW); // 21 days, 12/13 ≈ 92%
     expect(a.eligible).toBe(true);
-    expect(a.proposal?.to_level).toBe('L2');
-    expect(a.proposal?.reason).toContain('21');
-    expect(a.proposal?.reason).toContain('L1');
-    expect(a.proposal?.reason).toContain('92');
-    expect(a.proposal?.reason).toContain('12/13');
-    expect(a.proposal?.reason).toContain('L2');
+    expect(a.suggestion?.to_mode).toBe('act_within_caps');
+    expect(a.suggestion?.reason).toContain('21');
+    expect(a.suggestion?.reason).toContain('propose_approve');
+    expect(a.suggestion?.reason).toContain('92');
+    expect(a.suggestion?.reason).toContain('12/13');
+    expect(a.suggestion?.reason).toContain('act_within_caps');
   });
 
   it('exactly at every threshold is eligible (14 days, 10 approvals, 90%)', () => {
-    const a = assessGraduation(
-      gradRow({ level_since: daysAgo(GRADUATION_MIN_DAYS), approvals_total: GRADUATION_MIN_APPROVALS, approvals_approved: 9 }),
+    const a = assessModeSuggestion(
+      trustRow({ mode_since: daysAgo(SUGGESTION_MIN_DAYS), approvals_total: SUGGESTION_MIN_APPROVALS, approvals_approved: 9 }),
       NOW,
     );
     expect(a.eligible).toBe(true);
   });
 
   it('13 days is not enough', () => {
-    expect(assessGraduation(gradRow({ level_since: daysAgo(13) }), NOW).eligible).toBe(false);
+    expect(assessModeSuggestion(trustRow({ mode_since: daysAgo(13) }), NOW).eligible).toBe(false);
   });
 
   it('9 decided approvals is not enough, even at 100%', () => {
     expect(
-      assessGraduation(gradRow({ approvals_total: 9, approvals_approved: 9 }), NOW).eligible,
+      assessModeSuggestion(trustRow({ approvals_total: 9, approvals_approved: 9 }), NOW).eligible,
     ).toBe(false);
   });
 
   it('89.9% approval rate is not enough; 90.0% is', () => {
     expect(
-      assessGraduation(gradRow({ approvals_total: 1000, approvals_approved: 899 }), NOW).eligible,
+      assessModeSuggestion(trustRow({ approvals_total: 1000, approvals_approved: 899 }), NOW).eligible,
     ).toBe(false);
     expect(
-      assessGraduation(gradRow({ approvals_total: 1000, approvals_approved: 900 }), NOW).eligible,
+      assessModeSuggestion(trustRow({ approvals_total: 1000, approvals_approved: 900 }), NOW).eligible,
     ).toBe(true);
   });
 
-  it('L3 never proposes higher, whatever the stats', () => {
-    const a = assessGraduation(gradRow({ level: 'L3', approvals_total: 100, approvals_approved: 100 }), NOW);
+  it('act_within_caps never suggests anything, whatever the stats', () => {
+    const a = assessModeSuggestion(
+      trustRow({ mode: 'act_within_caps', approvals_total: 100, approvals_approved: 100 }),
+      NOW,
+    );
     expect(a.eligible).toBe(false);
-    expect(a.proposal).toBeUndefined();
+    expect(a.suggestion).toBeUndefined();
   });
 
-  it('walks the ladder: L0→L1, L2→L3', () => {
-    expect(assessGraduation(gradRow({ level: 'L0' }), NOW).proposal?.to_level).toBe('L1');
-    expect(assessGraduation(gradRow({ level: 'L2' }), NOW).proposal?.to_level).toBe('L3');
+  it('walks the modes: draft_only → propose_approve', () => {
+    expect(assessModeSuggestion(trustRow({ mode: 'draft_only' }), NOW).suggestion?.to_mode).toBe('propose_approve');
   });
 
-  it('unparsable level_since is never eligible (no autonomy on unreadable data)', () => {
-    expect(assessGraduation(gradRow({ level_since: 'not-a-date' }), NOW).eligible).toBe(false);
+  it('unparsable mode_since is never eligible (no autonomy on unreadable data)', () => {
+    expect(assessModeSuggestion(trustRow({ mode_since: 'not-a-date' }), NOW).eligible).toBe(false);
   });
 });

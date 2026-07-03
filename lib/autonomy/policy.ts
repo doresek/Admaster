@@ -1,40 +1,47 @@
 // lib/autonomy/policy.ts
 //
-// The PURE routing policy of the autonomy ladder (VISION-DEEP §1.4) — the
-// single gate every system action routes through. Zero I/O: routeAction and
-// assessGraduation are total functions over their inputs (any input produces a
-// verdict, never a throw), so the safety core is exhaustively testable as a
-// table and can never crash the caller into an un-routed action.
+// The PURE routing policy of the autonomy modes (VISION-DEEP §1.4; D1
+// DECIDED) — the single gate every system action routes through. Zero I/O:
+// routeAction and assessModeSuggestion are total functions over their inputs
+// (any input produces a verdict, never a throw), so the safety core is
+// exhaustively testable as a table and can never crash the caller into an
+// un-routed action.
 //
-// The ladder (§1.4):
-//   L0 Draft            — generates + plans; publishes nothing
-//   L1 Propose (DEFAULT) — executes organic + builds paid PAUSED; owner
-//                          approves every unpause (one tap from the digest)
-//   L2 Act-within-caps   — unpauses/pauses/reallocates within daily+monthly
-//                          caps and per-change delta limits; notifies after
-//   L3 Autonomous        — full portfolio control within the monthly budget
+// The 3 USER-SELECTABLE modes (the owner picks; the system NEVER self-promotes):
+//   draft_only                — system prepares, user does everything;
+//                               every action routes 'propose' (even pause)
+//   propose_approve (DEFAULT) — executes organic + builds paid PAUSED; owner
+//                               approves every money move (one tap); protective
+//                               pause executes
+//   act_within_caps           — unpause/pause/reallocate/send execute within
+//                               the user-set daily+monthly spend caps and the
+//                               per-change delta cap; over-cap → propose
 //
-// Two rules sit above the ladder:
-//   • PROTECTIVE BYPASS — 'pause_paid' executes at every level L1+, past caps
-//     AND past the rate limit. A pause can only stop money, never start it.
+// Two rules sit above the mode table:
+//   • PROTECTIVE BYPASS — 'pause_paid' executes in propose_approve and
+//     act_within_caps, past caps AND past the rate limit. A pause can only
+//     stop money, never start it. In draft_only even pause proposes — that
+//     mode grants no execution authority at all.
 //   • RATE LIMIT — at ≥ MAX_ACTIONS_PER_DAY auto-executions today, everything
-//     except protective pause is blocked (runaway-loop protection, §6.5).
+//     except protective pause is blocked (runaway-loop protection, §6.5), in
+//     every mode.
 
-import type { AutonomyAction, AutonomyLevel, AutonomyRoute, ClientAutonomyRow } from '@/lib/capability-contracts';
-import type { GraduationAssessment, RouteContext } from './types';
+import type { AutonomyAction, AutonomyMode, AutonomyRoute, ClientAutonomyRow } from '@/lib/capability-contracts';
+import type { ModeSuggestionAssessment, RouteContext } from './types';
 
 // ── Exported policy constants ─────────────────────────────────────────────────
 //
-// The cap defaults are CONSERVATIVE BY DESIGN: they bound what an L2 client
-// with an empty caps object can lose to a bug or a bad judgment in one day /
-// one month. Owners raise them explicitly; the system never does. (R2 in the
-// vision's risk table: one runaway campaign at a design partner ends the
-// relationship — defaults must make that impossible, not merely unlikely.)
+// The cap defaults are CONSERVATIVE BY DESIGN: they bound what an
+// act_within_caps client with an empty caps object can lose to a bug or a bad
+// judgment in one day / one month. Owners raise them explicitly; the system
+// never does. (R2 in the vision's risk table: one runaway campaign at a
+// design partner ends the relationship — defaults must make that impossible,
+// not merely unlikely.)
 
-/** Default L2 per-day spend bound (ILS) when caps.daily_spend_cap is absent. */
+/** Default per-day spend bound (ILS) when caps.daily_spend_cap is absent. */
 export const DEFAULT_DAILY_SPEND_CAP_ILS = 100;
 
-/** Default L2/L3 per-month spend bound (ILS) when caps.monthly_spend_cap is absent. */
+/** Default per-month spend bound (ILS) when caps.monthly_spend_cap is absent. */
 export const DEFAULT_MONTHLY_SPEND_CAP_ILS = 2000;
 
 /** Default per-change budget-delta bound (%) when caps.max_daily_delta_pct is absent. */
@@ -47,31 +54,28 @@ export const DEFAULT_MAX_DAILY_DELTA_PCT = 25;
  */
 export const MAX_ACTIONS_PER_DAY = 20;
 
-// ── Graduation thresholds (exported so the UI can show progress toward them) ──
+// ── Mode-suggestion thresholds (exported so the UI can show progress) ─────────
 
-/** Minimum days at the current level before graduation is proposed. */
-export const GRADUATION_MIN_DAYS = 14;
+/** Minimum days in the current mode before a switch is suggested. */
+export const SUGGESTION_MIN_DAYS = 14;
 
 /** Minimum decided approvals before the approval rate means anything. */
-export const GRADUATION_MIN_APPROVALS = 10;
+export const SUGGESTION_MIN_APPROVALS = 10;
 
 /** Minimum approval rate — 90% of proposals approved is the trust bar. */
-export const GRADUATION_MIN_APPROVAL_RATE = 0.9;
+export const SUGGESTION_MIN_APPROVAL_RATE = 0.9;
 
 // ── Runtime guards (the DB CHECKs enforce these too; the policy re-checks so
 //    it stays total even over garbage that never touched the DB) ──────────────
 
-const LEVELS: readonly AutonomyLevel[] = ['L0', 'L1', 'L2', 'L3'];
-const LEVEL_SET: ReadonlySet<string> = new Set(LEVELS);
+const MODES: readonly AutonomyMode[] = ['draft_only', 'propose_approve', 'act_within_caps'];
+const MODE_SET: ReadonlySet<string> = new Set(MODES);
 
 const ACTION_KINDS: readonly AutonomyAction['kind'][] = [
   'publish_organic', 'create_paid_paused', 'unpause_paid', 'pause_paid',
   'reallocate_budget', 'send_message', 'propose_only',
 ];
 const KIND_SET: ReadonlySet<string> = new Set(ACTION_KINDS);
-
-/** The kinds that move (or free) money — the ones caps exist to bound. */
-const MONEY_KINDS: ReadonlySet<string> = new Set(['unpause_paid', 'reallocate_budget', 'send_message']);
 
 /**
  * Why an action is malformed, or null when it is well-formed. Malformed input
@@ -110,23 +114,24 @@ function capOrDefault(value: number | undefined, fallback: number): number {
 }
 
 /**
- * Route one action through the ladder. Total: every input maps to exactly one
- * of execute / propose / block, never a throw.
+ * Route one action through the mode policy. Total: every input maps to
+ * exactly one of execute / propose / block, never a throw.
  *
  * The policy table, cell by cell (WHY per cell):
  *
- *   0. MALFORMED (any level) → block. Never execute garbage; see
+ *   0. MALFORMED (any mode) → block. Never execute garbage; see
  *      malformedReason for why this outranks even the protective bypass.
  *
- *   1. PROTECTIVE BYPASS: 'pause_paid' at L1/L2/L3 → execute, bypassing caps
- *      AND the rate limit. The kill-switch is never gated: caps bound money
- *      going OUT, and a pause only stops it; a runaway loop of pauses
- *      converges to the safe state (everything paused, zero spend), so rate-
- *      limiting it can only delay a rescue, never prevent damage. At L0 even
- *      pause is a proposal — L0 has no execution authority at all, and a
- *      client parked at L0 has nothing running that the system started.
+ *   1. PROTECTIVE BYPASS: 'pause_paid' in propose_approve / act_within_caps →
+ *      execute, bypassing caps AND the rate limit. The kill-switch is never
+ *      gated: caps bound money going OUT, and a pause only stops it; a
+ *      runaway loop of pauses converges to the safe state (everything paused,
+ *      zero spend), so rate-limiting it can only delay a rescue, never
+ *      prevent damage. In draft_only even pause is a proposal — draft_only
+ *      grants no execution authority at all, and a client parked there has
+ *      nothing running that the system started.
  *
- *   2. RATE LIMIT (every level): todayActionCount ≥ MAX_ACTIONS_PER_DAY →
+ *   2. RATE LIMIT (every mode): todayActionCount ≥ MAX_ACTIONS_PER_DAY →
  *      block, with the numbers in the reason. Runaway-loop protection (§6.5):
  *      past the ceiling the system is quarantined — even proposals stop
  *      (a looping system spams the owner's digest into uselessness) — and
@@ -134,21 +139,24 @@ function capOrDefault(value: number | undefined, fallback: number): number {
  *      UNKNOWN count (non-finite) also blocks: we never act blind on the one
  *      counter that detects a runaway.
  *
- *   3. 'propose_only' → propose. It asks and nothing else, by definition, at
- *      every level — there is nothing to execute.
+ *   3. 'propose_only' → propose. It asks and nothing else, by definition, in
+ *      every mode — there is nothing to execute.
  *
- *   4. L0 → propose, for everything. Draft mode: the system may only ask.
+ *   4. draft_only → propose, for everything. The system prepares, the user
+ *      does everything — it may only ask.
  *
- *   5. 'publish_organic' + 'create_paid_paused' at L1+ → execute. No money
- *      moves: organic posts spend nothing, and a paid campaign created PAUSED
- *      is fully reversible shelf-work (PAUSED-by-default is the floor the
- *      whole vision stands on). These are exactly what L1 "executes organic;
- *      paid fully built, PAUSED" grants, and higher levels include L1.
+ *   5. 'publish_organic' + 'create_paid_paused' in propose_approve /
+ *      act_within_caps → execute. No money moves: organic posts spend
+ *      nothing, and a paid campaign created PAUSED is fully reversible
+ *      shelf-work (PAUSED-by-default is the floor the whole vision stands
+ *      on). This is exactly what propose_approve grants — "executes organic;
+ *      paid fully built, PAUSED" — and act_within_caps includes it.
  *
- *   6. Money kinds (unpause/reallocate/send) at L1 → propose. L1 is
- *      propose+approve: the owner taps every action that moves money.
+ *   6. Money kinds (unpause/reallocate/send) in propose_approve → propose.
+ *      The owner taps every action that moves money — that tap IS the trust
+ *      metric the mode suggestion is computed from.
  *
- *   7. Money kinds at L2 → execute IFF within ALL caps:
+ *   7. Money kinds in act_within_caps → execute IFF within ALL caps:
  *        spend ≤ remaining daily cap  (dailyCap − todaySpendIls)
  *        AND spend ≤ remaining monthly cap (monthlyCap − monthSpendIls)
  *        AND delta_pct ≤ max_daily_delta_pct
@@ -157,30 +165,26 @@ function capOrDefault(value: number | undefined, fallback: number): number {
  *      a legitimate idea that merely exceeds delegated trust) with the exact
  *      cap and number in the reason, because the owner reads WHY. Missing
  *      caps use the conservative defaults above. Unknown (non-finite) spend
- *      context → propose: caps we cannot verify are caps exceeded.
- *
- *   8. Money kinds at L3 → same as L2 minus the daily spend cap: the owner
- *      has delegated the monthly budget as the only spend bound. The delta
- *      cap STILL applies — thrash protection is a stability property of
- *      budget moves, not a trust question, and no trust level makes ±80%
- *      daily swings a good idea.
+ *      context → propose: caps we cannot verify are caps exceeded. The delta
+ *      cap is thrash protection — a stability property of budget moves, not
+ *      a trust question — so no mode configuration disables it.
  */
 export function routeAction(action: AutonomyAction, ctx: RouteContext): AutonomyRoute {
   // 0. Malformed → block (outranks everything; see malformedReason).
   const malformed = malformedReason(action);
   if (malformed) return { route: 'block', reason: malformed };
 
-  // Unknown level (garbage row / future enum drift) → treat as L0, the most
-  // conservative reading: when we cannot tell how much trust was granted,
-  // assume none.
-  const level: AutonomyLevel =
-    typeof ctx.level === 'string' && LEVEL_SET.has(ctx.level) ? ctx.level : 'L0';
+  // Unknown mode (garbage row / future enum drift) → treat as draft_only, the
+  // most conservative reading: when we cannot tell how much trust the owner
+  // granted, assume none.
+  const mode: AutonomyMode =
+    typeof ctx.mode === 'string' && MODE_SET.has(ctx.mode) ? ctx.mode : 'draft_only';
 
   // 1. Protective bypass — before the rate limit, deliberately.
-  if (action.kind === 'pause_paid' && level !== 'L0') {
+  if (action.kind === 'pause_paid' && mode !== 'draft_only') {
     return {
       route:  'execute',
-      reason: `protective: pause_paid is the kill-switch — executes at ${level}, bypassing caps and the rate limit (a pause can only stop spend, never start it)`,
+      reason: `protective: pause_paid is the kill-switch — executes in ${mode}, bypassing caps and the rate limit (a pause can only stop spend, never start it)`,
     };
   }
 
@@ -197,30 +201,30 @@ export function routeAction(action: AutonomyAction, ctx: RouteContext): Autonomy
 
   // 3. propose_only asks by definition.
   if (action.kind === 'propose_only') {
-    return { route: 'propose', reason: 'propose_only: this action only asks, at every level' };
+    return { route: 'propose', reason: 'propose_only: this action only asks, in every mode' };
   }
 
-  // 4. L0 draft mode: the system may only ask.
-  if (level === 'L0') {
-    return { route: 'propose', reason: `L0 draft mode: ${action.kind} may only be proposed — the system publishes nothing at L0` };
+  // 4. draft_only: the system prepares, the user does everything.
+  if (mode === 'draft_only') {
+    return { route: 'propose', reason: `draft_only: ${action.kind} may only be proposed — the system publishes nothing in this mode` };
   }
 
-  // 5. No-money kinds execute at every level L1+.
+  // 5. No-money kinds execute in propose_approve and act_within_caps.
   if (action.kind === 'publish_organic' || action.kind === 'create_paid_paused') {
     return {
       route:  'execute',
-      reason: `${level}: ${action.kind} moves no money (organic is free; PAUSED creation is reversible shelf-work) — executes at L1+`,
+      reason: `${mode}: ${action.kind} moves no money (organic is free; PAUSED creation is reversible shelf-work) — executes`,
     };
   }
 
   // From here on: a money kind (unpause_paid / reallocate_budget / send_message).
 
-  // 6. L1 propose+approve: every money move is a one-tap approval.
-  if (level === 'L1') {
-    return { route: 'propose', reason: `L1 propose+approve: ${action.kind} moves money — queued for owner approval` };
+  // 6. propose_approve: every money move is a one-tap approval.
+  if (mode === 'propose_approve') {
+    return { route: 'propose', reason: `propose_approve: ${action.kind} moves money — queued for owner approval` };
   }
 
-  // 7./8. L2/L3 cap checks.
+  // 7. act_within_caps: the cap checks (daily + monthly + delta, all three).
   const caps       = ctx.caps ?? {};
   const dailyCap   = capOrDefault(caps.daily_spend_cap,    DEFAULT_DAILY_SPEND_CAP_ILS);
   const monthlyCap = capOrDefault(caps.monthly_spend_cap,  DEFAULT_MONTHLY_SPEND_CAP_ILS);
@@ -228,11 +232,11 @@ export function routeAction(action: AutonomyAction, ctx: RouteContext): Autonomy
   const spend      = action.impact?.spend_ils ?? 0;   // validated finite ≥ 0 above
   const delta      = action.impact?.delta_pct ?? 0;   // validated finite ≥ 0 above
 
-  // Delta cap — applies at L2 AND L3 (thrash protection outlives trust).
+  // Delta cap — thrash protection outlives trust.
   if (delta > maxDelta) {
     return {
       route:  'propose',
-      reason: `over delta cap: ${delta}% > max ${maxDelta}%/day per change — proposing instead (thrash protection applies at every level)`,
+      reason: `over delta cap: ${delta}% > max ${maxDelta}%/day per change — proposing instead (thrash protection is not a trust question)`,
     };
   }
 
@@ -246,18 +250,14 @@ export function routeAction(action: AutonomyAction, ctx: RouteContext): Autonomy
       return { route: 'propose', reason: `spend context unavailable — cannot verify caps for ${spend} ILS, proposing instead` };
     }
 
-    // Daily cap — L2 only. At L3 the monthly budget is the one spend bound.
-    if (level === 'L2') {
-      const remainingDaily = Math.max(0, dailyCap - todaySpend);
-      if (spend > remainingDaily) {
-        return {
-          route:  'propose',
-          reason: `over daily cap: spend ${spend} ILS > remaining ${remainingDaily} ILS of daily cap ${dailyCap} ILS (${todaySpend} ILS already moved today) — proposing instead`,
-        };
-      }
+    const remainingDaily = Math.max(0, dailyCap - todaySpend);
+    if (spend > remainingDaily) {
+      return {
+        route:  'propose',
+        reason: `over daily cap: spend ${spend} ILS > remaining ${remainingDaily} ILS of daily cap ${dailyCap} ILS (${todaySpend} ILS already moved today) — proposing instead`,
+      };
     }
 
-    // Monthly cap — L2 and L3.
     const remainingMonthly = Math.max(0, monthlyCap - monthSpend);
     if (spend > remainingMonthly) {
       return {
@@ -269,38 +269,39 @@ export function routeAction(action: AutonomyAction, ctx: RouteContext): Autonomy
 
   return {
     route:  'execute',
-    reason: `${level} within caps: ${action.kind} spend ${spend} ILS, delta ${delta}% ≤ ${maxDelta}% — executing, owner notified after`,
+    reason: `act_within_caps: ${action.kind} spend ${spend} ILS, delta ${delta}% ≤ ${maxDelta}% — within caps, executing, owner notified after`,
   };
 }
 
-/** The next rung of the ladder; L3 has none. */
-const NEXT_LEVEL: Partial<Record<AutonomyLevel, AutonomyLevel>> = {
-  L0: 'L1',
-  L1: 'L2',
-  L2: 'L3',
+/** The next rung of trust; act_within_caps has none. */
+const NEXT_MODE: Partial<Record<AutonomyMode, AutonomyMode>> = {
+  draft_only:      'propose_approve',
+  propose_approve: 'act_within_caps',
 };
 
 /**
- * Assess whether a client has EARNED the next autonomy level (§1.4:
- * "המערכת פעלה 3 שבועות ב-L1 עם 92% אישורים — לשדרג ל-L2?"). Pure — the
- * caller supplies `now` so the assessment is reproducible and testable.
+ * Assess whether the client's track record justifies SUGGESTING the next mode
+ * (§1.4: "המערכת פעלה 3 שבועות עם 92% אישורים — לשדרג?"). A suggestion is all
+ * it ever is: the OWNER changes the mode (via setMode / the API); no code
+ * path promotes automatically — that is D1's core rule. Pure — the caller
+ * supplies `now` so the assessment is reproducible and testable.
  *
  * Eligible when ALL hold:
- *   • level < L3 (there is a next rung),
- *   • ≥ GRADUATION_MIN_DAYS full days at the current level,
- *   • ≥ GRADUATION_MIN_APPROVALS decided proposals (rate needs a sample), and
- *   • approval rate ≥ GRADUATION_MIN_APPROVAL_RATE.
+ *   • the mode has a next rung (act_within_caps never suggests anything),
+ *   • ≥ SUGGESTION_MIN_DAYS full days in the current mode,
+ *   • ≥ SUGGESTION_MIN_APPROVALS decided proposals (rate needs a sample), and
+ *   • approval rate ≥ SUGGESTION_MIN_APPROVAL_RATE.
  *
- * The proposal's reason string carries the actual numbers — graduation is
- * earned and VISIBLE, so the owner always sees the evidence, never just a
- * verdict. Total: unparsable level_since / garbage counters → not eligible
- * (we never propose more autonomy on data we cannot read).
+ * The suggestion's reason string carries the actual numbers — trust is earned
+ * and VISIBLE, so the owner always sees the evidence, never just a verdict.
+ * Total: unparsable mode_since / garbage counters → not eligible (we never
+ * suggest more autonomy on data we cannot read).
  */
-export function assessGraduation(row: ClientAutonomyRow, now: Date): GraduationAssessment {
-  const next = NEXT_LEVEL[row.level];
-  if (!next) return { eligible: false };   // L3 (or unknown level) never proposes higher
+export function assessModeSuggestion(row: ClientAutonomyRow, now: Date): ModeSuggestionAssessment {
+  const next = NEXT_MODE[row.mode];
+  if (!next) return { eligible: false };   // act_within_caps (or unknown mode) — nothing above
 
-  const sinceMs = Date.parse(row.level_since);
+  const sinceMs = Date.parse(row.mode_since);
   if (!Number.isFinite(sinceMs)) return { eligible: false };
   const days = Math.floor((now.getTime() - sinceMs) / 86_400_000);
 
@@ -308,16 +309,16 @@ export function assessGraduation(row: ClientAutonomyRow, now: Date): GraduationA
   const approved = Number.isFinite(row.approvals_approved) ? row.approvals_approved : 0;
   const rate     = total > 0 ? approved / total : 0;
 
-  if (days < GRADUATION_MIN_DAYS)        return { eligible: false };
-  if (total < GRADUATION_MIN_APPROVALS)  return { eligible: false };
-  if (rate < GRADUATION_MIN_APPROVAL_RATE) return { eligible: false };
+  if (days < SUGGESTION_MIN_DAYS)          return { eligible: false };
+  if (total < SUGGESTION_MIN_APPROVALS)    return { eligible: false };
+  if (rate < SUGGESTION_MIN_APPROVAL_RATE) return { eligible: false };
 
   const pct = Math.round(rate * 100);
   return {
     eligible: true,
-    proposal: {
-      to_level: next,
-      reason:   `${days} ימים ב-${row.level}, ${pct}% אישורים (${approved}/${total}) — לשדרג ל-${next}?`,
+    suggestion: {
+      to_mode: next,
+      reason:  `${days} ימים ב-${row.mode}, ${pct}% אישורים (${approved}/${total}) — להציע מעבר ל-${next}?`,
     },
   };
 }

@@ -1,6 +1,7 @@
 // Tests for the autonomy persistence layer against the in-memory stub:
-// first-touch L1 creation (once), level changes with from/to audit, approval
-// counter math, route-event mapping, and the auto-executions-only rate count.
+// first-touch propose_approve creation (once), mode changes with from/to
+// audit, mode-suggestion events, approval counter math, route-event mapping,
+// and the auto-executions-only rate count.
 
 import { describe, expect, it } from 'vitest';
 import type { AutonomyAction, AutonomyRoute } from '@/lib/capability-contracts';
@@ -10,8 +11,9 @@ import {
   getOrCreateAutonomy,
   logRouteEvent,
   recordApprovalOutcome,
+  recordModeSuggestion,
   recordProposal,
-  setLevel,
+  setMode,
 } from '../store';
 import { mockSupabase, type MockRow } from './mock-supabase';
 
@@ -30,24 +32,24 @@ const seededRow = (over: Partial<MockRow> = {}): MockRow => ({
   id:                 'aut-1',
   client_id:          CLIENT,
   owner_user_id:      OWNER,
-  level:              'L1',
+  mode:               'propose_approve',
   caps:               {},
   approvals_total:    0,
   approvals_approved: 0,
-  level_since:        '2026-06-01T00:00:00.000Z',
+  mode_since:         '2026-06-01T00:00:00.000Z',
   ...over,
 });
 
 describe('getOrCreateAutonomy', () => {
-  it('creates the row at L1 (the default) on first touch, then reads on the second', async () => {
+  it('creates the row in propose_approve (the default) on first touch, then reads on the second', async () => {
     const db = mockSupabase();
 
     const first = await getOrCreateAutonomy(db.client, CLIENT, OWNER);
-    expect(first.level).toBe('L1');
+    expect(first.mode).toBe('propose_approve');
     expect(first.caps).toEqual({});
     expect(first.approvals_total).toBe(0);
     expect(first.approvals_approved).toBe(0);
-    expect(typeof first.level_since).toBe('string');
+    expect(typeof first.mode_since).toBe('string');
 
     const second = await getOrCreateAutonomy(db.client, CLIENT, OWNER);
     expect(second.id).toBe(first.id);
@@ -67,36 +69,53 @@ describe('getOrCreateAutonomy', () => {
   });
 });
 
-describe('setLevel', () => {
-  it('writes level + level_since and a level_changed event carrying from/to + reason', async () => {
+describe('setMode', () => {
+  it('writes mode + mode_since and a mode_changed event carrying from/to + reason', async () => {
     const db = mockSupabase();
     db.seed('client_autonomy', [seededRow()]);
 
-    const updated = await setLevel(db.client, {
-      clientId: CLIENT, ownerUserId: OWNER, level: 'L2', reason: 'graduation accepted',
+    const updated = await setMode(db.client, {
+      clientId: CLIENT, ownerUserId: OWNER, mode: 'act_within_caps', reason: 'owner accepted the suggestion',
     });
-    expect(updated.level).toBe('L2');
-    expect(updated.level_since).not.toBe('2026-06-01T00:00:00.000Z');
+    expect(updated.mode).toBe('act_within_caps');
+    expect(updated.mode_since).not.toBe('2026-06-01T00:00:00.000Z');
 
     const events = db.rows('autonomy_events');
     expect(events).toHaveLength(1);
-    expect(events[0].event).toBe('level_changed');
-    expect(events[0].from_level).toBe('L1');
-    expect(events[0].to_level).toBe('L2');
-    expect(events[0].reason).toBe('graduation accepted');
+    expect(events[0].event).toBe('mode_changed');
+    expect(events[0].from_mode).toBe('propose_approve');
+    expect(events[0].to_mode).toBe('act_within_caps');
+    expect(events[0].reason).toBe('owner accepted the suggestion');
   });
 
-  it('is idempotent on the same level: no write, no event, level_since untouched', async () => {
+  it('is idempotent on the same mode: no write, no event, mode_since untouched', async () => {
     const db = mockSupabase();
     db.seed('client_autonomy', [seededRow()]);
 
-    const row = await setLevel(db.client, {
-      clientId: CLIENT, ownerUserId: OWNER, level: 'L1', reason: 'no-op',
+    const row = await setMode(db.client, {
+      clientId: CLIENT, ownerUserId: OWNER, mode: 'propose_approve', reason: 'no-op',
     });
-    expect(row.level).toBe('L1');
-    expect(row.level_since).toBe('2026-06-01T00:00:00.000Z');
+    expect(row.mode).toBe('propose_approve');
+    expect(row.mode_since).toBe('2026-06-01T00:00:00.000Z');
     expect(db.rows('autonomy_events')).toHaveLength(0);
     expect(db.log.some((l) => l.startsWith('update:client_autonomy'))).toBe(false);
+  });
+});
+
+describe('recordModeSuggestion', () => {
+  it('logs a mode_suggestion event carrying to_mode + the evidence-bearing reason', async () => {
+    const db = mockSupabase();
+    await recordModeSuggestion(db.client, {
+      clientId:    CLIENT,
+      ownerUserId: OWNER,
+      suggestion:  { to_mode: 'act_within_caps', reason: '21 ימים ב-propose_approve, 92% אישורים (12/13)' },
+    });
+
+    const events = db.rows('autonomy_events');
+    expect(events).toHaveLength(1);
+    expect(events[0].event).toBe('mode_suggestion');
+    expect(events[0].to_mode).toBe('act_within_caps');
+    expect(events[0].reason).toContain('92%');
   });
 });
 
@@ -141,7 +160,7 @@ describe('logRouteEvent', () => {
     const db = mockSupabase();
     const routes: AutonomyRoute[] = [
       { route: 'execute', reason: 'within caps' },
-      { route: 'propose', reason: 'L1 asks' },
+      { route: 'propose', reason: 'propose_approve asks' },
       { route: 'block',   reason: 'rate limit' },
     ];
     for (const route of routes) {
@@ -149,7 +168,7 @@ describe('logRouteEvent', () => {
     }
     const events = db.rows('autonomy_events');
     expect(events.map((e) => e.event)).toEqual(['action_auto_executed', 'action_proposed', 'action_blocked']);
-    expect(events.map((e) => e.reason)).toEqual(['within caps', 'L1 asks', 'rate limit']);
+    expect(events.map((e) => e.reason)).toEqual(['within caps', 'propose_approve asks', 'rate limit']);
     for (const e of events) expect(e.action).toEqual(action);
   });
 

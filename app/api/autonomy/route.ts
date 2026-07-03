@@ -1,29 +1,30 @@
 // app/api/autonomy/route.ts
 //
-//   GET  /api/autonomy?clientId=   the client's autonomy state: level, caps,
+//   GET  /api/autonomy?clientId=   the client's autonomy state: mode, caps,
 //                                  approval stats, today's action count, and
-//                                  the graduation assessment (earned + visible).
-//   POST /api/autonomy             { clientId, level, reason? } — the owner
-//                                  sets their own trust level (L0..L3).
+//                                  the mode-switch suggestion (earned + visible).
+//   POST /api/autonomy             { clientId, mode, reason? } — the owner
+//                                  picks the mode (D1: the OWNER chooses; the
+//                                  system only ever suggests).
 //
 // Authed + owner-scoped (see require-owned-client.ts). First touch creates the
-// row at L1, the vision's default.
+// row in 'propose_approve', the default mode.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import {
-  assessGraduation,
+  assessModeSuggestion,
   countTodayActions,
   getOrCreateAutonomy,
-  setLevel,
-  type AutonomyLevel,
+  setMode,
+  type AutonomyMode,
 } from '@/lib/autonomy';
 import { requireOwnedClient } from './require-owned-client';
 
 export const runtime = 'nodejs';
 
-const LEVELS: readonly AutonomyLevel[] = ['L0', 'L1', 'L2', 'L3'];
-const isLevel = (v: unknown): v is AutonomyLevel => LEVELS.some((l) => l === v);
+const MODES: readonly AutonomyMode[] = ['draft_only', 'propose_approve', 'act_within_caps'];
+const isMode = (v: unknown): v is AutonomyMode => MODES.some((m) => m === v);
 
 export async function GET(req: NextRequest) {
   try {
@@ -36,9 +37,9 @@ export async function GET(req: NextRequest) {
     const todayActionCount = await countTodayActions(admin, check.ctx.clientId, check.ctx.userId);
 
     return NextResponse.json({
-      level:       row.level,
-      caps:        row.caps,
-      level_since: row.level_since,
+      mode:       row.mode,
+      caps:       row.caps,
+      mode_since: row.mode_since,
       stats: {
         approvals_total:    row.approvals_total,
         approvals_approved: row.approvals_approved,
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
           : null,
         today_action_count: todayActionCount,
       },
-      graduation: assessGraduation(row, new Date()),
+      suggestion: assessModeSuggestion(row, new Date()),
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -62,24 +63,24 @@ export async function POST(req: NextRequest) {
     const check = await requireOwnedClient(clientId);
     if (!check.ok) return check.response;
 
-    if (!isLevel(body.level)) {
+    if (!isMode(body.mode)) {
       return NextResponse.json(
-        { error: `level must be one of ${LEVELS.join(', ')}` },
+        { error: `mode must be one of ${MODES.join(', ')}` },
         { status: 400 },
       );
     }
     const reason =
       typeof body.reason === 'string' && body.reason.trim() !== ''
         ? body.reason.trim()
-        : 'owner set level';
+        : 'owner set mode';
 
-    const row = await setLevel(createAdminClient(), {
+    const row = await setMode(createAdminClient(), {
       clientId:    check.ctx.clientId,
       ownerUserId: check.ctx.userId,
-      level:       body.level,
+      mode:        body.mode,
       reason,
     });
-    return NextResponse.json({ level: row.level, level_since: row.level_since });
+    return NextResponse.json({ mode: row.mode, mode_since: row.mode_since });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });

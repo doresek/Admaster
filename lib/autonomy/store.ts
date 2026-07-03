@@ -1,36 +1,38 @@
 // lib/autonomy/store.ts
 //
-// Persistence for the autonomy ladder (tables client_autonomy + autonomy_events,
-// migration 040), following lib/intelligence/insights.ts conventions: every
-// function takes a SupabaseClient first (dependency injection — mockable in
-// tests), every query is EXPLICITLY owner/client scoped even under the
+// Persistence for the autonomy modes (tables client_autonomy + autonomy_events,
+// migrations 040+044), following lib/intelligence/insights.ts conventions:
+// every function takes a SupabaseClient first (dependency injection — mockable
+// in tests), every query is EXPLICITLY owner/client scoped even under the
 // service-role client, and every DB error is checked (thrown as a typed
 // AutonomyStoreError — the fail-safe in route-and-log depends on log failures
 // being loud, so unlike insights' best-effort audit, autonomy audit writes
 // THROW; the caller decides how to degrade).
 //
-// autonomy_events is append-only: the audit IS the product — the graduation
-// story ("21 ימים ב-L1, 92% אישורים") is read straight off it, and it doubles
-// as the incident-forensics log (§6.5). Nothing here ever updates or deletes
-// an event.
+// autonomy_events is append-only: the audit IS the product — the trust story
+// ("21 ימים ב-propose_approve, 92% אישורים") is read straight off it, and it
+// doubles as the incident-forensics log (§6.5). Nothing here ever updates or
+// deletes an event. And per D1: nothing here ever changes the mode except
+// setMode — which only the owner-facing API calls. The system SUGGESTS
+// (recordModeSuggestion), the user decides.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   AutonomyAction,
-  AutonomyLevel,
+  AutonomyMode,
   AutonomyRoute,
   ClientAutonomyRow,
 } from '@/lib/capability-contracts';
-import { AutonomyStoreError } from './types';
+import { AutonomyStoreError, type ModeSuggestion } from './types';
 
 export const AUTONOMY_COLUMNS =
-  'id, client_id, owner_user_id, level, caps, approvals_total, approvals_approved, ' +
-  'level_since, created_at, updated_at';
+  'id, client_id, owner_user_id, mode, caps, approvals_total, approvals_approved, ' +
+  'mode_since, created_at, updated_at';
 
-/** The event vocabulary — mirrors the CHECK constraint in migration 040. */
+/** The event vocabulary — mirrors the CHECK constraint in migration 044. */
 type AutonomyEventName =
-  | 'level_changed' | 'action_proposed' | 'action_approved' | 'action_rejected'
-  | 'action_auto_executed' | 'action_blocked' | 'graduation_proposed';
+  | 'mode_changed' | 'action_proposed' | 'action_approved' | 'action_rejected'
+  | 'action_auto_executed' | 'action_blocked' | 'mode_suggestion';
 
 /** Route verdict → audit event name. */
 const ROUTE_EVENT: Record<AutonomyRoute['route'], AutonomyEventName> = {
@@ -43,8 +45,8 @@ interface EventInsert {
   clientId:    string;
   ownerUserId: string;
   event:       AutonomyEventName;
-  fromLevel?:  AutonomyLevel;
-  toLevel?:    AutonomyLevel;
+  fromMode?:   AutonomyMode;
+  toMode?:     AutonomyMode;
   action?:     Record<string, unknown> | AutonomyAction | null;
   reason?:     string | null;
 }
@@ -60,8 +62,8 @@ async function insertEvent(supabase: SupabaseClient, input: EventInsert): Promis
     client_id:     input.clientId,
     owner_user_id: input.ownerUserId,
     event:         input.event,
-    from_level:    input.fromLevel ?? null,
-    to_level:      input.toLevel ?? null,
+    from_mode:     input.fromMode ?? null,
+    to_mode:       input.toMode ?? null,
     action:        input.action ?? null,
     reason:        input.reason ?? null,
     created_at:    new Date().toISOString(),
@@ -86,11 +88,11 @@ async function selectAutonomy(
 }
 
 /**
- * Fetch a client's autonomy row, creating it at L1 on first touch — L1
- * (propose+approve) is the vision's DEFAULT: a new client starts with the
- * one-tap approval loop, never with autonomous spend. Insert-then-select on
- * conflict: client_id is unique, so if two callers race, one insert fails and
- * that caller re-reads the winner's row.
+ * Fetch a client's autonomy row, creating it in 'propose_approve' on first
+ * touch — the DEFAULT mode (D1): a new client starts with the one-tap
+ * approval loop, never with autonomous spend. Insert-then-select on conflict:
+ * client_id is unique, so if two callers race, one insert fails and that
+ * caller re-reads the winner's row.
  */
 export async function getOrCreateAutonomy(
   supabase:    SupabaseClient,
@@ -105,11 +107,11 @@ export async function getOrCreateAutonomy(
     .insert({
       client_id:          clientId,
       owner_user_id:      ownerUserId,
-      level:              'L1',
+      mode:               'propose_approve',
       caps:               {},
       approvals_total:    0,
       approvals_approved: 0,
-      level_since:        new Date().toISOString(),
+      mode_since:         new Date().toISOString(),
     })
     .select(AUTONOMY_COLUMNS)
     .single()
@@ -123,51 +125,80 @@ export async function getOrCreateAutonomy(
   throw new AutonomyStoreError('getOrCreateAutonomy', insErr?.message ?? 'insert returned no row');
 }
 
-export interface SetLevelInput {
+export interface SetModeInput {
   clientId:    string;
   ownerUserId: string;
-  level:       AutonomyLevel;
+  mode:        AutonomyMode;
   reason:      string;
 }
 
 /**
- * Set a client's autonomy level (owner action, or graduation acceptance).
- * Writes level + resets level_since (the graduation clock restarts on every
- * change, up OR down) and appends a 'level_changed' event carrying from/to +
- * reason. Idempotent on same-level calls: no write, no event, and — crucially
- * — no level_since reset, so re-submitting the current level can never erase
- * accrued graduation progress.
+ * Set a client's autonomy mode — an OWNER action, always (D1: the system
+ * never self-promotes; the only caller is the owner-facing API, acting on the
+ * owner's explicit choice, possibly prompted by a mode_suggestion). Writes
+ * mode + resets mode_since (the suggestion clock restarts on every change, up
+ * OR down) and appends a 'mode_changed' event carrying from/to + reason.
+ * Idempotent on same-mode calls: no write, no event, and — crucially — no
+ * mode_since reset, so re-submitting the current mode can never erase accrued
+ * trust history.
  */
-export async function setLevel(
+export async function setMode(
   supabase: SupabaseClient,
-  input:    SetLevelInput,
+  input:    SetModeInput,
 ): Promise<ClientAutonomyRow> {
   const current = await getOrCreateAutonomy(supabase, input.clientId, input.ownerUserId);
-  if (current.level === input.level) return current;
-  // Capture before the UPDATE: the from-level must be what we read, not what
+  if (current.mode === input.mode) return current;
+  // Capture before the UPDATE: the from-mode must be what we read, not what
   // any shared reference to the row says after the write.
-  const fromLevel = current.level;
+  const fromMode = current.mode;
 
   const nowIso = new Date().toISOString();
   const { data, error } = await supabase
     .from('client_autonomy')
-    .update({ level: input.level, level_since: nowIso, updated_at: nowIso })
+    .update({ mode: input.mode, mode_since: nowIso, updated_at: nowIso })
     .eq('id', current.id)
     .eq('owner_user_id', input.ownerUserId)
     .select(AUTONOMY_COLUMNS)
     .single()
     .overrideTypes<ClientAutonomyRow, { merge: false }>();
-  if (error) throw new AutonomyStoreError('setLevel', error.message);
+  if (error) throw new AutonomyStoreError('setMode', error.message);
 
   await insertEvent(supabase, {
     clientId:    input.clientId,
     ownerUserId: input.ownerUserId,
-    event:       'level_changed',
-    fromLevel,
-    toLevel:     input.level,
+    event:       'mode_changed',
+    fromMode,
+    toMode:      input.mode,
     reason:      input.reason,
   });
   return data;
+}
+
+export interface RecordModeSuggestionInput {
+  clientId:    string;
+  ownerUserId: string;
+  suggestion:  ModeSuggestion;
+}
+
+/**
+ * Record that a mode-switch suggestion was surfaced to the owner (event
+ * 'mode_suggestion', carrying to_mode + the evidence-bearing reason). This is
+ * the WHOLE of the system's authority over the mode: it may say "the track
+ * record supports act_within_caps — want it?"; only the owner's setMode
+ * changes anything. Callers (heartbeat/digest) should log this when they
+ * actually SHOW the suggestion, so the audit reflects what the owner saw.
+ */
+export async function recordModeSuggestion(
+  supabase: SupabaseClient,
+  input:    RecordModeSuggestionInput,
+): Promise<void> {
+  await insertEvent(supabase, {
+    clientId:    input.clientId,
+    ownerUserId: input.ownerUserId,
+    event:       'mode_suggestion',
+    toMode:      input.suggestion.to_mode,
+    reason:      input.suggestion.reason,
+  });
 }
 
 export interface RecordProposalInput {
@@ -207,10 +238,10 @@ export interface RecordApprovalOutcomeInput {
 
 /**
  * Record the owner's decision on a proposal: bumps approvals_total (+1) and
- * approvals_approved (+1 when approved) — the graduation inputs — and appends
- * an 'action_approved' / 'action_rejected' event. Read-modify-write on the
- * counters (no increment RPC exists yet); the surface is a single owner
- * tapping their own digest, so a lost increment under concurrency is a
+ * approvals_approved (+1 when approved) — the mode-suggestion inputs — and
+ * appends an 'action_approved' / 'action_rejected' event. Read-modify-write
+ * on the counters (no increment RPC exists yet); the surface is a single
+ * owner tapping their own digest, so a lost increment under concurrency is a
  * cosmetic risk, not a safety one — the events remain the ground truth.
  */
 export async function recordApprovalOutcome(
@@ -254,7 +285,7 @@ export interface LogRouteEventInput {
  * Append the audit event for one routed action — execute → 'action_auto_executed',
  * propose → 'action_proposed', block → 'action_blocked'. The `action` jsonb
  * carries the WHOLE AutonomyAction (kind, ref, impact, rationale, grounded_in):
- * the audit IS the product — the digest, the graduation story and incident
+ * the audit IS the product — the digest, the trust story and incident
  * forensics all read from here. THROWS on failure (see insertEvent) so
  * routeAndLog can enforce the no-un-audited-execution invariant.
  */

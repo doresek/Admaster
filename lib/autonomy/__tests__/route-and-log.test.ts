@@ -25,11 +25,11 @@ const autonomyRow = (over: Partial<MockRow> = {}): MockRow => ({
   id:                 'aut-1',
   client_id:          CLIENT,
   owner_user_id:      OWNER,
-  level:              'L1',
+  mode:               'propose_approve',
   caps:               {},
   approvals_total:    0,
   approvals_approved: 0,
-  level_since:        '2026-06-01T00:00:00.000Z',
+  mode_since:         '2026-06-01T00:00:00.000Z',
   ...over,
 });
 
@@ -44,7 +44,7 @@ describe('routeAndLog — event per route', () => {
 
     const result = await routeAndLog(db.client, { clientId: CLIENT, ownerUserId: OWNER, action, spendContext: SPEND });
     expect(result.route.route).toBe('execute');
-    expect(result.level).toBe('L1');
+    expect(result.mode).toBe('propose_approve');
 
     const events = db.rows('autonomy_events');
     expect(events).toHaveLength(1);
@@ -86,7 +86,7 @@ describe('routeAndLog — THE FAIL-SAFE: no un-audited execution, ever', () => {
     // The returned route is the downgrade, with the why.
     expect(result.route.route).toBe('propose');
     expect(result.route.reason).toContain('audit unavailable');
-    expect(result.level).toBe('L1');
+    expect(result.mode).toBe('propose_approve');
 
     // And NO 'action_auto_executed' event exists anywhere.
     const executed = db.rows('autonomy_events').filter((e) => e.event === 'action_auto_executed');
@@ -111,14 +111,14 @@ describe('routeAndLog — THE FAIL-SAFE: no un-audited execution, ever', () => {
 });
 
 describe('routeAndLog — state loading', () => {
-  it('creates the L1 default row exactly once across calls', async () => {
+  it('creates the propose_approve default row exactly once across calls', async () => {
     const db = mockSupabase();
     await routeAndLog(db.client, { clientId: CLIENT, ownerUserId: OWNER, action: act('propose_only'), spendContext: SPEND });
     await routeAndLog(db.client, { clientId: CLIENT, ownerUserId: OWNER, action: act('propose_only'), spendContext: SPEND });
 
     expect(db.rows('client_autonomy')).toHaveLength(1);
     expect(db.log.filter((l) => l === 'insert:client_autonomy')).toHaveLength(1);
-    expect(db.rows('client_autonomy')[0].level).toBe('L1');
+    expect(db.rows('client_autonomy')[0].mode).toBe('propose_approve');
   });
 
   it('enforces the rate limit from the audit log, while pause still executes', async () => {
@@ -140,9 +140,9 @@ describe('routeAndLog — state loading', () => {
     expect(pause.route.route).toBe('execute');
   });
 
-  it('uses the caller-supplied spend context for L2 cap decisions', async () => {
+  it('uses the caller-supplied spend context for act_within_caps decisions', async () => {
     const db = mockSupabase();
-    db.seed('client_autonomy', [autonomyRow({ level: 'L2' })]);
+    db.seed('client_autonomy', [autonomyRow({ mode: 'act_within_caps' })]);
 
     const within = await routeAndLog(db.client, {
       clientId: CLIENT, ownerUserId: OWNER,

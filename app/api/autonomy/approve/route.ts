@@ -1,10 +1,10 @@
 // app/api/autonomy/approve/route.ts
 //
 //   POST /api/autonomy/approve   { clientId, eventId?, approved } — record the
-//   owner's one-tap decision on a proposed action. Bumps the graduation
-//   counters (approvals_total / approvals_approved) and appends the
-//   'action_approved' / 'action_rejected' audit event; this tap IS the trust
-//   metric the ladder graduates on (VISION-DEEP §1.4).
+//   owner's one-tap decision on a proposed action. Bumps the trust counters
+//   (approvals_total / approvals_approved) and appends the 'action_approved' /
+//   'action_rejected' audit event; this tap IS the trust metric the
+//   mode-switch suggestion is computed from (VISION-DEEP §1.4, D1).
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';

@@ -13,7 +13,7 @@
 // not safety) with the failure logged loudly.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AutonomyAction, AutonomyLevel, AutonomyRoute } from '@/lib/capability-contracts';
+import type { AutonomyAction, AutonomyMode, AutonomyRoute } from '@/lib/capability-contracts';
 import type { RouteContext } from './types';
 import { routeAction } from './policy';
 import { countTodayActions, getOrCreateAutonomy, logRouteEvent } from './store';
@@ -35,12 +35,13 @@ export interface RouteAndLogInput {
 
 export interface RouteAndLogResult {
   route: AutonomyRoute;
-  level: AutonomyLevel;
+  mode:  AutonomyMode;
 }
 
 /**
- * Route one action through the ladder AND audit it. Sequence:
- *   1. getOrCreateAutonomy — first touch creates the row at L1 (the default).
+ * Route one action through the mode policy AND audit it. Sequence:
+ *   1. getOrCreateAutonomy — first touch creates the row in 'propose_approve'
+ *      (the default mode, D1).
  *   2. countTodayActions — the rate-limit input (auto-executions since midnight).
  *      A count failure THROWS: we never route without the runaway counter
  *      (routing blind is exactly what the rate limit exists to prevent), and
@@ -56,7 +57,7 @@ export async function routeAndLog(
   const todayActionCount = await countTodayActions(supabase, input.clientId, input.ownerUserId);
 
   const ctx: RouteContext = {
-    level:            row.level,
+    mode:             row.mode,
     caps:             row.caps,
     todayActionCount,
     todaySpendIls:    input.spendContext.todaySpendIls,
@@ -71,14 +72,14 @@ export async function routeAndLog(
       action:      input.action,
       route,
     });
-    return { route, level: row.level };
+    return { route, mode: row.mode };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[routeAndLog] audit write failed:', message);
 
     // Propose/block: no execution risk un-audited — return the verdict, keep
     // the failure loud above.
-    if (route.route !== 'execute') return { route, level: row.level };
+    if (route.route !== 'execute') return { route, mode: row.mode };
 
     // THE FAIL-SAFE: execute without audit is forbidden — downgrade to propose.
     const downgraded: AutonomyRoute = {
@@ -98,6 +99,6 @@ export async function routeAndLog(
       const retryMessage = retryErr instanceof Error ? retryErr.message : String(retryErr);
       console.error('[routeAndLog] downgraded-proposal audit also failed:', retryMessage);
     }
-    return { route: downgraded, level: row.level };
+    return { route: downgraded, mode: row.mode };
   }
 }

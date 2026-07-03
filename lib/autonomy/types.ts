@@ -1,20 +1,22 @@
 // lib/autonomy/types.ts
 //
-// Internal types for the autonomy ladder (VISION-DEEP §1.4). The row/contract
-// shapes live in lib/capability-contracts (owned by the orchestrator, never
-// edited here) — this file re-exports the ones consumers need and adds the
-// module-internal shapes: the routing context, the graduation assessment, and
-// the typed store error.
+// Internal types for the autonomy modes (VISION-DEEP §1.4; D1 DECIDED: 3
+// USER-SELECTABLE modes replace the L0–L3 ladder — the owner picks, the
+// system never promotes itself). The row/contract shapes live in
+// lib/capability-contracts (owned by the orchestrator, never edited here) —
+// this file re-exports the ones consumers need and adds the module-internal
+// shapes: the routing context, the mode-suggestion assessment, and the typed
+// store error.
 
 export type {
-  AutonomyLevel,
+  AutonomyMode,
   AutonomyCaps,
   AutonomyAction,
   AutonomyRoute,
   ClientAutonomyRow,
 } from '@/lib/capability-contracts';
 
-import type { AutonomyCaps, AutonomyLevel } from '@/lib/capability-contracts';
+import type { AutonomyCaps, AutonomyMode } from '@/lib/capability-contracts';
 
 /**
  * Everything the pure policy needs to route one action. The spend numbers are
@@ -23,7 +25,7 @@ import type { AutonomyCaps, AutonomyLevel } from '@/lib/capability-contracts';
  * read them from; see route-and-log.ts.
  */
 export interface RouteContext {
-  level:            AutonomyLevel;
+  mode:             AutonomyMode;
   caps:             AutonomyCaps;
   /** Auto-executed actions since midnight (UTC) — the rate-limit input. */
   todayActionCount: number;
@@ -33,20 +35,24 @@ export interface RouteContext {
   monthSpendIls:    number;
 }
 
-/** The concrete upgrade a graduation assessment puts in front of the owner. */
-export interface GraduationProposal {
-  to_level: AutonomyLevel;
-  reason:   string;   // carries the numbers: "21 ימים ב-L1, 92% אישורים (12/13)"
+/**
+ * The concrete mode switch a suggestion puts in front of the owner. A
+ * SUGGESTION only — the user always chooses; nothing in the system ever
+ * changes the mode by itself (D1).
+ */
+export interface ModeSuggestion {
+  to_mode: AutonomyMode;
+  reason:  string;   // carries the numbers: "21 ימים ב-propose_approve, 92% אישורים (12/13)"
 }
 
 /**
- * assessGraduation's verdict. `proposal` is present exactly when `eligible` —
- * graduation is EARNED and visible, so the reason string always carries the
- * evidence (days at level, approval rate, counts).
+ * assessModeSuggestion's verdict. `suggestion` is present exactly when
+ * `eligible` — trust is earned and VISIBLE, so the reason string always
+ * carries the evidence (days in mode, approval rate, counts).
  */
-export interface GraduationAssessment {
-  eligible:  boolean;
-  proposal?: GraduationProposal;
+export interface ModeSuggestionAssessment {
+  eligible:    boolean;
+  suggestion?: ModeSuggestion;
 }
 
 /**

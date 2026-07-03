@@ -272,10 +272,17 @@ export interface FunnelRow {
 /** New signal types the capabilities emit through the existing lifecycle. */
 export type CapabilitySignalType = 'hypothesis_supported' | 'hypothesis_refuted' | 'voc_evidence';
 
-// ── Autonomy ladder (migration 040; VISION-DEEP §1.4) ─────────────────────────
+// ── Autonomy modes (migrations 040+044; VISION-DEEP §1.4, D1 DECIDED) ─────────
 
-/** L0 draft-only · L1 propose+approve (default) · L2 act-within-caps · L3 autonomous. */
-export type AutonomyLevel = 'L0' | 'L1' | 'L2' | 'L3';
+/**
+ * The 3 USER-SELECTABLE modes (D1, Eliran 2026-07-04) — replaces the L0–L3
+ * ladder. The client's owner picks the mode; the system never promotes itself:
+ *   draft_only      — system prepares, user does everything
+ *   propose_approve — one-tap approval before any publish/spend (DEFAULT)
+ *   act_within_caps — autonomous inside user-set caps
+ * Graduation logic emits mode-switch SUGGESTIONS only.
+ */
+export type AutonomyMode = 'draft_only' | 'propose_approve' | 'act_within_caps';
 
 /** Caps bounding L2/L3 action. All optional — absent = the level's built-in default. */
 export interface AutonomyCaps {
@@ -308,11 +315,11 @@ export interface ClientAutonomyRow {
   id:                 string;
   client_id:          string;
   owner_user_id:      string;
-  level:              AutonomyLevel;
+  mode:               AutonomyMode;
   caps:               AutonomyCaps;
   approvals_total:    number;
   approvals_approved: number;
-  level_since:        string;
+  mode_since:         string;
   created_at:         string;
   updated_at:         string;
 }
