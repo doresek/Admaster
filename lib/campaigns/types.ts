@@ -60,7 +60,10 @@ export type CampaignDecisionType =
   | 'budget'
   | 'objective'
   | 'funnel'
-  | 'channel';
+  | 'channel'
+  // W2 wire-in: the episodic precedents that informed this run (C-02). The DB
+  // column has no CHECK on decision_type; this union is the source of truth.
+  | 'precedents';
 
 // ── row shapes ─────────────────────────────────────────────────────────────────
 

@@ -6,6 +6,43 @@
 
 ---
 
+# ===== MARKETING CAPABILITIES — OVERNIGHT BUILD (2026-07-03/04) — plan: `docs/MARKETING-CAPABILITIES-SPEC.md` =====
+
+**Branch:** `feat/marketing-capabilities` off `origin/main` @ `9a9e718` (post-#42 epic merge + #43 H4 wiring). Baseline verified green: tsc clean, **644 tests**, prod build (verified at gates). Doctrine: excellence over volume; every capability atom-grounded, deeply tested, adversarially reviewed; branch stays green; additive migrations only; everything dry-run; no live/spend actions.
+
+**Scope (buildable-now from spec):** C-01 hypotheses · C-02 episodic (pgvector) · C-03 calibration · C-06 attention · C-07 brand-lint · C-08 VoC · C-10 strategy-objects. Wire-ins into shared files (decision engine, generation path) deliberately DEFERRED to a reviewed follow-up — capabilities expose typed modules; composition happens through contracts + the lifecycle engine.
+
+| Item | State | Notes |
+|---|---|---|
+| Foundation: migrations 034–037 authored + **applied to prod + verified** (6 tables, RLS all, `match_episodes` RPC, `learning_signals` CHECK widened additively) | **done** ✅ | preflight: tables absent, pgvector available; post-verify all green; down files authored |
+| Foundation: `lib/capability-contracts` (shared row types + Embedder seam; orchestrator-owned) | **done** ✅ | agents import, never edit — collision doctrine |
+| C-01 hypotheses (`lib/hypotheses` + read API) | **green ✅** (77 tests) | pure core (validate incl. §7 resolvability math / resolve vs frozen criteria / kill-rule boundaries) · resolution flows through `lib/intelligence` lifecycle ONLY (signal→claim→apply, insight_events audited) · two-layer CAS idempotency (`WHERE status='open'` + claimSignal) · immutability by supersession · priors-as-warnings dedup guard |
+| C-02 episodic (`lib/episodic` + backfill script) | **green ✅** (61 tests) | deterministic Situation/Action/Outcome/Lesson composition · Hebrew-aware PII/name abstraction (gershayim-tolerant, IL-anchored phone regex, too-short→null=fleet-excluded) · Google embedder behind `Embedder` seam + deterministic test embedder · 1-batch-embed/1-bulk-upsert ingest (N+1-proof) · backfill dry-run-by-default, verified no-op vs prod |
+| C-03 calibration (`lib/calibration`) | **green ✅** (45 tests) | Brier + PAV isotonic (exact L2, hand-computed expectations in tests) · exclusion semantics typed (inconclusive/killed excluded, documented WHY) · headline test: overconfident 'angle' domain exposed + corrected, calibrated 'offer' untouched |
+| C-06 attention (`lib/attention`) | **green ✅** (50 tests) | information-value ranking (headline: token-error & near-floor hypothesis outrank big quiet client; size NEVER feeds score) · peak-near-floor Gaussian · calendar decision-lag math (30d-out event with 45d lag = urgent NOW) · one-query-per-table loaders, test-enforced |
+| **Wave A integration gate** | **green ✅** | repo-wide tsc clean · **877 tests** (644 baseline + 233 new, 0 fail) · prod build clean · adversarial review passed (casts/any/silent-catch greps + behavior spot-runs) |
+| C-07 brand-lint (`lib/brand-lint`) | **green ✅** (76 tests) | deterministic pass: Hebrew clitic-chain prefix matching (ומבצע caught, מקלדת safe), curated gender-address markers (mixed 2sg = block; honest limits documented), grapheme-cluster emoji policy (`Intl.Segmenter`; ZWJ family = 1), 12 Meta personal-attribute block patterns · LLM register check behind `RegisterJudge` seam — judge errors → `flag`, publishing never LLM-hostage · zero casts anywhere |
+| C-08 VoC ingestion (`lib/voc` + API) | **green ✅** (60 tests) | seven extractables via reviewable Hebrew prompt · **anti-fabrication gate** (quote must be a normalized span of the source; reworded quotes rejected+counted) · PII stripped BEFORE the LLM (tested) · reconcile flows through the real lifecycle only (contentMatches/claimSignal/applyLearningSignal; weight 0.25→0.4 on cross-document recurrence) · proof quotes corroborate-only (owner permission before quoting per craft) · resumable status flow, dedupe idempotency |
+| C-10 strategy objects (`lib/strategy-objects` + API) | **green ✅** (60 tests) | deterministic atom→pillar projection (greedy contentMatches clustering, summed-confidence ranking, content-independent pillar keys so coverage survives anchor drift) · funnel designed walk-backwards, every edge expected-rate + provenance (client_baseline n≥30 > declared_guess > playbook_prior) · funnelHealth blames only statistically sufficient edges (n≥30) · version race handled (23505 retry) · skip-on-identical (no version churn) |
+| **Wave B integration gate** | **green ✅** | repo-wide tsc clean · **1,075 tests** (0 fail) · prod build clean (114 pages) |
+| **Composition proof** (`tests/capabilities-composition.test.ts`, orchestrator-owned) | **green ✅** | ONE hypothesis flows C-06 attention (open, near-floor → tiny client outranks big quiet one) → C-01 resolve (frozen verdict_map honored) → C-03 calibration (registered 0.7 belief → brier 0.09) → C-02 episode (win, Hebrew name abstracted); same atoms → C-10 pillars + C-07 lint (bad copy blocked, atom-consistent copy passes). The contracts module held across all six with zero adjustment |
+
+**Orchestrator integration fixes during Wave A gate:** (1) supabase-js v2 type pathology — structural DB-seam assignment passes bare tsc but blows TS2589 under Next's build pass; standardized a runtime-guarded type-predicate bridge (zero casts) in `lib/attention/load.ts` + `lib/calibration/store.ts`; (2) removed a stray agent debug file (`__seamprobe.ts`).
+
+**Wire-ins (continued run, orchestrator-serial):**
+| Wire-in | State | Notes |
+|---|---|---|
+| W4: migration **038** — first-class `'voc'` InsightSource (CHECK widened additively, **applied+verified**) + `lib/voc` switched to it | **green ✅** | closes C-08's provenance follow-up |
+| W1: runner → C-01 pre-registration — every executed `MarketingDecision` registered as a frozen falsifiable hypothesis (`hypothesisFromDecision`, pure) grounded in exactly `decision.grounded_in`; weights 0.4/0.3 (below decisive — one campaign never refutes alone); registration failure degrades to a note, never blocks the run; fully-injected test contexts stay side-effect free | **green ✅** (+9 tests; **1,085 total**) | §8.2.6 pre-registration is now live runner behavior, not just a library |
+| W2: decision context → C-02 precedents — runner recalls the k most-similar past episodes per decision (`episodicRecaller`, degrades gracefully without embedder key), records them as a grounded `'precedents'` decision-log row, and the generator prepends them to every stage's context; `generated_from.precedents_in_context` stamped | **green ✅** | decide() stays pure — memory joins at the runner/generation seams |
+| W3: generation path → C-07 lint stamp + C-08 quote bank — the generator pulls funnel-stage VoC quotes into the brief ("customer's own words for hooks"), lints the winning draft against brand_voice atoms (deterministic rules, REAL lint in tests), stamps verdict+violations into `generated_from.lint`; quote-bank failure stamped as `voc_bank_error`, never blocks | **green ✅** | lint stamps, publish-gate policy reads them (follow-up) |
+| Consolidation: `lib/pii` — shared primitives (URL/email/IL-phone regexes, gershayim-tolerant term matching) extracted from voc/episodic; both consumers refactored, POLICIES stay with owners; both suites pass unchanged | **green ✅** | byte-identical regexes proved the extraction safe |
+| **FINAL VERIFICATION PASS** | **green ✅** | repo-wide tsc clean · **1,097 tests, 0 fail** · prod build clean (114 pages) · composition test passes WITH wire-ins · RLS re-verified in prod 6/6 tables + 6/6 policies · both CHECK widenings live · zero ts-suppressions, zero silent catches (last one fixed → stamped error), shared-file diff vs main = 6 files, all deliberate wire-ins, zero overlap with the security session's merged files |
+
+**Skipped/logged for morning:** `GOOGLE_AI_API_KEY` in `.env.local` is an empty placeholder — live embeddings (C-02 runtime/backfill `--execute`) need a real key; everything ships dormant-safe (deterministic embedder for tests, dry-run default). `meta_connections` is keyed to the legacy `meta_clients` id space and has no expiry column → C-06 errorStates are caller-injected until the meta-health wire-in (TODO in code).
+
+---
+
 # ===== AI MARKETER EPIC (active focus, 2026-07-01) — plan: `docs/AI-MARKETER-MASTERPLAN.md` =====
 
 **Branch:** `feat/ai-marketer-epic` (off `origin/main` @ `15ff2e4`). Baseline verified green: tsc clean, 376 tests, Node 20, Playwright present.

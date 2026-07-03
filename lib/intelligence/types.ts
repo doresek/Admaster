@@ -20,7 +20,7 @@
 export type InsightLayer = 'business' | 'customers' | 'bridge';
 
 /** Where an atom (or a piece of evidence for it) came from. */
-export type InsightSource = 'brief' | 'user_signal' | 'content_performance' | 'ai_synthesis';
+export type InsightSource = 'brief' | 'user_signal' | 'content_performance' | 'ai_synthesis' | 'voc';
 
 /** Lifecycle state of an atom. Atoms are NEVER deleted — only superseded/refuted. */
 export type InsightStatus = 'active' | 'superseded' | 'refuted';

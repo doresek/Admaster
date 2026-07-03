@@ -42,6 +42,12 @@ import {
 import { parseStrategyAnalysis } from '@/lib/validation';
 import { assertTransition } from './state';
 import { supabaseCampaignStore, type CampaignStore } from './store';
+import {
+  hypothesisFromDecision,
+  registerHypothesis as registerHypothesisInStore,
+  type RegisterHypothesisInput,
+} from '@/lib/hypotheses';
+import { episodicRecaller, NO_PRECEDENTS, type RecallPrecedents } from './precedents';
 import type {
   Campaign,
   CampaignChannel,
@@ -59,6 +65,17 @@ export interface GenerateRequest {
   ownerUserId: string;
   channel:     CampaignChannel;
   decision:    MarketingDecision;
+  /**
+   * The active atoms the runner already loaded (W3 wire-in): the generator
+   * lints its draft against the brand_voice atoms without a second DB read.
+   */
+  insights?:   Insight[];
+  /**
+   * Precedent one-liners recalled from episodic memory (W2 wire-in): the
+   * generator prepends them to its context so creative choices see what
+   * already worked/failed for THIS client.
+   */
+  precedents?: string[];
 }
 
 /**
@@ -105,6 +122,24 @@ export interface RunCampaignDeps {
 
   /** Persistence. Default: supabaseCampaignStore(createAdminClient()). */
   store?: CampaignStore;
+
+  /**
+   * Pre-registration seam (C-01 wire-in): every executed decision is ALSO
+   * registered as a falsifiable hypothesis about the atoms that grounded it
+   * (hypothesisFromDecision). Default: registerHypothesis over the same admin
+   * client. Registration failures NEVER fail the run — a dry-run assembly must
+   * not be hostage to the ledger; the gap is surfaced in `notes`.
+   * Pass null to disable (tests that assert zero side effects).
+   */
+  registerHypothesis?: ((input: RegisterHypothesisInput) => Promise<{ id: string }>) | null;
+
+  /**
+   * Episodic-recall seam (C-02/W2 wire-in): fetch the k most similar past
+   * episodes for the decision about to run. Default: episodicRecaller over the
+   * same admin client — which itself degrades to zero precedents (with a note)
+   * when no embedder key / no episodes exist. Pass null to disable.
+   */
+  recallPrecedents?: RecallPrecedents | null;
 
   /** Dry-run Meta Ads client (meta_paid). Default: a dryRun MetaAdsClient. */
   metaAds?: MetaAdsClient;
@@ -194,6 +229,21 @@ export async function runCampaign(
   const loadClient = deps.loadClient ?? defaultLoadClient(admin!);
   const store = deps.store ?? supabaseCampaignStore(admin!);
   const decideFn = deps.decide ?? realDecide;
+  // Explicit fn/null wins. Otherwise: default registrar only when a real admin
+  // context exists (prod path); a fully-injected test context stays side-effect
+  // free unless it opts in — the same doctrine as the other defaults.
+  const registerHyp =
+    deps.registerHypothesis !== undefined
+      ? deps.registerHypothesis
+      : admin
+        ? (input: RegisterHypothesisInput) => registerHypothesisInStore(admin, input)
+        : null;
+  const recallPrecedents =
+    deps.recallPrecedents !== undefined
+      ? deps.recallPrecedents
+      : admin
+        ? episodicRecaller(admin)
+        : null;
 
   // 1) load the living understanding ──────────────────────────────────────────
   const [insights, strategy, client] = await Promise.all([
@@ -209,15 +259,30 @@ export async function runCampaign(
   const decision = decideFn({ client, insights, strategy });
   const obj = mapObjective(decision.objective);
 
+  // 2b) episodic precedents (W2): what similar bets did for THIS client before.
+  // Recall enriches the run; it never gates it (failures → note + no precedents).
+  // (The note joins `notes` after mapTargeting declares it below.)
+  const precedents = recallPrecedents
+    ? await recallPrecedents({ clientId, ownerUserId, decision })
+    : NO_PRECEDENTS;
+
   // 3) generate the creative (injected; wraps master-studio in prod) ────────────
   status = assertTransition(status, 'generating');
-  const creative = await deps.generate({ clientId, ownerUserId, channel, decision });
+  const creative = await deps.generate({
+    clientId,
+    ownerUserId,
+    channel,
+    decision,
+    insights,
+    precedents: precedents.summaries,
+  });
 
   // 4) assemble the channel objects (dry-run — zero spend) ───────────────────────
   const pageId = deps.pageId || process.env.META_PAGE_ID || 'dryrun_page';
   const link = creative.link || deps.link || process.env.META_DEFAULT_LINK || PLACEHOLDER_LINK;
   const name = params.name?.trim() || deriveName(decision, channel);
   const { targeting, notes } = mapTargeting(decision.targeting_spec);
+  if (precedents.note) notes.push(precedents.note);
   const pubPlats = mapPublisherPlatforms(decision.platform);
   if (pubPlats) targeting.publisher_platforms = pubPlats;
 
@@ -385,10 +450,47 @@ export async function runCampaign(
   }
 
   const decisionInserts = buildDecisionLog(campaign.id, clientId, ownerUserId, decision, obj, channel, targeting as Record<string, unknown>);
+  // W2: when episodic memory informed this run, that is itself a logged,
+  // grounded decision — the WHY-trail records WHICH past episodes were in view.
+  if (precedents.summaries.length > 0) {
+    decisionInserts.push({
+      campaign_id: campaign.id,
+      client_id: clientId,
+      owner_user_id: ownerUserId,
+      decision_type: 'precedents',
+      decision: { episode_ids: precedents.episodeIds, summaries: precedents.summaries },
+      grounded_in: decision.grounded_in,
+      rationale: `הופעלו ${precedents.summaries.length} תקדימים מהזיכרון האפיזודי של הלקוח (מה עבד/נכשל בעבר) בהקשר ההחלטה.`,
+    });
+  }
   const decisions: CampaignDecision[] = [];
   for (const di of decisionInserts) {
     const saved = await store.insertDecision(di);
     decisions.push(saved ?? { id: `unsaved_decision_${decisions.length + 1}`, ...di });
+  }
+
+  // 6) pre-register the decision's bet as a falsifiable hypothesis (C-01) ──────
+  // The verdict criteria are frozen NOW, before a shekel moves — resolution
+  // later grades the atoms in decision.grounded_in against these criteria.
+  // Failures degrade to a note (same doctrine as store persistence): the run
+  // must never be hostage to the ledger.
+  if (registerHyp !== null) {
+    const adItem = items.find((i) => i.item_type === 'ad' || i.item_type === 'post');
+    const hypInput = hypothesisFromDecision({
+      clientId,
+      ownerUserId,
+      decision,
+      campaignItemId: adItem && !adItem.id.startsWith('unsaved') ? adItem.id : null,
+    });
+    if (hypInput === null) {
+      notes.push('hypothesis not registered: decision carries no grounded_in atoms (ungrounded bet).');
+    } else {
+      try {
+        await registerHyp(hypInput);
+      } catch (err) {
+        notes.push(`hypothesis registration failed (run unaffected): ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
   }
 
   return { decision, campaign, items, decisions, notes, dryRun };
