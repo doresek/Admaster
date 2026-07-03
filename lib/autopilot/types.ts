@@ -39,10 +39,45 @@ export interface StepCtx {
   locale: 'he' | 'en' | 'ar';
 }
 
+// ── Typed pipeline bus (H2) ──────────────────────────────────
+// The accumulator threaded between steps. Each step reads upstream keys and
+// writes its own — modelling them as a real interface makes a misspelled key a
+// compile error instead of a silent runtime `undefined`.
+
+/** A generated ad variant (from /api/quick-campaign). */
+export interface Variant {
+  post: string;
+  hashtags?: string[];
+  wa?: string;
+  image_prompt?: string;
+  framework?: string;
+  // The generator may attach extra fields we pass through untouched.
+  [k: string]: unknown;
+}
+
+/** A variant after scoring (/api/ai/score). */
+export interface ScoredVariant extends Variant {
+  score: number;
+  band: string;
+}
+
+export interface PipelineAcc {
+  variants?: Variant[];         // generate → score
+  scored?: ScoredVariant[];     // score
+  best?: ScoredVariant;         // score → judge/approval/targeting
+  judge?: unknown;              // judge → approval (verdict from lib/judge)
+  approvalId?: string;          // approval → launch (+ journey patch)
+  token?: string;               // approval (public approve portal)
+  targeting?: unknown;          // targeting → launch
+  launch?: unknown;             // launch
+  launchedAdId?: string | null; // launch → insights
+  insights?: unknown;           // insights
+}
+
 export interface StepResult {
   ok: boolean;
   gate?: boolean;         // true → orchestrator stops here, awaiting a human
-  data?: Record<string, unknown>;
+  data?: Partial<PipelineAcc>;
   error?: string;
 }
 

@@ -4,6 +4,8 @@
 //   • insert(payload).select(cols).single()           -> create, returns row
 //   • insert(payload)            (awaited directly)    -> append (events)
 //   • update(payload).eq(...).select(cols).single()   -> patch, returns row
+//   • update(payload).eq(...).eq(...).select(cols)     -> CAS patch, returns
+//                                        (awaited)         the updated rows[]
 //   • select(cols).eq(...)...order(...)                -> list (awaited)
 //   • select(cols).eq(...).maybeSingle()               -> one | null
 //   • upsert(payload, { onConflict }) (awaited)        -> insert/merge by key
@@ -45,8 +47,8 @@ export function makeFakeDb(
   }
 
   function from(table: keyof typeof db) {
-    const state: { op: 'insert' | 'update' | 'upsert' | 'select' | null; payload: any; filters: [string, any][]; inFilters: [string, any[]][]; onConflict?: string } = {
-      op: null, payload: null, filters: [], inFilters: [],
+    const state: { op: 'insert' | 'update' | 'upsert' | 'select' | null; payload: any; filters: [string, any][]; inFilters: [string, any[]][]; onConflict?: string; selected: boolean } = {
+      op: null, payload: null, filters: [], inFilters: [], selected: false,
     };
 
     const store = () => db[table] as any[];
@@ -79,12 +81,6 @@ export function makeFakeDb(
       return row;
     }
 
-    function doUpdateMany(): number {
-      const rows = store().filter((r) => matches(r, state.filters, state.inFilters));
-      for (const r of rows) Object.assign(r, state.payload);
-      return rows.length;
-    }
-
     function doUpsert() {
       const key = state.onConflict ?? 'id';
       const existing = store().find((r) => r[key] === state.payload[key]);
@@ -100,7 +96,7 @@ export function makeFakeDb(
         state.op = 'upsert'; state.payload = payload; state.onConflict = opts?.onConflict;
         return Promise.resolve(doUpsert());
       },
-      select() { if (!state.op) state.op = 'select'; return builder; },
+      select() { state.selected = true; if (!state.op) state.op = 'select'; return builder; },
       eq(col: string, val: any) { state.filters.push([col, val]); return builder; },
       in(col: string, vals: any[]) { state.inFilters.push([col, vals]); return builder; },
       order() { // terminal list read
@@ -125,7 +121,16 @@ export function makeFakeDb(
       // (mark processed), or a filtered list read (select).
       then(resolve: any) {
         if (state.op === 'insert') { doInsert(); return resolve({ error: null }); }
-        if (state.op === 'update') { doUpdateMany(); return resolve({ error: null }); }
+        if (state.op === 'update') {
+          // CAS/patch-many. Snapshot AFTER applying so a
+          // `.update().eq().select()` (no .single) returns the updated rows —
+          // used by the C4 processed-CAS claim. Without .select the awaited
+          // shape stays exactly `{ error: null }` (unchanged behavior).
+          const rows = store().filter((r) => matches(r, state.filters, state.inFilters));
+          for (const r of rows) Object.assign(r, state.payload);
+          if (state.selected) return resolve({ data: rows.map((r) => ({ ...r })), error: null });
+          return resolve({ error: null });
+        }
         if (state.op === 'select') {
           const rows = store().filter((r) => matches(r, state.filters, state.inFilters));
           return resolve({ data: rows.map((r) => ({ ...r })), error: null });
@@ -138,6 +143,9 @@ export function makeFakeDb(
 
   function rpc(fn: string, args: any) {
     rpcCalls.push({ fn, args });
+    // Per-client build claim (C1): in the single-threaded fake there is never a
+    // competing in-flight build, so the claim is always granted.
+    if (fn === 'claim_client_build') return Promise.resolve({ data: true, error: null });
     return Promise.resolve({ data: { success: true, credits: 100 }, error: null });
   }
 

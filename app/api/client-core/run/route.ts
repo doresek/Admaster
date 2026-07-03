@@ -30,6 +30,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing clientId or briefId' }, { status: 400 });
   }
 
+  // Ownership (S1) — defense-in-depth. The RLS-scoped user client returns the client
+  // row only if the caller owns it; refuse otherwise. The orchestrator re-verifies
+  // ownership under the admin client, but we reject early here too.
+  const { data: owned } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('id', clientId)
+    .maybeSingle();
+  if (!owned) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   const result = await orchestrateClientCore(createAdminClient(), {
     userId: user.id,
     clientId,

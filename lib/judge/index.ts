@@ -8,6 +8,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildAiContext } from '@/lib/ai-context';
+import { safeJsonParse, isRecord } from '@/lib/validation';
 import { composeJudgePrompt } from './prompt';
 import {
   JUDGE_DIMENSIONS,
@@ -104,11 +105,12 @@ export async function evaluate(
     return fallback('ה-judge לא היה זמין; ממתין לבדיקה אנושית.');
   }
 
-  let parsed: any;
-  try {
-    parsed = JSON.parse(stripToJson(text));
-  } catch (err) {
-    console.error('[judge] parse error:', err, 'raw:', text.slice(0, 200));
+  // Validation boundary (H1): the model's reply is `unknown` until proven a
+  // JSON object. safeJsonParse returns null on invalid JSON OR a non-object, so
+  // a garbled reply degrades to the safe "revise" verdict instead of throwing.
+  const parsed: any = safeJsonParse<Record<string, unknown>>(stripToJson(text), isRecord);
+  if (parsed === null) {
+    console.error('[judge] parse error; raw:', text.slice(0, 200));
     return fallback('לא ניתן לפענח את תשובת ה-judge; ממתין לבדיקה אנושית.');
   }
 

@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { TEMPLATES_BY_ID, type LandingTemplate, type LandingContent } from '@/lib/landing-templates';
 import { coerceDesignSpec, DEFAULT_DESIGN, FONT_PAIRS, radiusFor, densityFor, type DesignSpec } from '@/lib/landing-design';
 import { createClient } from '@/lib/supabase/client';
+import { safeExternalUrl, safeEmbedUrl } from '@/lib/safe-url';
 
 interface LPData {
   id:       string;
@@ -516,7 +517,7 @@ export default function PublicLandingPage() {
           {/* CTA inline (non-form layouts) */}
           {def.sections.includes('cta') && !def.sections.includes('form') && c.cta_href && (
             <div className={`${design.hero === 'magazine' ? 'mt-8' : 'mt-10 text-center'}`}>
-              <a href={c.cta_href}
+              <a href={safeExternalUrl(c.cta_href)}
                  className="reveal-4 inline-block px-8 py-4 text-base font-bold transition-all hover:brightness-110 hover:scale-[1.02]"
                  style={{
                    background: `linear-gradient(135deg, ${design.primary}, ${design.secondary})`,
@@ -531,15 +532,25 @@ export default function PublicLandingPage() {
         </section>
 
         {/* ═══ VIDEO ═══ */}
-        {def.sections.includes('video') && c.video_url && (
-          <section className="mb-16">
-            <div className="overflow-hidden" style={{ borderRadius: r.card, border: `1px solid ${design.border}` }}>
-              <div className="aspect-video">
-                <iframe src={c.video_url} className="w-full h-full" allowFullScreen allow="autoplay; encrypted-media" />
+        {def.sections.includes('video') && (() => {
+          const embed = safeEmbedUrl(c.video_url);
+          if (!embed) return null;
+          return (
+            <section className="mb-16">
+              <div className="overflow-hidden" style={{ borderRadius: r.card, border: `1px solid ${design.border}` }}>
+                <div className="aspect-video">
+                  <iframe
+                    src={embed}
+                    className="w-full h-full"
+                    allowFullScreen
+                    allow="autoplay; encrypted-media"
+                    sandbox="allow-scripts allow-same-origin allow-presentation"
+                  />
+                </div>
               </div>
-            </div>
-          </section>
-        )}
+            </section>
+          );
+        })()}
 
         {/* ═══ TRUST ═══ */}
         {def.sections.includes('trust') && c.trust_signals && c.trust_signals.length > 0 && (

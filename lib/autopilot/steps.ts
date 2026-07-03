@@ -6,9 +6,12 @@
 import { randomBytes } from 'crypto';
 import { buildAiContext } from '@/lib/ai-context';
 import { evaluate } from '@/lib/judge';
-import type { StepCtx, StepResult, StepName } from './types';
+import type { StepCtx, StepResult, StepName, PipelineAcc } from './types';
 
-type Acc = Record<string, any>;
+// H2: the typed pipeline bus (see PipelineAcc in ./types). A step that reads a
+// misspelled upstream key now fails to compile instead of silently reading
+// `undefined`.
+type Acc = PipelineAcc;
 
 async function callRoute(
   ctx: StepCtx,
@@ -139,6 +142,15 @@ async function targeting(ctx: StepCtx, acc: Acc): Promise<StepResult> {
 }
 
 async function launch(ctx: StepCtx, acc: Acc): Promise<StepResult> {
+  // ⚠️ R1 MERGE-GATE (do NOT relax without sign-off) — when /api/meta/launch
+  // lands on feat/meta-ads-launcher it creates REAL, money-spending ad objects.
+  // Before it may create any ACTIVE object it MUST, in that route:
+  //   1. gate on isLivePublishEnabled() (kill-switch / env flag),
+  //   2. enforce the per-client spend cap, and
+  //   3. require a DISTINCT human MONEY confirmation (separate from the copy
+  //      approval gate above) — autopilot approval ≠ authorization to spend.
+  // Autopilot must never auto-launch a live ad without all three. Until the
+  // route exists it 404s and this step degrades to `deferred_until_meta_merge`.
   const { status, json } = await callRoute(ctx, '/api/meta/launch', {
     approvalId: acc.approvalId,
     targeting: acc.targeting,
@@ -159,7 +171,7 @@ async function insights(ctx: StepCtx, acc: Acc): Promise<StepResult> {
   return { ok: true, data: { insights: json } };
 }
 
-export const STEP_FNS: Record<StepName, (ctx: StepCtx, acc: Acc) => Promise<StepResult>> = {
+export const STEP_FNS: Record<StepName, (ctx: StepCtx, acc: PipelineAcc) => Promise<StepResult>> = {
   generate,
   score,
   judge,

@@ -87,6 +87,30 @@ describe('POST /api/intelligence/signal', () => {
     expect(json.insights[0].status).toBe('refuted');
   });
 
+  it('C4: a rapid duplicate click is de-duped — one signal row, confidence bumped only ONCE', async () => {
+    h.db = makeFakeDb({
+      insights:  [insight({ id: 'i1', confidence: 0.5, evidence_count: 1 })],
+      artifacts: [{ id: 'a1', client_id: 'c1', owner_user_id: 'u1', insight_ids: ['i1'], type: 'post' }],
+    });
+
+    const r1 = await POST(makeReq({ artifactId: 'a1', kind: 'worked' }));
+    const j1 = await r1.json();
+    const r2 = await POST(makeReq({ artifactId: 'a1', kind: 'worked' }));
+    const j2 = await r2.json();
+
+    // First click applied; the second (within the 5s window) was de-duped.
+    expect(j1.applied).toBe(1);
+    expect(j2.deduped).toBe(true);
+    expect(j2.applied).toBe(0);
+
+    // Exactly ONE learning_signals row — the double-submit didn't create a second.
+    expect(h.db.learning_signals).toHaveLength(1);
+
+    // Confidence bumped exactly once (0.5 + 0.12*0.8 = 0.596), NOT twice (0.692).
+    expect(h.db.client_insights[0].confidence).toBeCloseTo(0.596, 3);
+    expect(h.db.client_insights[0].evidence_count).toBe(2);
+  });
+
   it('accepts a direct insightId (no artifact) and applies the signal', async () => {
     h.db = makeFakeDb({ insights: [insight({ id: 'i9', confidence: 0.5 })] });
     const res = await POST(makeReq({ insightId: 'i9', kind: 'worked' }));

@@ -124,16 +124,48 @@ export async function POST(req: NextRequest) {
     // idempotency guard would then SKIP. force re-runs the 3-layer analysis from
     // the freshly-submitted answers on every submit.
     if (data.client_id) {
-      waitUntil(
-        orchestrateClientCore(createAdminClient(), {
-          userId:   briefCode.user_id,
-          clientId: data.client_id,
-          briefId:  data.id,
-          force:    true,
-        }).catch((e: any) =>
-          console.error('[briefs/submit] client-core orchestrator failed:', e?.message)
-        )
-      );
+      // S4 — hard per-client throttle on the UNAUTHENTICATED LLM orchestrator.
+      // The brief's answers are ALREADY persisted above; this gate only decides
+      // whether to fire the expensive orchestrateClientCore run (several LLM
+      // calls, maxDuration 300s). Durable, cross-instance limiter (check_rate_limit
+      // RPC, migration 032): max 5 brain-builds per client per hour. On ANY RPC
+      // error we FAIL OPEN (allow) — availability over strictness. This caps the
+      // financial-DoS surface: whoever holds a brief code can save answers but
+      // cannot spin the LLM pipeline for free without bound. When throttled we
+      // still return success (answers are saved) and simply skip the run — the
+      // authenticated /api/client-core/run route remains as the manual retry.
+      let orchestrateAllowed = true;
+      try {
+        const { data: allowed, error: rlErr } = await admin.rpc('check_rate_limit', {
+          p_key:            `briefs-orchestrate:${data.client_id}`,
+          p_max:            5,
+          p_window_seconds: 60 * 60,
+        });
+        if (rlErr) {
+          console.warn('[briefs/submit] orchestrate throttle RPC failed, failing open:', rlErr.message);
+        } else if (allowed === false) {
+          orchestrateAllowed = false;
+        }
+      } catch (e: any) {
+        console.warn('[briefs/submit] orchestrate throttle threw, failing open:', e?.message);
+      }
+
+      if (orchestrateAllowed) {
+        waitUntil(
+          orchestrateClientCore(createAdminClient(), {
+            userId:   briefCode.user_id,
+            clientId: data.client_id,
+            briefId:  data.id,
+            force:    true,
+          }).catch((e: any) =>
+            console.error('[briefs/submit] client-core orchestrator failed:', e?.message)
+          )
+        );
+      } else {
+        console.warn(
+          `[briefs/submit] orchestrator throttled for client ${data.client_id}; brief saved, brain-build skipped.`,
+        );
+      }
     }
 
     return NextResponse.json({ success: true, id: data.id });

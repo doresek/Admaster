@@ -212,6 +212,27 @@ export async function reconcileCandidates(
 }
 
 /**
+ * Idempotency CLAIM for a learning_signals row (C4). Atomically flips
+ * `processed` false→true via a compare-and-set and returns true ONLY to the
+ * caller that won the flip. A replay or a concurrent double-click loses the CAS
+ * and gets false, so the confidence change is applied AT MOST ONCE per signal
+ * row. Prefer this over a plain read-modify-write: PostgREST turns
+ * `.update().eq('id',id).eq('processed',false).select()` into a single
+ * `UPDATE ... WHERE id=? AND processed=false RETURNING id`, so exactly one of
+ * two racing callers sees a returned row.
+ */
+export async function claimSignal(admin: SupabaseClient, signalId: string): Promise<boolean> {
+  const { data, error } = await admin
+    .from('learning_signals')
+    .update({ processed: true })
+    .eq('id', signalId)
+    .eq('processed', false)
+    .select('id');
+  if (error) return false;
+  return Array.isArray(data) ? data.length > 0 : Boolean(data);
+}
+
+/**
  * Apply a single LearningSignal to one atom (the Part-2 entry point for the
  * content-performance / user-signal loop). Corroborates, weakens, or — on a
  * decisive negative — REFUTES the atom (status 'refuted'; never deleted).

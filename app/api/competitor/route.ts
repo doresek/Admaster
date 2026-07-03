@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { META_GRAPH_BASE } from '@/lib/meta-config';
+import { checkRateLimitDurable } from '@/lib/rate-limit';
+import { deductCredits, refundCredits, extractErrorMessage } from '@/lib/credits';
 
 const GRAPH  = META_GRAPH_BASE;
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
@@ -43,6 +45,23 @@ export async function GET(req: NextRequest) {
     // AI analysis if requested
     let analysis = null;
     if (analyze && ads.length > 0) {
+      // S6 — gate the paid Anthropic call: durable per-user rate limit + credits.
+      // 20 analyses / minute / user (durable, cross-instance; fails open on RPC error).
+      const rl = await checkRateLimitDurable(`competitor:${user.id}`, { max: 20, windowMs: 60_000 });
+      if (!rl.ok) {
+        return NextResponse.json(
+          { error: 'יותר מדי בקשות — נסה שוב בעוד מספר שניות', retryAfter: rl.retryAfter },
+          { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
+        );
+      }
+
+      // Charge for the analysis up front; refund below if the provider call fails.
+      // 'analyze' is the closest existing credit action (generic AI analysis).
+      const deduct = await deductCredits(supabase, user.id, 'analyze');
+      if (!deduct.ok) {
+        return NextResponse.json({ error: deduct.error, credits: deduct.credits ?? 0 }, { status: deduct.status });
+      }
+
       const topAds = ads.slice(0, 5).map((ad: any) => ({
         page: ad.page_name,
         body: ad.ad_creative_bodies?.[0]?.substring(0, 200),
@@ -50,12 +69,13 @@ export async function GET(req: NextRequest) {
         caption: ad.ad_creative_link_captions?.[0],
       }));
 
-      const msg = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 800,
-        messages: [{
-          role: 'user',
-          content: `נתח ${topAds.length} מודעות של מתחרים בתחום "${query}" בישראל.
+      try {
+        const msg = await client.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 800,
+          messages: [{
+            role: 'user',
+            content: `נתח ${topAds.length} מודעות של מתחרים בתחום "${query}" בישראל.
 מודעות:
 ${JSON.stringify(topAds, null, 2)}
 
@@ -65,10 +85,15 @@ ${JSON.stringify(topAds, null, 2)}
 3. מה הצעות הערך
 4. מה חסר / הזדמנויות
 5. 3 רעיונות למודעה שתבלוט מעל כולם`,
-        }],
-      });
+          }],
+        });
 
-      analysis = msg.content[0].type === 'text' ? msg.content[0].text : null;
+        analysis = msg.content[0].type === 'text' ? msg.content[0].text : null;
+      } catch (e) {
+        // Provider failed after we charged — refund, then surface a clean error.
+        await refundCredits(supabase, user.id, 'analyze', deduct.cost);
+        return NextResponse.json({ error: extractErrorMessage(e) }, { status: 502 });
+      }
     }
 
     return NextResponse.json({ ads, analysis });
