@@ -6,6 +6,13 @@
 
 ---
 
+# ===== SESSION 2026-07-04 (morning) — audit #2 + bugs + C-02 =====
+- **PART 1 — Security Audit #2 of PR #44/#45 (`docs/SECURITY-AUDIT-2.md`/`HARDENING-PLAN-2.md`).** 4 parallel auditors. **0 CRITICAL; 4 HIGH — all fixed + merged (PR #47, mig 045):** F1/F2 cost-DoS gates on `/api/voc`+`/api/competitor-watch` (credit-gate + rate-limit + `MAX_ADS_PER_RUN=40`); HB-1 heartbeat claim unique index (=bug #4); PII-1/PII-2 VoC stores stripped text at rest. **Money/autonomy gate HOLDS** (5 gates); RLS owner-only on all 13 new tables (prod-verified). MED/LOW tracked.
+- **C-02 episodic activated (PR #46, mig none):** provided GOOGLE_AI_API_KEY exposes `gemini-embedding-001` (not text-embedding-004) → embedder repointed @768 dims + L2-normalized; key in .env.local + Vercel Prod/Dev.
+- **PART 2 — bugs (branch `fix/part2-bugs`, mig 047+048 applied):** #1 logout → server-side `/api/auth/logout` clears httpOnly cookies + hard-nav (client-only signOut left them, "stuck logged in"); #2 brain-hang → BuildingBrain now TRIGGERS the idempotent `/api/client-core/run` (resolves latest brief) instead of only polling a freeze-prone `waitUntil` (root cause: orphaned safety-net endpoint, no retry path); #3 meta_connections FK already→clients (no repoint), added `token_expires_at` + stored in both callbacks + C-06 pipe-health expiry blocker (mig 047); #4 done in Part 1; #5 widened `learning_signals` CHECK with `competitor_evidence` (mig 048). tsc clean · 1510 tests · build 120/120.
+
+---
+
 # ===== HEARTBEAT + REMAINING CAPABILITIES (2026-07-04) — plan: VISION-DEEP §1–§7 + spec C-04/09/11 =====
 
 **Branch:** `feat/heartbeat-and-capabilities` off `origin/main` @ `586ddf1` (post-#44 merge). Baseline verified green: tsc clean, **1,097 tests**. Same doctrine: disjoint folders, serial shared files, gate after each integration, branch always green, everything dry-run/PAUSED.

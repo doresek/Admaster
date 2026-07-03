@@ -16,11 +16,11 @@
 // `alternative` atoms via createInsight; structured updates (competitor
 // evidence refresh, contested stamps) are written directly WITH an
 // insight_events audit row via logInsightEvent — audit everything.
-// NOTE (known type gap): competitor findings do NOT emit learning_signals —
-// the learning_signals CHECK (user_worked/user_wrong/performance_*/
-// hypothesis_*/voc_evidence) has no honest type for competitor evidence.
-// Follow-up: widen the CHECK with 'competitor_evidence' in a future
-// migration, then route corroboration through the lifecycle engine.
+// NOTE: the learning_signals CHECK now includes 'competitor_evidence' (migration
+// 048), so competitor findings CAN emit an honest learning_signal. Today they still
+// write `alternative` atoms + insight_events directly (which is sufficient for
+// grounding); routing competitor corroboration through the lifecycle engine as a
+// 'competitor_evidence' signal is now unblocked as a follow-up enhancement.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CompetitorAdRow, CompetitorEntityRow, CompetitorRing } from '@/lib/capability-contracts';

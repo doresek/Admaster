@@ -97,6 +97,8 @@ export async function GET(req: NextRequest) {
         selected_page_id: pages[0]?.id ?? null,
         selected_ad_account_id: adAccounts[0]?.id ?? null,
         status: 'connected',
+        // Expiry for pipe-health (C-06). expires_in absent/0 ⇒ long-lived/never-expiring.
+        token_expires_at: long.expires_in ? new Date(Date.now() + long.expires_in * 1000).toISOString() : null,
       });
 
     if (insErr) return back(req, returnTo, { meta: 'error', reason: 'store_failed' });

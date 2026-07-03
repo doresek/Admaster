@@ -103,8 +103,12 @@ export default function Sidebar({ name, credits, plan }: SidebarProps) {
   const pct = Math.min(100, Math.round((credits / planConfig.credits) * 100));
 
   async function handleLogout() {
-    await supabase.auth.signOut();
-    router.push('/login'); router.refresh();
+    // Clear the client session AND the server httpOnly cookies (the latter via the
+    // server route — a browser-only signOut leaves them and middleware keeps the
+    // user logged in). Then hard-navigate so the next request carries cleared cookies.
+    try { await supabase.auth.signOut(); } catch { /* clear server-side regardless */ }
+    try { await fetch('/api/auth/logout', { method: 'POST' }); } catch { /* fall through to redirect */ }
+    window.location.href = '/login';
   }
 
   function isActive(href: string) {

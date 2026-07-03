@@ -26,8 +26,8 @@ export async function POST(req: NextRequest) {
     briefId?:  string;
     force?:    boolean;
   };
-  if (!clientId || !briefId) {
-    return NextResponse.json({ error: 'Missing clientId or briefId' }, { status: 400 });
+  if (!clientId) {
+    return NextResponse.json({ error: 'Missing clientId' }, { status: 400 });
   }
 
   // Ownership (S1) — defense-in-depth. The RLS-scoped user client returns the client
@@ -42,10 +42,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
+  // Resolve the client's latest submitted brief when briefId is omitted, so the UI
+  // can drive a deterministic build with only the clientId (the BuildingBrain retry
+  // path). RLS scopes briefs to the caller; the orchestrator re-verifies ownership.
+  let resolvedBriefId = briefId;
+  if (!resolvedBriefId) {
+    const { data: latest } = await supabase
+      .from('briefs')
+      .select('id')
+      .eq('client_id', clientId)
+      .order('submitted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    resolvedBriefId = latest?.id ?? undefined;
+  }
+  if (!resolvedBriefId) {
+    return NextResponse.json({ error: 'No brief to build from' }, { status: 400 });
+  }
+
   const result = await orchestrateClientCore(createAdminClient(), {
     userId: user.id,
     clientId,
-    briefId,
+    briefId: resolvedBriefId,
     force,
   });
 

@@ -25,17 +25,43 @@ export function BuildingBrain({ clientId }: { clientId: string }) {
     return () => clearInterval(t);
   }, []);
 
-  // Poll for the first atoms, then reveal the wall via a route refresh.
+  // Drive the build, then poll for the first atoms and reveal the wall.
+  //
+  // The brief-submit handler fires the orchestrator via `waitUntil` (fire-and-forget),
+  // which a serverless freeze/recycle can cut short — leaving the brain stuck here
+  // forever with no retry. So we actively TRIGGER the deterministic, blocking,
+  // idempotent build endpoint (`/api/client-core/run`, which resolves the client's
+  // latest brief) on mount, and re-trigger if it stays stuck. The orchestrator's
+  // per-client build-claim + idempotency guard make repeated/concurrent triggers safe;
+  // a capped trigger count bounds credit use.
   useEffect(() => {
     let stopped = false;
+    let triggers = 0;
+    let polls = 0;
+
+    const trigger = () => {
+      if (stopped || triggers >= 3) return;
+      triggers += 1;
+      fetch('/api/client-core/run', {
+        method:  'POST',
+        headers: { 'content-type': 'application/json' },
+        body:    JSON.stringify({ clientId }),
+      }).catch(() => { /* the poll loop is the source of truth */ });
+    };
+
+    trigger(); // kick a deterministic build immediately (covers a frozen waitUntil)
+
     const tick = async () => {
+      polls += 1;
       try {
         const res = await fetch(`/api/intelligence/insights?clientId=${clientId}`, { cache: 'no-store' });
-        if (!res.ok) return;
-        const json = await res.json();
-        const ready = (Array.isArray(json?.insights) && json.insights.length > 0) || !!json?.coreGeneratedAt;
-        if (ready && !stopped) router.refresh();
+        if (res.ok) {
+          const json = await res.json();
+          const ready = (Array.isArray(json?.insights) && json.insights.length > 0) || !!json?.coreGeneratedAt;
+          if (ready && !stopped) { router.refresh(); return; }
+        }
       } catch { /* transient — keep polling */ }
+      if (polls % 8 === 0) trigger(); // still stuck after ~40s → retry the build
     };
     const id = setInterval(tick, POLL_MS);
     return () => { stopped = true; clearInterval(id); };
