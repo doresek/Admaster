@@ -1,9 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Textarea, Input, Btn, CopyBtn, Alert, PageHeader, Tabs, Chip } from '@/components/ui';
-import type { MetaClient } from '@/types';
-import { clientToMetaClient } from '@/lib/clients';
+import { useActiveClient } from '@/components/ClientProvider';
 import { clsx } from 'clsx';
 
 interface Approval {
@@ -26,17 +24,15 @@ const STATUS_LABELS = {
 };
 
 export default function ApprovalsPage() {
+  const { activeClient, activeClientId } = useActiveClient();
   const [tab,       setTab]      = useState('list');
   const [items,     setItems]    = useState<Approval[]>([]);
-  const [clients,   setClients]  = useState<MetaClient[]>([]);
-  const [selC,      setSelC]     = useState<MetaClient|null>(null);
   const [title,     setTitle]    = useState('');
   const [text,      setText]     = useState('');
   const [imageUrl,  setImageUrl] = useState('');
   const [newLink,   setNewLink]  = useState('');
   const [error,     setError]    = useState('');
   const [loading,   setLoading]  = useState(false);
-  const supabase = createClient();
 
   async function load() {
     const res = await fetch('/api/approvals');
@@ -46,11 +42,6 @@ export default function ApprovalsPage() {
 
   useEffect(() => {
     load();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      supabase.from('clients').select('id, name, owner_user_id, created_at, updated_at').eq('owner_user_id', user.id)
-        .then(({ data }) => setClients((data ?? []).map(clientToMetaClient)));
-    });
   }, []);
 
   async function create() {
@@ -61,7 +52,7 @@ export default function ApprovalsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          client_id: selC?.id,
+          client_id: activeClientId ?? null,
           title:     title || null,
           content:   { text, image_url: imageUrl || null },
         }),
@@ -117,16 +108,12 @@ export default function ApprovalsPage() {
               <Input value={title} onChange={setTitle} placeholder="לדוגמה: פוסט שבועות 2026" />
             </Card>
 
-            {clients.length > 0 && (
-              <Card className="mb-3">
-                <CardLabel>לקוח (אופציונלי)</CardLabel>
-                <div className="flex flex-wrap gap-2">
-                  <Chip label="ללא" active={!selC} onClick={() => setSelC(null)} />
-                  {clients.map(c => (
-                    <Chip key={c.id} label={`${c.emoji} ${c.name}`} active={selC?.id===c.id} onClick={() => setSelC(c)} />
-                  ))}
-                </div>
-              </Card>
+            {activeClient ? (
+              <div className="mb-3 text-[12px] text-[#6B8FA8] flex items-center gap-1.5">
+                פועל על: <Chip label={`${activeClient.emoji} ${activeClient.name}`} active />
+              </div>
+            ) : (
+              <Alert type="amber" className="mb-3">בחר לקוח פעיל מהמתג למעלה כדי להתחיל</Alert>
             )}
 
             <Card className="mb-3">
@@ -139,7 +126,7 @@ export default function ApprovalsPage() {
               <Input value={imageUrl} onChange={setImageUrl} placeholder="https://..." />
             </Card>
 
-            <Btn variant="primary" full loading={loading} onClick={create} disabled={!text.trim()}>
+            <Btn variant="primary" full loading={loading} onClick={create} disabled={!text.trim() || !activeClientId}>
               📤 צור קישור אישור
             </Btn>
             {error && <Alert type="red">❌ {error}</Alert>}

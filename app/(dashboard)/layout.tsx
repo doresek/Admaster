@@ -7,6 +7,7 @@ import { NotificationBell } from '@/components/NotificationBell';
 import { CreditsBadge } from '@/components/CreditsBadge';
 import { FAB } from '@/components/FAB';
 import { ClientSwitcher } from '@/components/ClientSwitcher';
+import { ClientProvider } from '@/components/ClientProvider';
 import type { Plan } from '@/types';
 import { parseLocale, getDir, LOCALE_COOKIE } from '@/lib/i18n';
 import { ACTIVE_CLIENT_COOKIE, readActiveClientCookie } from '@/lib/active-client';
@@ -35,28 +36,30 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const offsetSide = dir === 'rtl' ? 'mr' : 'ml';
 
   return (
-    <div className="flex min-h-screen bg-[#070A0E] text-[#D9E8F5]" dir={dir}>
-      <Sidebar
-        name={profile?.name ?? user.email?.split('@')[0] ?? ''}
-        credits={profile?.credits ?? 0}
-        plan={(profile?.plan as Plan) ?? 'free'}
-      />
-      <div
-        className="flex-1 transition-all duration-200"
-        style={{ [offsetSide === 'mr' ? 'marginRight' : 'marginLeft']: offsetSize }}
-      >
-        {/* Top bar with active-client switcher + credits + bell */}
-        <div className="sticky top-0 z-40 bg-[#070A0E]/85 backdrop-blur border-b border-[#1E2F42] px-8 py-2 flex items-center justify-end gap-3">
-          <ClientSwitcher initialActive={activeClientId} />
-          <CreditsBadge
-            initialCredits={profile?.credits ?? 0}
-            initialPlan={(profile?.plan as Plan) ?? 'free'}
-          />
-          <NotificationBell />
+    <ClientProvider initialActive={activeClientId}>
+      <div className="flex min-h-screen bg-[#070A0E] text-[#D9E8F5]" dir={dir}>
+        <Sidebar
+          name={profile?.name ?? user.email?.split('@')[0] ?? ''}
+          credits={profile?.credits ?? 0}
+          plan={(profile?.plan as Plan) ?? 'free'}
+        />
+        <div
+          className="flex-1 transition-all duration-200"
+          style={{ [offsetSide === 'mr' ? 'marginRight' : 'marginLeft']: offsetSize }}
+        >
+          {/* Top bar with active-client switcher + credits + bell */}
+          <div className="sticky top-0 z-40 bg-[#070A0E]/85 backdrop-blur border-b border-[#1E2F42] px-8 py-2 flex items-center justify-end gap-3">
+            <ClientSwitcher />
+            <CreditsBadge
+              initialCredits={profile?.credits ?? 0}
+              initialPlan={(profile?.plan as Plan) ?? 'free'}
+            />
+            <NotificationBell />
+          </div>
+          <main className="px-8 py-7 min-h-screen">{children}</main>
         </div>
-        <main className="px-8 py-7 min-h-screen">{children}</main>
+        <FAB />
       </div>
-      <FAB />
-    </div>
+    </ClientProvider>
   );
 }

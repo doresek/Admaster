@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { Card, CardLabel, Chip, Textarea, Btn, OutputBox, Tabs, CopyBtn, CostBadge, Alert, PageHeader, Spinner } from '@/components/ui';
 import { FRAMEWORKS, FRAMEWORKS_BY_ID, type FrameworkId } from '@/lib/frameworks';
@@ -8,6 +8,7 @@ import { ScoreBadge } from '@/components/ScoreBadge';
 import { ScorePanel } from '@/components/ScorePanel';
 import { BoostButton } from '@/components/BoostButton';
 import { SignalButtons } from '@/components/intelligence/SignalButtons';
+import { useActiveClient } from '@/components/ClientProvider';
 import type { ScoreResult } from '@/lib/scoring';
 
 const PLATFORMS = [
@@ -34,26 +35,10 @@ export default function CreatePage() {
   const [brief,       setBrief]       = useState('');
   const [masterNotes, setMasterNotes] = useState('');
 
-  // Active client + its brief — generation is grounded in these when present.
-  const [activeClient, setActiveClient] = useState<{ id: string; name: string; emoji: string } | null>(null);
-  const [briefId,      setBriefId]      = useState<string | null>(null);
-  const [hasBrief,     setHasBrief]     = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch('/api/active-client');
-        const d = await r.json();
-        if (cancelled) return;
-        const client = (d.clients ?? []).find((c: { id: string }) => c.id === d.active) ?? null;
-        setActiveClient(client ? { id: client.id, name: client.name, emoji: client.emoji ?? '🏢' } : null);
-        setBriefId(d.brief_id ?? null);
-        setHasBrief(!!d.has_brief);
-      } catch { /* binding chip stays in the no-client state */ }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  // Active client + its brief come from the app-wide ClientProvider — the single
+  // source of truth. Picking a client in the top switcher re-renders this instantly;
+  // there is no client picker here. Generation is grounded in these when present.
+  const { activeClient, activeBriefId: briefId, activeHasBrief: hasBrief } = useActiveClient();
 
   const [tab,  setTab]   = useState('post');
   const [out,  setOut]   = useState<MasterV2Output | null>(null);

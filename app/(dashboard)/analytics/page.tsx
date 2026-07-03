@@ -1,9 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardLabel, Btn, Alert, PageHeader, Select } from '@/components/ui';
+import { Card, CardLabel, Btn, Alert, PageHeader, Select, Chip } from '@/components/ui';
 import type { MetaClient } from '@/types';
 import { clientToMetaClient } from '@/lib/clients';
+import { useActiveClient } from '@/components/ClientProvider';
 
 const DATE_PRESETS = [
   { value: 'last_7d',  label: '7 ימים אחרונים' },
@@ -48,6 +49,8 @@ export default function AnalyticsPage() {
   const [loading,    setLoading]   = useState(false);
   const [error,      setError]     = useState('');
   const supabase = createClient();
+  // App-wide active client is the operating context for analytics — no re-pick.
+  const { activeClientId, activeClient } = useActiveClient();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -56,10 +59,17 @@ export default function AnalyticsPage() {
         .then(({ data }) => {
           const list = (data ?? []).map(clientToMetaClient);
           setClients(list);
-          if (list[0]) setSelC(list[0].id);
+          // Default to the app-wide active client; fall back to first client.
+          if (activeClientId) setSelC(activeClientId);
+          else if (list[0]) setSelC(list[0].id);
         });
     });
   }, []);
+
+  // Follow the active client once it resolves (context loads async).
+  useEffect(() => {
+    if (activeClientId) setSelC(activeClientId);
+  }, [activeClientId]);
 
   useEffect(() => {
     if (selC) fetchAnalytics();
@@ -105,8 +115,15 @@ export default function AnalyticsPage() {
           </div>
         } />
 
-      {/* Client selector */}
-      {clients.length > 1 && (
+      {/* Active client is the operating context — read-only indicator. */}
+      {activeClientId && activeClient && (
+        <div className="mb-5">
+          <Chip label={`פועל על: ${activeClient.emoji} ${activeClient.name}`} active />
+        </div>
+      )}
+
+      {/* Fallback client picker (only when no app-wide active client is set). */}
+      {!activeClientId && clients.length > 1 && (
         <div className="flex gap-2 mb-5 flex-wrap">
           {clients.map(c => (
             <button key={c.id} onClick={() => setSelC(c.id)}

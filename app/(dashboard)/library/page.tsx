@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Input, Btn, PageHeader, Chip, CopyBtn } from '@/components/ui';
 import type { MetaClient } from '@/types';
 import { clientToMetaClient } from '@/lib/clients';
+import { useActiveClient } from '@/components/ClientProvider';
 import { clsx } from 'clsx';
 
 interface Item {
@@ -31,6 +32,8 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Item | null>(null);
   const supabase = createClient();
+  // Open the library pre-scoped to the app-wide active client; "all" stays available.
+  const { activeClientId } = useActiveClient();
 
   async function load() {
     setLoading(true);
@@ -49,6 +52,12 @@ export default function LibraryPage() {
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
+
+  // Default the client filter to the active client once it resolves (still a
+  // filter — the user can switch to "הכל" or any other client afterwards).
+  useEffect(() => {
+    if (activeClientId) setClientF(activeClientId);
+  }, [activeClientId]);
 
   const allFolders = useMemo(() => Array.from(new Set(items.map(i => i.folder).filter(Boolean) as string[])), [items]);
   const allTags    = useMemo(() => Array.from(new Set(items.flatMap(i => i.tags ?? []))), [items]);

@@ -5,10 +5,12 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Input, Btn, Alert, PageHeader, CopyBtn } from '@/components/ui';
+import { useActiveClient } from '@/components/ClientProvider';
 import type { MetaClient } from '@/types';
 import { clientToMetaClient } from '@/lib/clients';
 
 export default function PixelPage() {
+  const { activeClientId } = useActiveClient();
   const [clients, setClients] = useState<MetaClient[]>([]);
   const [pixels,  setPixels]  = useState<any[]>([]);
   const [selC,    setSelC]    = useState('');
@@ -21,9 +23,22 @@ export default function PixelPage() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
       supabase.from('clients').select('id, name, owner_user_id, created_at, updated_at').eq('owner_user_id', user.id)
-        .then(({ data }) => { const list = (data ?? []).map(clientToMetaClient); setClients(list); if(list[0]) { setSelC(list[0].id); loadPixels(list[0].id); } });
+        .then(({ data }) => { const list = (data ?? []).map(clientToMetaClient); setClients(list); });
     });
   }, []);
+
+  // Default the selected client to the app-wide active client (top switcher is
+  // the source of truth). Fall back to the first client only when there is no
+  // active client.
+  useEffect(() => {
+    if (clients.length === 0) return;
+    if (activeClientId) {
+      const match = clients.find(c => c.id === activeClientId);
+      if (match && selC !== match.id) { setSelC(match.id); loadPixels(match.id); }
+    } else if (!selC) {
+      setSelC(clients[0].id); loadPixels(clients[0].id);
+    }
+  }, [clients, activeClientId, selC]);
 
   async function loadPixels(clientId: string) {
     const res = await fetch(`/api/pixel?clientId=${clientId}`);
@@ -54,12 +69,20 @@ export default function PixelPage() {
         <div>
           <Card className="mb-3">
             <CardLabel>צור Pixel חדש</CardLabel>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {clients.map(c=><button key={c.id} onClick={()=>{setSelC(c.id);loadPixels(c.id);}}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-all ${selC===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#1E2F42] bg-[#162030] text-[#6B8FA8]'}`}>
-                <span>{c.emoji}</span>{c.name}
-              </button>)}
-            </div>
+            {activeClientId ? (
+              <div className="flex items-center gap-2 mb-3">
+                <span>{clients.find(c=>c.id===selC)?.emoji}</span>
+                <span className="text-sm font-medium">פועל על: {clients.find(c=>c.id===selC)?.name}</span>
+                <span className="ml-auto text-[11px] text-[#2E4459]">לשינוי — החלף לקוח במתג למעלה</span>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {clients.map(c=><button key={c.id} onClick={()=>{setSelC(c.id);loadPixels(c.id);}}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-all ${selC===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#1E2F42] bg-[#162030] text-[#6B8FA8]'}`}>
+                  <span>{c.emoji}</span>{c.name}
+                </button>)}
+              </div>
+            )}
             <Input label="שם ה-Pixel" value={form.name} onChange={v=>setForm(p=>({...p,name:v}))} placeholder="Pixel - אלירן תפילין" />
             <Input label="כתובת האתר" value={form.websiteUrl} onChange={v=>setForm(p=>({...p,websiteUrl:v}))} placeholder="https://your-site.co.il" />
             {error && <Alert type="red">{error}</Alert>}

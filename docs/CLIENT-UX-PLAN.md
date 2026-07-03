@@ -6,6 +6,24 @@
 
 ---
 
+## Core architectural principle — client-context propagation
+
+**Pick a client once, and the whole app operates in that client's context.** The active client selected in the top switcher is the app's **single source of truth**; it flows to every screen. This is a first-class architectural rule, not a per-page convenience.
+
+Concretely:
+
+1. **One switcher, one source of truth.** The active client is chosen in exactly one place — the top-bar `ClientSwitcher`. No screen has its own client picker. The choice lives in the `ClientProvider` React context (`components/ClientProvider.tsx`), backed by the `admaster_active_client` cookie (`lib/active-client.ts`) so server components read the same value.
+2. **Reactive, instant propagation.** `setActiveClient(id)` updates context state (every client screen re-renders immediately), writes the cookie, and calls `router.refresh()` (every server screen re-reads it). One switch → the whole app follows, with no reload and no re-selection.
+3. **Every screen reads from context.** Client-aware screens call `useActiveClient()` — never their own `fetch('/api/active-client')` or a local selected-client `useState`. Create Post, Campaigns, Analysis, Images, Series, Meta pages, briefs — all ground in the *same* active client and its *existing* brief/brain by default. No screen asks the owner to re-enter or re-pick a client.
+4. **Default to the client's existing knowledge.** When a client is active, primary actions use its existing brief + Brand DNA automatically — no new short brief is required (Create Post generates from the active client's brief when the text box is empty; see the master route's `hasClientContext` gate).
+5. **The active client is always visible.** Every screen shows which client it is operating on (the top switcher is always mounted), so the owner is never guessing the context an action will run in.
+
+**Anti-pattern (do not do):** a second client dropdown on an individual screen (the "Option A" quick patch). It creates two sources of truth that drift, and it re-asks a question the owner already answered. If a screen needs the active client, it reads the context.
+
+**Contract for new screens:** a new client-aware screen (a) is a Client Component (or has a small `'use client'` island) that calls `useActiveClient()`; (b) sends `client_id` / `brief_id` from context on its primary action; (c) renders a graceful "no active client" empty state pointing at the switcher; (d) adds **no** client picker of its own.
+
+---
+
 ## 0. Ground truth — what exists today (read before designing)
 
 ### 0.1 The client page shows no campaigns
