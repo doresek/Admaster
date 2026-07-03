@@ -19,19 +19,19 @@ export const META_OAUTH_DIALOG = `https://www.facebook.com/${META_GRAPH_VERSION}
 // pages_show_list + pages_read_engagement → list/read the client's Pages.
 // ads_read + ads_management → read insights and create/manage campaigns (PAID).
 // business_management → required for the System-User / Business-Login path.
-// pages_manage_posts → publish ORGANIC posts to the Page.
-// instagram_basic + instagram_content_publish → publish to Instagram.
-// The organic scopes let a single consent cover BOTH paid and organic; they work
-// for the connector's OWN assets in dev-mode without App Review.
+//
+// ORGANIC scopes (pages_manage_posts, instagram_basic, instagram_content_publish)
+// were TEMPORARILY REMOVED: Facebook rejects them as "Invalid Scopes" until the app
+// has the matching Facebook Login use case + permissions configured in the Meta
+// console (they require the Login-for-Business use case / App Review, not available
+// by default even for the app admin). Paid connection works with the 5 below now;
+// re-add the organic scopes once the Meta console is configured (see docs).
 export const META_OAUTH_SCOPES = [
   'ads_management',
   'ads_read',
   'pages_read_engagement',
   'pages_show_list',
   'business_management',
-  'pages_manage_posts',
-  'instagram_basic',
-  'instagram_content_publish',
 ] as const;
 
 export const META_APP_ID = process.env.META_APP_ID || '';
