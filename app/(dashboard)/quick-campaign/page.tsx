@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { Card, CardLabel, Btn, Textarea, Alert, PageHeader, CostBadge, Chip, CopyBtn } from '@/components/ui';
+import { useActiveClient } from '@/components/ClientProvider';
 
 const PLATFORMS = [
   { id:'Facebook',  emoji:'📘' },
@@ -20,6 +21,7 @@ interface Variant {
 }
 
 export default function QuickCampaignPage() {
+  const { activeClient, activeClientId } = useActiveClient();
   const [brief,    setBrief]    = useState('');
   const [platform, setPlatform] = useState('Facebook');
   const [withImg,  setWithImg]  = useState(true);
@@ -34,7 +36,10 @@ export default function QuickCampaignPage() {
       const res = await fetch('/api/quick-campaign', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ brief, platform, generateImage: withImg }),
+        // Send the app-wide active client so the campaign + decision trace is
+        // recorded against it (single source of truth; the route also falls back
+        // to the cookie).
+        body:    JSON.stringify({ brief, platform, generateImage: withImg, client_id: activeClientId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'שגיאה');
@@ -73,6 +78,15 @@ export default function QuickCampaignPage() {
               className="w-4 h-4 rounded" />
             <span className="text-sm text-[#D9E8F5]">🎨 ייצר גם תמונות AI עם Ideogram</span>
           </label>
+          {activeClient ? (
+            <div className="text-[11px] text-[#6B8FA8] mb-2">
+              ✓ יישמר לתיק הלקוח <span className="text-[#3D9FFF] font-bold">{activeClient.emoji} {activeClient.name}</span> — עם עקבות החלטה מלאות ל-Command Center
+            </div>
+          ) : (
+            <Alert type="amber" className="mb-2">
+              לא נבחר לקוח — הקמפיין ייווצר, אך <strong>לא יישמר לתיק לקוח או ל-Command Center</strong> (ללא עקבות החלטה). בחר לקוח פעיל במתג למעלה כדי לשמור אותו.
+            </Alert>
+          )}
           <Btn variant="primary" full loading={loading} onClick={generate} disabled={!brief.trim()}>
             🚀 צור קמפיין שלם
           </Btn>
