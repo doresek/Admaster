@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { AdPreview } from '@/components/approvals/AdPreview';
 
 interface ApprovalData {
   id:              string;
@@ -96,12 +97,15 @@ export default function ApprovePage() {
           </div>
 
           <div className="p-6">
-            {data.content?.image_url && (
-              <img src={data.content.image_url} alt="" className="w-full rounded-lg mb-4 border" />
-            )}
-            <div className="whitespace-pre-wrap text-base leading-relaxed text-slate-800 mb-6">
-              {data.content?.text}
+            {/* The ACTUAL ad, exactly as it will appear in the feed */}
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+              כך המודעה תיראה
             </div>
+            <AdPreview
+              content={data.content}
+              clientName={typeof data.content?.client_name === 'string' ? data.content.client_name : null}
+              className="mb-6 border-slate-200"
+            />
 
             {view === 'done' && (
               <div className="text-center py-6">
@@ -114,6 +118,23 @@ export default function ApprovePage() {
                   {data.status === 'rejected' && 'דחית את התוכן'}
                   {data.status === 'pending' && 'ממתין לתגובתך'}
                 </div>
+                {/* What happens next — honest: approval unlocks the launch step, nothing publishes automatically */}
+                {data.status === 'approved' && (
+                  <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-800 text-right">
+                    מה קורה עכשיו? {data.agency_name} קיבלו את האישור שלך, והמודעה ממתינה להפעלה על ידם.
+                    שום דבר לא מתפרסם אוטומטית בלי בדיקה אנושית.
+                  </div>
+                )}
+                {data.status === 'changes' && (
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 text-right">
+                    מה קורה עכשיו? {data.agency_name} יקבלו את הבקשה, יעדכנו את המודעה וישלחו לך גרסה חדשה לאישור.
+                  </div>
+                )}
+                {data.status === 'rejected' && (
+                  <div className="mt-3 p-3 bg-slate-100 border border-slate-200 rounded-lg text-sm text-slate-700 text-right">
+                    מה קורה עכשיו? המודעה לא תפורסם. {data.agency_name} קיבלו עדכון ויחזרו אליך עם כיוון אחר.
+                  </div>
+                )}
                 {data.feedback && (
                   <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 text-right">
                     💬 הפידבק שלך: {data.feedback}

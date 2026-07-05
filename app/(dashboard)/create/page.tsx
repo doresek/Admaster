@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card, CardLabel, Chip, Textarea, Btn, OutputBox, Tabs, CopyBtn, CostBadge, Alert, PageHeader, Spinner } from '@/components/ui';
 import { FRAMEWORKS, FRAMEWORKS_BY_ID, type FrameworkId } from '@/lib/frameworks';
@@ -22,6 +22,89 @@ const TYPES = ['הצגת מוצר','מבצע','בניית אמון','שאלה ל
 const HOOKS = ['שאלה פרובוקטיבית','עובדה מפתיעה','סיפור אישי','הצעה חסרת תחרות','אזהרה'];
 
 const STAGE_LABELS = ['', 'מנתח קהל ובוחר 3 משווקים…', '3 משווקים כותבים + השופט בוחר…', 'משייף את הזוכה…'];
+
+// ── Recent generations (read-back from GET /api/ai/master) ──
+// `output` is the stored jsonb — old rows may hold only a subset of the fields
+// (early versions stored just post/marketer/score/…), so every field is Partial
+// and the restore path guards each one with a fallback.
+type StoredOutput = Partial<{
+  post:        string;
+  hashtags:    string[];
+  image:       string;
+  whatsapp:    string;
+  tips:        string;
+  principles:  MasterV2Output['winner']['draft']['principles'];
+  marketer:    MasterV2Output['winner']['marketer'];
+  marketers:   MasterV2Output['marketers'];
+  score:       number;
+  boosted:     boolean;
+  avatar:      MasterV2Output['avatar'];
+  scores:      MasterV2Output['scores'];
+  why:         string;
+  artifact_id: string | null;
+}>;
+
+type RecentRow = {
+  id:         string;
+  client_id:  string | null;
+  platform:   string | null;
+  input:      { brief?: string } | null;
+  output:     StoredOutput | null;
+  created_at: string;
+};
+
+// ── In-flight runs (CP-3: non-blocking + batch creation) ──
+// Generation is already navigation-safe server-side (a POST completes and
+// persists its generated_content row even if the client disconnects — CP-4),
+// so "background" here is purely client-side bookkeeping: a marker per run
+// started in this session, persisted in sessionStorage so returning to the page
+// mid-flight resumes polling the GET until the finished post shows up in the
+// recent list (or a 3-minute cap expires).
+type PendingMarker = {
+  key:       string;
+  kind:      'single' | 'batch';
+  startedAt: number;
+  expected:  number;    // 1 for a single run, the batch count for a batch
+  baseline:  string[];  // generated_content ids visible when the run started
+};
+
+const PENDING_STORE  = 'am:create:pending';
+const PENDING_TTL_MS = 180_000; // 3-minute polling cap per run
+
+function loadPendingMarkers(): PendingMarker[] {
+  try {
+    const raw = sessionStorage.getItem(PENDING_STORE);
+    const arr = raw ? (JSON.parse(raw) as PendingMarker[]) : [];
+    return Array.isArray(arr) ? arr.filter(m => Date.now() - m.startedAt < PENDING_TTL_MS) : [];
+  } catch { return []; }
+}
+
+function savePendingMarkers(markers: PendingMarker[]) {
+  try { sessionStorage.setItem(PENDING_STORE, JSON.stringify(markers)); } catch { /* private mode etc. */ }
+}
+
+function newMarker(kind: 'single' | 'batch', expected: number, baseline: string[]): PendingMarker {
+  return {
+    key: `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    kind, expected, baseline, startedAt: Date.now(),
+  };
+}
+
+/** How many rows landed since this marker's run started (new vs its baseline). */
+function landedCount(marker: PendingMarker, rows: RecentRow[]): number {
+  return rows.filter(r => !marker.baseline.includes(r.id)).length;
+}
+
+function relTime(iso: string): string {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60)     return 'עכשיו';
+  const m = Math.floor(s / 60);
+  if (m < 60)     return `לפני ${m} דק׳`;
+  const h = Math.floor(m / 60);
+  if (h < 24)     return h === 1 ? 'לפני שעה' : `לפני ${h} שעות`;
+  const d = Math.floor(h / 24);
+  return d === 1 ? 'לפני יום' : `לפני ${d} ימים`;
+}
 
 export default function CreatePage() {
   const [plt,  setPlt]   = useState('facebook');
@@ -54,6 +137,96 @@ export default function CreatePage() {
   const [stage,   setStage]   = useState<0 | 1 | 2 | 3>(0); // 0 idle, 1 strategist, 2 creators+judge, 3 editor
   const pLabel = PLATFORMS.find(p => p.id === plt)?.l ?? plt;
 
+  // Batch — "📦 שבוע של תוכן"
+  const [batchCount,   setBatchCount]   = useState(3);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchNotice,  setBatchNotice]  = useState<string | null>(null);
+
+  // Recent generations — the server-persisted history that survives navigation.
+  const [recent, setRecent] = useState<RecentRow[]>([]);
+  const activeClientId = activeClient?.id ?? null;
+
+  const fetchRecent = useCallback(async () => {
+    try {
+      const qs = activeClientId ? `?clientId=${encodeURIComponent(activeClientId)}` : '';
+      const r = await fetch(`/api/ai/master${qs}`);
+      if (!r.ok) return;
+      const data = await r.json();
+      if (Array.isArray(data.items)) setRecent(data.items as RecentRow[]);
+    } catch (e) { console.error('[create] recent fetch failed', e); }
+  }, [activeClientId]);
+
+  useEffect(() => { fetchRecent(); }, [fetchRecent]);
+
+  // ── In-flight run markers (see PendingMarker above). Loaded on mount so a
+  //    run started before navigating away resumes being tracked on return.
+  const [pending, setPending] = useState<PendingMarker[]>([]);
+  useEffect(() => { setPending(loadPendingMarkers()); }, []);
+
+  const updatePending = useCallback((fn: (prev: PendingMarker[]) => PendingMarker[]) => {
+    setPending(prev => {
+      const next = fn(prev);
+      savePendingMarkers(next);
+      return next;
+    });
+  }, []);
+
+  // While ANY run from this session is still unaccounted for, poll the recent
+  // list every 10s — finished runs land there progressively (each server-side
+  // run inserts its own row on completion).
+  const hasPending = pending.length > 0;
+  useEffect(() => {
+    if (!hasPending) return;
+    const iv = setInterval(fetchRecent, 10_000);
+    return () => clearInterval(iv);
+  }, [hasPending, fetchRecent]);
+
+  // Retire markers whose runs all landed in the list, or that hit the 3-min cap.
+  useEffect(() => {
+    if (pending.length === 0) return;
+    const now = Date.now();
+    const next = pending.filter(m =>
+      now - m.startedAt < PENDING_TTL_MS && landedCount(m, recent) < m.expected
+    );
+    if (next.length !== pending.length) updatePending(() => next);
+  }, [recent, pending, updatePending]);
+
+  const singleMarker = pending.find(m => m.kind === 'single');
+  const batchMarker  = pending.find(m => m.kind === 'batch');
+  const batchLanded  = batchMarker ? Math.min(batchMarker.expected, landedCount(batchMarker, recent)) : 0;
+
+  // Restore a stored generation into the page state. Old rows may miss fields
+  // (hashtags/image/whatsapp/tips/artifact_id) — fall back so the post text at
+  // minimum always renders.
+  function restoreRow(row: RecentRow) {
+    const o = row.output ?? {};
+    const marketer = o.marketer ?? { id: 'unknown', name: 'משווק', emoji: '🎯' };
+    const restored: MasterV2Output = {
+      avatar:    o.avatar ?? null,
+      marketers: Array.isArray(o.marketers) && o.marketers.length > 0 ? o.marketers : [marketer],
+      winner: {
+        marketer,
+        draft: {
+          post:       typeof o.post === 'string' ? o.post : '',
+          hashtags:   Array.isArray(o.hashtags) ? o.hashtags : [],
+          image:      typeof o.image === 'string' ? o.image : '',
+          tips:       typeof o.tips === 'string' ? o.tips : '',
+          whatsapp:   typeof o.whatsapp === 'string' ? o.whatsapp : '',
+          principles: Array.isArray(o.principles) ? o.principles : [],
+        },
+        score: typeof o.score === 'number' ? o.score : 0,
+      },
+      scores:         Array.isArray(o.scores) ? o.scores : [],
+      judgeRationale: typeof o.why === 'string' ? o.why : '',
+      boosted:        Boolean(o.boosted),
+    };
+    setOut(restored);
+    setArtifactId(typeof o.artifact_id === 'string' ? o.artifact_id : null);
+    setScore(null); setShowPanel(false); setError(null);
+    setTab('post');
+    setRevealOpen(true);
+  }
+
   async function fetchScore(copy: string, sourceId?: string) {
     if (!copy) return;
     setScoreLoading(true);
@@ -83,6 +256,10 @@ export default function CreatePage() {
       return;
     }
     setLoading(true); setStage(1); setError(null); setOut(null); setScore(null); setArtifactId(null);
+    // Track the run so it survives navigation: the server persists on completion
+    // (CP-4), and this marker keeps the recent list polling until it shows up.
+    const marker = newMarker('single', 1, recent.map(r => r.id));
+    updatePending(prev => [...prev, marker]);
     // Optimistic stage ticker (no SSE in v1): advance the label on a timer.
     const t1 = setTimeout(() => setStage(2), 12_000);
     const t2 = setTimeout(() => setStage(3), 75_000);
@@ -106,6 +283,7 @@ export default function CreatePage() {
         }),
       });
       const data = await res.json();
+      updatePending(prev => prev.filter(m => m.key !== marker.key));
       if (!res.ok) { setError(data.error ?? 'שגיאה ביצירה — נסה שוב'); return; }
       const output = data as MasterV2Output;
       setOut(output);
@@ -113,10 +291,61 @@ export default function CreatePage() {
       if (output.winner?.draft?.post) fetchScore(output.winner.draft.post);
       setTab('post');
       setRevealOpen(true);
+      fetchRecent(); // the route just persisted this generation — refresh the history list
     } catch {
-      setError('שגיאת רשת — נסה שוב');
+      // Network drop — the server keeps running and persists on completion, so
+      // KEEP the marker: polling will surface the post in יצירות אחרונות.
+      setError('שגיאת רשת — אם היצירה הושלמה בשרת, הפוסט יופיע ב"יצירות אחרונות" תוך דקות');
     } finally {
       clearTimeout(t1); clearTimeout(t2); setLoading(false); setStage(0);
+    }
+  }
+
+  async function generateBatch() {
+    if (batchLoading || loading) return;
+    if (!brief.trim() && !(hasBrief && briefId)) {
+      setError('הזן בריף קצר, או בחר לקוח פעיל שכבר יש לו בריף — ואז ניצור על בסיסו.');
+      return;
+    }
+    setBatchLoading(true); setError(null); setBatchNotice(null);
+    // The batch route inserts each post's row the moment ITS pipeline finishes,
+    // so this marker + the 10s polling render "x/y מוכנים" progressively.
+    const marker = newMarker('batch', batchCount, recent.map(r => r.id));
+    updatePending(prev => [...prev, marker]);
+    try {
+      const res = await fetch('/api/ai/master/batch', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          count:       batchCount,
+          brief,
+          masterNotes: masterNotes.slice(0, MASTER_NOTES_MAX),
+          platform:    pLabel,
+          tone,
+          type,
+          locale:      'he',
+          client_id:   activeClient?.id ?? undefined,
+          brief_id:    briefId ?? undefined,
+        }),
+      });
+      const data = await res.json();
+      updatePending(prev => prev.filter(m => m.key !== marker.key));
+      if (!res.ok && !data.succeeded) {
+        setError(data.error ?? 'שגיאה ביצירת החבילה — נסה שוב');
+        return;
+      }
+      if (data.failed > 0) {
+        setBatchNotice(`נוצרו ${data.succeeded} מתוך ${data.requested} פוסטים — ${data.refunded}⚡ הוחזרו על הכושלים`);
+      } else {
+        setBatchNotice(`📦 ${data.succeeded} פוסטים מוכנים ב"יצירות אחרונות"`);
+      }
+      fetchRecent();
+    } catch {
+      // Network drop mid-batch — the server keeps running; finished posts land
+      // in the list via polling, so keep the marker.
+      setBatchNotice('שגיאת רשת — היצירה ממשיכה בשרת; פוסטים שיושלמו יופיעו ב"יצירות אחרונות"');
+    } finally {
+      setBatchLoading(false);
     }
   }
 
@@ -230,6 +459,29 @@ export default function CreatePage() {
           <Btn variant="primary" full loading={loading} onClick={generate} disabled={!brief.trim() && !(hasBrief && briefId)}>
             ✨ צור פוסט
           </Btn>
+
+          {/* Batch — a varied week of content in one click (CP-3). The POST is
+              non-blocking: posts land progressively in יצירות אחרונות. */}
+          <Card className="mt-3">
+            <div className="flex items-center justify-between mb-2">
+              <CardLabel>📦 שבוע של תוכן</CardLabel>
+              <CostBadge cost={batchCount * 6} />
+            </div>
+            <div className="text-[11px] text-[#6B8FA8] mb-2">
+              כמה פוסטים ליצור בבת אחת? כל פוסט בסוג ובזווית שונים — התוצאות יופיעו ב"יצירות אחרונות" ככל שהן מוכנות.
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 mb-2">
+              {[2, 3, 4, 5].map(n => (
+                <Chip key={n} label={`${n} פוסטים`} active={batchCount === n} onClick={() => setBatchCount(n)} />
+              ))}
+            </div>
+            <Btn variant="ghost" full loading={batchLoading} onClick={generateBatch}
+              disabled={(!brief.trim() && !(hasBrief && briefId)) || batchLoading || loading}>
+              📦 צור {batchCount} פוסטים ({batchCount}×6⚡)
+            </Btn>
+            {batchNotice && <Alert type="blue" className="mt-2">{batchNotice}</Alert>}
+          </Card>
+
           {error && <Alert type="red" className="mt-3">❌ {error}</Alert>}
         </div>
 
@@ -391,23 +643,79 @@ export default function CreatePage() {
               {tab === 'tips' && <OutputBox text={out.winner.draft.tips} className="text-sm" />}
             </>
           ) : loading ? (
-            <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#2A4158] rounded-xl text-[#6B8FA8] gap-4">
-              <Spinner size={28} />
-              <span className="text-sm font-medium text-[#D9E8F5]">{STAGE_LABELS[stage]}</span>
-              <div className="flex items-center gap-2">
-                {[1, 2, 3].map(s => (
-                  <span
-                    key={s}
-                    className={`h-1.5 w-8 rounded-full transition-colors ${stage >= s ? 'bg-[#0A7AFF]' : 'bg-[#1E2F42]'}`}
-                  />
-                ))}
-              </div>
+            /* Non-blocking: a light placeholder, not a freeze — the form stays
+               usable and the pinned strip below carries the progress. */
+            <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#2A4158] rounded-xl text-[#6B8FA8] gap-3">
+              <span className="text-4xl opacity-30">⏳</span>
+              <span className="text-sm">פוסט בהפקה — אפשר להמשיך לערוך את הטופס בינתיים</span>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-72 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
               <span className="text-4xl mb-3 opacity-30">✨</span>
               <span className="text-sm">מלא בריף ולחץ "צור פוסט"</span>
             </div>
+          )}
+
+          {/* In-flight strip (pinned above יצירות אחרונות) — one row per running
+              kind, fed by the pending markers + the 10s polling. Survives
+              navigation via sessionStorage; capped at 3 minutes per run. */}
+          {(singleMarker || batchMarker) && (
+            <Card className="mt-3" style={{ borderColor: '#2A3E66' }}>
+              <div className="space-y-2 text-[12px] text-[#D9E8F5]">
+                {singleMarker && (
+                  <div className="flex items-center gap-2">
+                    <Spinner size={14} />
+                    <span>⏳ פוסט בהפקה… ~60-90 שנ׳{loading && stage > 0 ? ` · ${STAGE_LABELS[stage]}` : ''}</span>
+                  </div>
+                )}
+                {batchMarker && (
+                  <div className="flex items-center gap-2">
+                    <Spinner size={14} />
+                    <span>📦 שבוע של תוכן: {batchLanded}/{batchMarker.expected} מוכנים…</span>
+                    <span className="mr-auto flex items-center gap-1" dir="ltr">
+                      {Array.from({ length: batchMarker.expected }, (_, i) => (
+                        <span key={i} className={`h-1.5 w-6 rounded-full transition-colors ${i < batchLanded ? 'bg-[#0A7AFF]' : 'bg-[#1E2F42]'}`} />
+                      ))}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* Recent generations — server-persisted history; a click restores the
+              full result into the page (so nothing is lost on navigation). */}
+          {recent.length > 0 && (
+            <Card className="mt-3">
+              <CardLabel>🕘 יצירות אחרונות{activeClient ? ` · ${activeClient.emoji} ${activeClient.name}` : ''}</CardLabel>
+              <div className="space-y-1.5">
+                {recent.map(row => {
+                  const o = row.output ?? {};
+                  const firstLine = (o.post ?? '').split('\n').find(l => l.trim()) ?? '(ללא טקסט)';
+                  return (
+                    <button
+                      key={row.id}
+                      onClick={() => restoreRow(row)}
+                      className="w-full flex items-center gap-2 text-right rounded-lg px-3 py-2 bg-[#162030] hover:bg-[#1E2F42] border border-transparent hover:border-[#2A3E66] transition-colors"
+                    >
+                      <span className="text-lg shrink-0">{o.marketer?.emoji ?? '📝'}</span>
+                      <span className="flex-1 min-w-0 truncate text-[12px] text-[#D9E8F5]">{firstLine}</span>
+                      {typeof o.score === 'number' && (
+                        <span className="shrink-0 text-[10px] font-semibold rounded-full bg-[#0A7AFF] text-white px-2 py-0.5">
+                          {o.score}
+                        </span>
+                      )}
+                      {row.platform && (
+                        <span className="shrink-0 text-[10px] text-[#6B8FA8] bg-[#0F1826] rounded-full px-2 py-0.5" dir="ltr">
+                          {row.platform}
+                        </span>
+                      )}
+                      <span className="shrink-0 text-[10px] text-[#2E4459]">{relTime(row.created_at)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </Card>
           )}
         </div>
       </div>

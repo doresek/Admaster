@@ -50,7 +50,9 @@ async function generate(ctx: StepCtx): Promise<StepResult> {
   if (status !== 200 || !Array.isArray(json?.variants) || json.variants.length === 0) {
     return { ok: false, error: json?.error || `generate_failed_${status}` };
   }
-  return { ok: true, data: { variants: json.variants } };
+  // Carry the grounding atoms forward — the approval step snapshots them so the
+  // approve page can show the WHY ("המודעה נבנתה סביב…"), not a blind checkbox.
+  return { ok: true, data: { variants: json.variants, insightIds: blocks.insightIds ?? [] } };
 }
 
 // ── score: score each variant, pick the best (reuses /api/ai/score) ──
@@ -102,6 +104,22 @@ async function approval(ctx: StepCtx, acc: Acc): Promise<StepResult> {
 
   // Insert directly (the approvals table exists on this branch); mirrors
   // /api/approvals POST so the public /approve/[token] portal works unchanged.
+  // Snapshot client_name + grounding INTO content: the anonymous approve page
+  // reads only the content jsonb (SECURITY-DEFINER RPC), so everything it must
+  // render — including the WHY — has to live there.
+  const [{ data: clientRow }, groundingRes] = await Promise.all([
+    ctx.supabase.from('clients').select('name').eq('id', ctx.clientId).maybeSingle(),
+    (acc.insightIds?.length
+      ? ctx.supabase
+          .from('client_insights')
+          .select('id, content, confidence, layer')
+          .in('id', acc.insightIds)
+      : Promise.resolve({ data: [] as any[] })),
+  ]);
+  const grounding = ((groundingRes as { data?: any[] }).data ?? []).map((g) => ({
+    id: g.id, content: g.content ?? null, confidence: g.confidence ?? null, layer: g.layer ?? null,
+  }));
+
   const token = randomBytes(16).toString('hex');
   const { data, error } = await ctx.supabase
     .from('approvals')
@@ -118,6 +136,8 @@ async function approval(ctx: StepCtx, acc: Acc): Promise<StepResult> {
         framework: best.framework ?? '',
         score: best.score ?? null,
         judge: acc.judge ?? null,
+        client_name: clientRow?.name ?? null,
+        grounding,
       },
       status: 'pending',
     })

@@ -54,7 +54,9 @@ describe('generated_content write paths: current client_id linkage', () => {
   });
 
   it('/api/ai/master IS already client-linked (writes client_id + type=master_post)', () => {
-    const payload = insertPayload(read('app/api/ai/master/route.ts'));
+    // CP-3 extracted the master run-and-persist logic (shared by the single and
+    // batch routes) into lib/generation-queue/run-master.ts — the insert lives there.
+    const payload = insertPayload(read('lib/generation-queue/run-master.ts'));
     expect(payload).toContain('client_id');
     expect(payload).toContain("'master_post'");
   });
