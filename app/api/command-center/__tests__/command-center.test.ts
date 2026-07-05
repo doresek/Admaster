@@ -69,13 +69,13 @@ beforeEach(() => {
 describe('GET /api/command-center/campaigns', () => {
   it('401s when unauthenticated', async () => {
     H.authUser = null;
-    const res = await getCampaigns();
+    const res = await getCampaigns(new Request('http://test/api/command-center/campaigns'));
     expect(res.status).toBe(401);
   });
 
   it('is empty-safe when the campaigns table is absent (no 500)', async () => {
     H.tables = { campaigns: { error: MISSING } };
-    const res = await getCampaigns();
+    const res = await getCampaigns(new Request('http://test/api/command-center/campaigns'));
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.campaigns).toEqual([]);
@@ -83,7 +83,7 @@ describe('GET /api/command-center/campaigns', () => {
 
   it('returns empty when there are no campaigns', async () => {
     H.tables = { campaigns: { rows: [] } };
-    const res = await getCampaigns();
+    const res = await getCampaigns(new Request('http://test/api/command-center/campaigns'));
     const data = await res.json();
     expect(data.campaigns).toEqual([]);
   });
@@ -111,7 +111,7 @@ describe('GET /api/command-center/campaigns', () => {
         ],
       },
     };
-    const res = await getCampaigns();
+    const res = await getCampaigns(new Request('http://test/api/command-center/campaigns'));
     expect(res.status).toBe(200);
     const { campaigns } = await res.json();
     expect(campaigns).toHaveLength(1);
@@ -133,7 +133,7 @@ describe('GET /api/command-center/campaigns', () => {
       campaign_decisions: { rows: [] },
       client_insights: { error: { code: 'PGRST205', message: 'Could not find the table' } },
     };
-    const res = await getCampaigns();
+    const res = await getCampaigns(new Request('http://test/api/command-center/campaigns'));
     const { campaigns } = await res.json();
     expect(campaigns[0].grounded).toEqual([]);
   });
@@ -142,13 +142,13 @@ describe('GET /api/command-center/campaigns', () => {
 describe('GET /api/command-center/diagnoses', () => {
   it('401s when unauthenticated', async () => {
     H.authUser = null;
-    const res = await getDiagnoses();
+    const res = await getDiagnoses(new Request('http://test/api/command-center/diagnoses'));
     expect(res.status).toBe(401);
   });
 
   it('is empty-safe when the diagnoses table is absent', async () => {
     H.tables = { diagnoses: { error: { code: '42P01', message: 'relation "diagnoses" does not exist' } } };
-    const res = await getDiagnoses();
+    const res = await getDiagnoses(new Request('http://test/api/command-center/diagnoses'));
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.diagnoses).toEqual([]);
@@ -159,7 +159,7 @@ describe('GET /api/command-center/diagnoses', () => {
       diagnoses: { rows: [{ id: 'dx-1', failed_link: 'landing→checkout', rationale: 'drop-off', target_insight_ids: ['ins-9'] }] },
       client_insights: { rows: [{ id: 'ins-9', content: 'Checkout friction', confidence: 0.7, layer: 'funnel' }] },
     };
-    const res = await getDiagnoses();
+    const res = await getDiagnoses(new Request('http://test/api/command-center/diagnoses'));
     const { diagnoses } = await res.json();
     expect(diagnoses[0].failed_link).toBe('landing→checkout');
     expect(diagnoses[0].targets[0]).toMatchObject({ id: 'ins-9', content: 'Checkout friction' });

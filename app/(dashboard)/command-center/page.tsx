@@ -9,9 +9,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { PageHeader, Alert, StatCard } from '@/components/ui';
 import { CampaignCard, DiagnosesSection, EmptyState } from './components';
+import { useActiveClient } from '@/components/ClientProvider';
 import type { Campaign, Diagnosis } from '@/app/api/command-center/shared';
 
-function useCommandCenter() {
+function useCommandCenter(activeClientId: string | null) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,9 +22,12 @@ function useCommandCenter() {
     setLoading(true);
     setErr('');
     try {
+      // Scoped to the app-wide active client when one is set; owner-wide
+      // ("see everything") when none — consistent with the propagation principle.
+      const scope = activeClientId ? `?clientId=${activeClientId}` : '';
       const [cRes, dRes] = await Promise.all([
-        fetch('/api/command-center/campaigns'),
-        fetch('/api/command-center/diagnoses'),
+        fetch(`/api/command-center/campaigns${scope}`),
+        fetch(`/api/command-center/diagnoses${scope}`),
       ]);
       const cData = await cRes.json().catch(() => ({}));
       const dData = await dRes.json().catch(() => ({}));
@@ -36,7 +40,7 @@ function useCommandCenter() {
       setDiagnoses([]);
     }
     setLoading(false);
-  }, []);
+  }, [activeClientId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -56,7 +60,8 @@ function useCommandCenter() {
 }
 
 export default function CommandCenterPage() {
-  const { campaigns, diagnoses, loading, err, setErr, patch } = useCommandCenter();
+  const { activeClient, activeClientId } = useActiveClient();
+  const { campaigns, diagnoses, loading, err, setErr, patch } = useCommandCenter(activeClientId);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   async function onAction(id: string, action: 'pause' | 'resume' | 'approve') {
@@ -83,7 +88,11 @@ export default function CommandCenterPage() {
       <PageHeader
         eyebrow="חדר בקרה"
         title="מרכז השליטה"
-        sub="כל הקמפיינים, התקציב והביצועים — ולמה כל החלטה התקבלה"
+        sub={
+          activeClient
+            ? `פועל על: ${activeClient.emoji} ${activeClient.name} — הקמפיינים, התקציב והביצועים שלו, ולמה כל החלטה התקבלה`
+            : 'כל הקמפיינים, התקציב והביצועים (כל הלקוחות) — ולמה כל החלטה התקבלה'
+        }
       />
 
       {err && <Alert type="red">{err}</Alert>}

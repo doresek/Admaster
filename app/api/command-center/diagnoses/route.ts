@@ -9,17 +9,22 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { isMissingRelation, resolveInsights, attachGrounded, type Diagnosis } from '../shared';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const res = await supabase
+    // Client-context propagation: optionally scoped to the active client
+    // (?clientId=), same contract as the campaigns route.
+    const clientId = new URL(req.url).searchParams.get('clientId');
+
+    let q = supabase
       .from('diagnoses')
       .select('id, failed_link, rationale, target_insight_ids, created_at')
-      .eq('owner_user_id', user.id)
-      .order('created_at', { ascending: false });
+      .eq('owner_user_id', user.id);
+    if (clientId) q = q.eq('client_id', clientId);
+    const res = await q.order('created_at', { ascending: false });
 
     if (res.error) {
       if (isMissingRelation(res.error)) return NextResponse.json({ diagnoses: [] });
