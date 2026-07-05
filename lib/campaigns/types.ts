@@ -66,7 +66,10 @@ export type CampaignDecisionType =
   | 'precedents'
   // Quick-campaign wire-in: the copy framework(s) chosen for the generated
   // variants (e.g. PAS/AIDA/BAB). Same no-CHECK column; union stays the truth.
-  | 'framework';
+  | 'framework'
+  // P1-2 organic calendar: one decision per planned posting slot (date /
+  // post_type / topic / angle). Same no-CHECK column; union stays the truth.
+  | 'calendar_slot';
 
 // ── row shapes ─────────────────────────────────────────────────────────────────
 
