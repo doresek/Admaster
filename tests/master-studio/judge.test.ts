@@ -16,6 +16,12 @@ describe('composeJudgePrompt', () => {
     expect(system).toContain('hook_strength');
     expect(system).toContain('winner_index');
   });
+  it('scores scroll_stop as an explicit, weighted dimension', () => {
+    const { system } = composeJudgePrompt(variants as any, { brief: 'x', platform: 'FB' });
+    expect(system).toContain('scroll_stop');            // listed in the dims + contract
+    expect(system).toContain('עצירת-גלילה');            // defined as a judged dimension
+    expect(system).toMatch(/pattern-interrupt/);        // craft cues present
+  });
 });
 
 describe('parseJudge', () => {
@@ -44,5 +50,45 @@ describe('parseJudge', () => {
     const bad = JSON.parse(valid); bad.winner_index = 9;
     const r = parseJudge(JSON.stringify(bad), 2)!;
     expect(r.winnerIndex).toBe(0); // index 0 has score 88 > 74
+  });
+
+  it('parses a scroll_stop sub-score per variant and computes a weighted total', () => {
+    const r = parseJudge(valid, 2)!;
+    // scroll_stop is parsed into dims for every variant (0 when the model omits it).
+    expect(r.scores[0].dims.scroll_stop).toBe(0);
+    // weighted = 0.6*score + 0.4*scroll_stop → 0.6*88 = 52.8 → 53.
+    expect(r.scores[0].weighted).toBe(53);
+    expect(r.scores[1].weighted).toBe(44); // 0.6*74 = 44.4 → 44
+  });
+
+  it('scroll_stop can flip the best-of-N winner even when the model picks otherwise', () => {
+    // Variant 0 has the higher overall score but a weak thumb-stop; variant 1 is
+    // slightly lower overall but massively more scroll-stopping. The model votes 0.
+    const raw = JSON.stringify({
+      variants: [
+        { index: 0, score: 85, dims: { scroll_stop: 20, hook_strength: 85, clarity: 90, emotional_resonance: 80, cta_strength: 85, brand_fit: 85, awareness_match: 85, framework_adherence: 85 }, note: 'polished but scroll-past' },
+        { index: 1, score: 78, dims: { scroll_stop: 96, hook_strength: 80, clarity: 75, emotional_resonance: 90, cta_strength: 74, brand_fit: 76, awareness_match: 78, framework_adherence: 74 }, note: 'stops the thumb' },
+      ],
+      winner_index: 0, rationale: 'x',
+    });
+    const r = parseJudge(raw, 2)!;
+    // weighted: v0 = 0.6*85 + 0.4*20 = 59; v1 = 0.6*78 + 0.4*96 = 85.2 → 85.
+    expect(r.scores[0].weighted).toBe(59);
+    expect(r.scores[1].weighted).toBe(85);
+    // Selection overrides the model's vote (0) because v1 is far more thumb-stopping.
+    expect(r.winnerIndex).toBe(1);
+  });
+
+  it('honors the model winner_index only as a tie-breaker on equal weighted scores', () => {
+    const raw = JSON.stringify({
+      variants: [
+        { index: 0, score: 80, dims: { scroll_stop: 80, hook_strength: 80, clarity: 80, emotional_resonance: 80, cta_strength: 80, brand_fit: 80, awareness_match: 80, framework_adherence: 80 }, note: '' },
+        { index: 1, score: 80, dims: { scroll_stop: 80, hook_strength: 80, clarity: 80, emotional_resonance: 80, cta_strength: 80, brand_fit: 80, awareness_match: 80, framework_adherence: 80 }, note: '' },
+      ],
+      winner_index: 1, rationale: 'tie',
+    });
+    const r = parseJudge(raw, 2)!;
+    expect(r.scores[0].weighted).toBe(r.scores[1].weighted);
+    expect(r.winnerIndex).toBe(1); // model's pick honored on the tie
   });
 });

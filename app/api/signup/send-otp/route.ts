@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, phone, mode: send.mode, ...(devCode ? { devCode } : {}) });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[send-otp]', err);
+    return NextResponse.json({ error: 'שגיאה פנימית' }, { status: 500 });
   }
 }

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Input, Btn, Alert, PageHeader, Chip, CopyBtn } from '@/components/ui';
 import type { MetaClient } from '@/types';
 import { clientToMetaClient } from '@/lib/clients';
+import { useActiveClient } from '@/components/ClientProvider';
 import { clsx } from 'clsx';
 
 interface Item {
@@ -46,6 +47,14 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState<string | null>(null);
   const supabase = createClient();
+  // Open history pre-scoped to the app-wide active client; "all" stays available.
+  const { activeClientId } = useActiveClient();
+
+  // Default the client filter to the active client once it resolves (still a
+  // filter — the user can switch to "הכל" or any other client afterwards).
+  useEffect(() => {
+    if (activeClientId) setClientF(activeClientId);
+  }, [activeClientId]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {

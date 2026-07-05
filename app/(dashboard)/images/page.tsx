@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardLabel, Textarea, Btn, Alert, PageHeader, Chip, CostBadge } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
+import { useActiveClient } from '@/components/ClientProvider';
 import { clsx } from 'clsx';
 
 const PROVIDERS = [
@@ -53,6 +54,9 @@ export default function ImagesPage() {
   const [adOpen, setAdOpen] = useState(false);
   const { call }    = useAI();
   const searchParams = useSearchParams();
+  // Active client — the single source of truth. Generated images are attributed
+  // to it (client_id) so they land in the right client's history/brain.
+  const { activeClient, activeClientId } = useActiveClient();
 
   useEffect(() => {
     fetch('/api/images').then(r=>r.json()).then(d=>setHistory(Array.isArray(d)?d:[]));
@@ -105,7 +109,7 @@ export default function ImagesPage() {
           'Content-Type': 'application/json',
           'Idempotency-Key': crypto.randomUUID(),
         },
-        body: JSON.stringify({ prompt: promptText, adCopy: adCopyText, smart: true, style, aspectRatio: ratio, provider }),
+        body: JSON.stringify({ prompt: promptText, adCopy: adCopyText, smart: true, style, aspectRatio: ratio, provider, client_id: activeClientId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -147,7 +151,7 @@ export default function ImagesPage() {
         },
         body: JSON.stringify({
           mode: 'edit', parentImageId: currentId, parentImageUrl: current,
-          editPrompt, aspectRatio: ratio, style, provider,
+          editPrompt, aspectRatio: ratio, style, provider, client_id: activeClientId ?? undefined,
         }),
       });
       const data = await res.json();
@@ -169,6 +173,12 @@ export default function ImagesPage() {
     <div>
       <PageHeader eyebrow="AI Images" title="מחולל תמונות" sub="3 גרסאות + בורר AI · Gemini Nano Banana · עיצובים לפוסטים ומודעות"
         right={<CostBadge cost={8} />} />
+
+      {activeClient && (
+        <div className="flex items-center gap-1.5 mb-3 text-[11px] font-semibold rounded-lg px-3 py-1.5 bg-[#0A7AFF]/10 border border-[#0A7AFF]/30 text-[#3D9FFF] w-fit">
+          פועל על: {activeClient.emoji} {activeClient.name}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         {/* Left — controls */}
@@ -321,7 +331,7 @@ export default function ImagesPage() {
                           },
                           body: JSON.stringify({
                             mode: 'adapt', parentImageId: currentId, parentImageUrl: current,
-                            aspectRatio: r.id, style, provider,
+                            aspectRatio: r.id, style, provider, client_id: activeClientId ?? undefined,
                           }),
                         });
                         const data = await res.json();

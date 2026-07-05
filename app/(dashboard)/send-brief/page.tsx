@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Btn, Alert, PageHeader, CopyBtn, Select } from '@/components/ui';
 import { useMetaClients } from '@/lib/hooks/useMetaClients';
+import { useActiveClient } from '@/components/ClientProvider';
 import { briefLink, whatsappShareLink } from '@/lib/share';
 
 type BriefCode = { code: string; token: string | null };
@@ -18,15 +19,21 @@ export default function SendBriefPage() {
   const [createErr, setCreateErr] = useState('');
   const [clientId, setClientId] = useState('');
   const clients = useMetaClients();
+  const { activeClientId } = useActiveClient();
   const supabase = createClient();
   const searchParams = useSearchParams();
 
-  // Pre-select the client when arriving from the post-create CTA on /clients
-  // (/send-brief?client=<id>), once that client appears in the loaded list.
+  // Default to the app-wide active client (single source of truth) so the owner
+  // never re-picks; a ?client=<id> param from the post-create CTA wins over it.
+  // The select stays as an explicit override for this link-generation admin task.
   useEffect(() => {
-    const id = searchParams?.get('client');
-    if (id && !clientId && clients.some(c => c.id === id)) setClientId(id);
-  }, [searchParams, clients]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (clientId) return;
+    const fromUrl = searchParams?.get('client');
+    const pick = (fromUrl && clients.some(c => c.id === fromUrl)) ? fromUrl
+      : (activeClientId && clients.some(c => c.id === activeClientId)) ? activeClientId
+      : '';
+    if (pick) setClientId(pick);
+  }, [searchParams, clients, activeClientId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {

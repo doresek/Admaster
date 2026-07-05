@@ -1,13 +1,15 @@
 'use client';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardLabel, Textarea, Btn, Alert, PageHeader, CostBadge } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
 import { useMetaClients } from '@/lib/hooks/useMetaClients';
+import { useActiveClient } from '@/components/ClientProvider';
 import type { MetaClient } from '@/types';
 
 export default function PublishPage() {
   const clients = useMetaClients();
+  const { activeClientId } = useActiveClient();
   const [selC,    setSelC]    = useState<MetaClient|null>(null);
   const [text,    setText]    = useState('');
   const [brief,   setBrief]   = useState('');
@@ -18,6 +20,14 @@ export default function PublishPage() {
   const { call } = useAI();
 
   const page = selC?.pages.find(p => p.id === selC.selected_page_id);
+
+  // Default the selected client to the app-wide active client (top switcher is
+  // the source of truth — the owner does not re-pick here).
+  useEffect(() => {
+    if (selC || !activeClientId || clients.length === 0) return;
+    const match = clients.find(c => c.id === activeClientId);
+    if (match) setSelC(match);
+  }, [clients, activeClientId, selC]);
 
   async function genPost() {
     if (!brief.trim()) return;
@@ -56,12 +66,20 @@ export default function PublishPage() {
         <div>
           <Card className="mb-3">
             <CardLabel>לקוח</CardLabel>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {clients.map(c => <button key={c.id} onClick={() => setSelC(c)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-all ${selC?.id===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#1E2F42] bg-[#162030] text-[#6B8FA8] hover:border-[#2A4158]'}`}>
-                <span>{c.emoji}</span>{c.name}
-              </button>)}
-            </div>
+            {activeClientId ? (
+              <div className="flex items-center gap-2 mb-3">
+                <span>{selC?.emoji}</span>
+                <span className="text-sm font-medium">פועל על: {selC?.name}</span>
+                <span className="ml-auto text-[11px] text-[#2E4459]">לשינוי — החלף לקוח במתג למעלה</span>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {clients.map(c => <button key={c.id} onClick={() => setSelC(c)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-all ${selC?.id===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#1E2F42] bg-[#162030] text-[#6B8FA8] hover:border-[#2A4158]'}`}>
+                  <span>{c.emoji}</span>{c.name}
+                </button>)}
+              </div>
+            )}
             {page && <Alert type="green">📘 יפורסם ל: <strong>{page.name}</strong></Alert>}
           </Card>
 

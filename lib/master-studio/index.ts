@@ -29,13 +29,30 @@ export interface VariantDraft {
 }
 
 export const SCORE_DIMS = [
+  // scroll_stop leads on purpose: the first half-second thumb-stop is often THE
+  // biggest driver of ad performance — it is scored AND up-weighted in selection.
+  'scroll_stop',
   'hook_strength', 'clarity', 'emotional_resonance', 'cta_strength',
   'brand_fit', 'awareness_match', 'framework_adherence',
 ] as const;
 export type ScoreDim = typeof SCORE_DIMS[number];
 
+/**
+ * Fraction of the winner-selection score carried by `scroll_stop` (the rest by
+ * the judge's overall `score`). Scroll-stopping power gets a heavy, explicit
+ * vote so the best-of-N pick is not won by a well-argued but scroll-past ad.
+ */
+export const SCROLL_STOP_WEIGHT = 0.4;
+
+/** Winner-selection score: blend the judge's overall score with scroll_stop. */
+export function weightedSelectionScore(score: number, scrollStop: number): number {
+  return Math.round((1 - SCROLL_STOP_WEIGHT) * score + SCROLL_STOP_WEIGHT * scrollStop);
+}
+
 export interface VariantScore {
   index: number; score: number; dims: Record<ScoreDim, number>; note: string;
+  /** Scroll-stop-weighted selection score used to pick the best-of-N winner. */
+  weighted: number;
 }
 export interface JudgeResult { scores: VariantScore[]; winnerIndex: number; rationale: string; }
 

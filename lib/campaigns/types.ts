@@ -63,7 +63,10 @@ export type CampaignDecisionType =
   | 'channel'
   // W2 wire-in: the episodic precedents that informed this run (C-02). The DB
   // column has no CHECK on decision_type; this union is the source of truth.
-  | 'precedents';
+  | 'precedents'
+  // Quick-campaign wire-in: the copy framework(s) chosen for the generated
+  // variants (e.g. PAS/AIDA/BAB). Same no-CHECK column; union stays the truth.
+  | 'framework';
 
 // ── row shapes ─────────────────────────────────────────────────────────────────
 

@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, phone: record.phone, phoneVerifiedAt: verifiedAt });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[verify-otp]', err);
+    return NextResponse.json({ error: 'שגיאה פנימית' }, { status: 500 });
   }
 }

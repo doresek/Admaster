@@ -57,15 +57,28 @@ describe('runMasterPipeline', () => {
     }
   });
 
-  it('refunds (ok:false) when fewer than 2 creators parse', async () => {
+  it('accepts a SINGLE surviving creator — one good post is valid, never a false partial', async () => {
     const res = await runMasterPipeline(input, runner({ creators: [POST('only one'), null, null] }) as any);
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.output.winner.draft.post.trim().length).toBeGreaterThan(0);
+  });
+
+  it('returns ok:false only when ZERO creators parse (after retries)', async () => {
+    const res = await runMasterPipeline(input, runner({ creators: [null, null, null] }) as any);
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.reason).toBe('creators');
   });
 
-  it('refunds when judge returns invalid json', async () => {
+  it('falls back to the first survivor when the judge returns invalid json (still ok, never a partial)', async () => {
     const res = await runMasterPipeline(input, runner({ judge: 'not json at all' }) as any);
-    expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.reason).toBe('judge');
+    expect(res.ok).toBe(true);
+  });
+
+  it('never ships an empty image concept — synthesizes a scroll-stop prompt when IMAGE_PROMPT is missing', async () => {
+    // A post with no [IMAGE_PROMPT] tag → the winner still carries a non-empty image concept.
+    const noImage = '[POST]post body here[/POST]\n[HASHTAGS]#x[/HASHTAGS]';
+    const res = await runMasterPipeline(input, runner({ creators: [noImage, null, null] }) as any);
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.output.winner.draft.image.trim().length).toBeGreaterThan(0);
   });
 });

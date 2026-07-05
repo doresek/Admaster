@@ -10,7 +10,7 @@ export function composeEditorPrompt(
 ): { system: string; user: string } {
   const notes = (input.masterNotes ?? '').trim().slice(0, MASTER_NOTES_MAX);
   const weak = SCORE_DIMS
-    .map(d => ({ d, v: score.dims[d] }))
+    .map(d => ({ d, v: Number(score.dims[d]) || 0 }))
     .sort((a, b) => a.v - b.v).slice(0, 3)
     .map(x => `${x.d} (${x.v})`).join(', ');
 

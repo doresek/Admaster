@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Card, Textarea, Btn, OutputBox, Tabs, CopyBtn, CostBadge, Alert, PageHeader } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
+import { useActiveClient } from '@/components/ClientProvider';
 
 const xt = (raw:string,t:string)=>{const m=raw.match(new RegExp(`\\[${t}\\]([\\s\\S]*?)\\[\\/${t}\\]`));return m?m[1].trim():'';};
 
@@ -21,13 +22,13 @@ export default function CalendarPage() {
   const [tab,  setTab]  = useState('post');
   const [out,  setOut]  = useState<{post:string;hashtags:string[];campaign:string}|null>(null);
   const { call, loading, error } = useAI();
+  const { activeClient } = useActiveClient();
   const today = new Date();
 
   async function gen(h: {name:string;emoji:string}) {
     setSel(h); setOut(null); setTab('post');
-    // Business name comes from the globally-selected active client (falls back to a generic Judaica default).
-    const data = await fetch('/api/active-client').then(r => r.json()).catch(() => ({}));
-    const activeClient = data.clients?.find((c: any) => c.id === data.active);
+    // Business name comes from the app-wide active client (single source of truth;
+    // falls back to a generic Judaica default when no client is selected).
     const biz = activeClient?.name || 'תפילין ומזוזות';
 
     const text = await call('holiday',

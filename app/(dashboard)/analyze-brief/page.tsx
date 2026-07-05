@@ -1,7 +1,8 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Btn, Alert, PageHeader, CostBadge, CopyBtn, Textarea } from '@/components/ui';
+import { useActiveClient } from '@/components/ClientProvider';
 import type { Brief } from '@/types';
 
 interface StrategyResult {
@@ -21,14 +22,33 @@ export default function AnalyzeBriefPage() {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');
   const supabase = createClient();
+  // Active client + its brief come from the app-wide ClientProvider. This brief
+  // chooser stays (it's a legitimate per-brief selector), but it OPENS on the
+  // active client's brief so the default context matches the rest of the app.
+  const { activeClientId, activeBriefId } = useActiveClient();
+  const preselected = useRef(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from('briefs').select('id, code, values, submitted_at').eq('user_id', user.id).order('submitted_at', { ascending: false }).limit(50)
+      supabase.from('briefs').select('id, code, values, submitted_at, client_id').eq('user_id', user.id).order('submitted_at', { ascending: false }).limit(50)
         .then(({ data }) => setBriefs((data ?? []) as any));
     });
   }, []);
+
+  // Default the selected brief to the active client's brief — once. Prefer an
+  // exact activeBriefId match; otherwise fall back to any brief whose client_id
+  // is the active client. Runs when briefs or the active context first resolve.
+  useEffect(() => {
+    if (preselected.current || briefs.length === 0) return;
+    if (activeBriefId && briefs.some(b => b.id === activeBriefId)) {
+      setSelId(activeBriefId); preselected.current = true; return;
+    }
+    if (activeClientId) {
+      const match = briefs.find(b => (b as any).client_id === activeClientId);
+      if (match) { setSelId(match.id); preselected.current = true; }
+    }
+  }, [briefs, activeBriefId, activeClientId]);
 
   async function analyze() {
     setLoading(true); setError(''); setOut(null);
