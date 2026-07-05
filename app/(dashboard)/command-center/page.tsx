@@ -71,10 +71,11 @@ export default function CommandCenterPage() {
     }
   }
 
-  const active = campaigns.filter((c) => c.status === 'active').length;
+  // "Active" = the real running state, `live` (not the fictional 'active').
+  const active = campaigns.filter((c) => c.status === 'live').length;
   const dryRun = campaigns.filter((c) => c.dry_run).length;
   const totalBudget = campaigns
-    .filter((c) => c.status === 'active' && c.daily_budget != null)
+    .filter((c) => c.status === 'live' && c.daily_budget != null)
     .reduce((s, c) => s + Number(c.daily_budget), 0);
 
   return (
