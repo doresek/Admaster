@@ -48,6 +48,8 @@ Organic publishing needs scopes that were reverted (PR #49 → #53): **`pages_ma
 6. **Test instructions for the reviewer**: a test login + a connected test Page, steps to trigger a post.
 7. After approval: re-add the 3 scopes to `META_OAUTH_SCOPES` (revert of PR #53 — one-line change, `lib/meta-config.ts`), users re-consent via the existing connect flow.
 
+**Timeline reality (verified 2026-07, Meta docs + practitioner reports):** Advanced-Access review for `instagram_content_publish`-class permissions runs **2–6 weeks, with multiple submission rounds likely**; Business Verification is mandatory for ALL Advanced Access requests. This is the longest external clock in the whole organic track — which is why G0-1..G0-3 (owner actions) start immediately, in parallel to all building.
+
 *(IG publishing additionally requires the IG account to be Business/Creator and linked to the FB Page — a per-client onboarding step, not an app gate.)*
 
 ### 1.3 What to build (→ tasks P1-x in ORGANIC-TASKS.md)
