@@ -434,3 +434,87 @@ export interface ShockState {
   direction: 'up' | 'down' | null;
   note:      string | null;
 }
+
+// ── Measurement spine (migration 060; MEASUREMENT-SPINE-PLAN.md) ─────────────
+
+/** The funnel stages. `irrelevant` = the lead-quality negative (feeds atoms). */
+export type LeadStage =
+  | 'new' | 'contacted' | 'qualified' | 'meeting' | 'closed_won' | 'closed_lost' | 'irrelevant';
+
+export type LeadSource = 'landing' | 'site' | 'whatsapp' | 'instant_form' | 'call' | 'manual';
+export type StageMarkedVia = 'system' | 'ui' | 'digest' | 'whatsapp';
+
+export interface FunnelLeadRow {
+  id:                  string;
+  client_id:           string;
+  owner_user_id:       string;
+  source:              LeadSource;
+  source_ref:          Record<string, unknown>;
+  name:                string | null;
+  phone:               string | null;
+  email:               string | null;
+  consent_marketing:   boolean;
+  consent_recorded_at: string | null;
+  current_stage:       LeadStage;
+  value:               number | null;
+  created_at:          string;
+  updated_at:          string;
+}
+
+/** L0 identity capture — attribution without stored click IDs is guessing. */
+export interface LeadTouchpointRow {
+  id:            string;
+  lead_id:       string;
+  client_id:     string;
+  owner_user_id: string;
+  fbclid:        string | null;
+  gclid:         string | null;
+  ctwa_clid:     string | null;
+  meta_lead_id:  string | null;
+  utm:           Record<string, string>;
+  landing_path:  string | null;
+  referrer:      string | null;
+  user_agent:    string | null;
+  captured_at:   string;
+}
+
+export interface LeadStageEventRow {
+  id:            string;
+  lead_id:       string;
+  client_id:     string;
+  owner_user_id: string;
+  stage:         LeadStage;
+  value:         number | null;
+  marked_via:    StageMarkedVia;
+  note:          string | null;
+  created_at:    string;
+}
+
+/** Owner-seeded unit-economics inputs; break-even ROAS is COMPUTED (1/CM), never stored. */
+export interface ClientEconomicsRow {
+  id:                      string;
+  client_id:               string;
+  owner_user_id:           string;
+  contribution_margin_pct: number | null;
+  avg_deal_value:          number | null;
+  close_rate_pct:          number | null;
+  payback_target_months:   number;
+  currency:                string;
+  source:                  'owner' | 'computed' | 'mixed';
+  updated_at:              string;
+  created_at:              string;
+}
+
+export interface ChannelReconciliationRow {
+  id:               string;
+  client_id:        string;
+  owner_user_id:    string;
+  channel:          string;
+  period_start:     string;
+  period_end:       string;
+  platform_claimed: number;
+  crm_truth:        number;
+  ratio:            number | null;
+  note:             string | null;
+  created_at:       string;
+}
