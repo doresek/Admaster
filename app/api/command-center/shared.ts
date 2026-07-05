@@ -22,7 +22,10 @@ export interface ResolvedInsight {
 export interface CampaignDecision {
   id: string;
   decision_type: string | null;
-  decision: string | null;
+  // `campaign_decisions.decision` is jsonb — an object like { channel } /
+  // { frameworks, variant_count } / { platform }. It is NOT a string; the UI
+  // summarizes it for display (never renders the raw object as a React child).
+  decision: unknown;
   rationale: string | null;
   grounded_in: string[];
   grounded: ResolvedInsight[];

@@ -11,46 +11,65 @@ import type {
 } from '@/app/api/command-center/shared';
 
 // ─── Label maps (Hebrew) ─────────────────────────────────────
+// These mirror the REAL vocabulary in migration 030 / lib/campaigns/types.ts —
+// the campaigns.status CHECK (10 lifecycle states), the channel CHECK
+// (meta_paid|meta_organic|whatsapp), the funnel stages (TOFU|MOFU|BOFU) and the
+// campaign_decisions.decision_type union. The previous maps used fictional values
+// (active/approved/proposed, facebook/google, awareness/…) that never appear in
+// the data.
 const STATUS_HE: Record<string, string> = {
-  active: 'פעילה',
-  paused: 'מושהית',
-  approved: 'מאושרת',
-  draft: 'טיוטה',
-  pending: 'ממתינה לאישור',
-  proposed: 'הוצעה',
-  completed: 'הושלמה',
-  archived: 'בארכיון',
+  draft:      'טיוטה',
+  planned:    'מתוכננת',
+  generating: 'בהפקה',
+  assembled:  'מוכנה לאישור',
+  scheduled:  'מאושרת · בתור',
+  publishing: 'בפרסום',
+  live:       'פעילה',
+  paused:     'מושהית',
+  completed:  'הושלמה',
+  failed:     'נכשלה',
 };
 const STATUS_TONE: Record<string, string> = {
-  active: 'text-[#34D399] bg-[#059669]/12 border-[#059669]/30',
-  approved: 'text-[#7AC0FF] bg-[#0A7AFF]/12 border-[#0A7AFF]/30',
-  paused: 'text-[#D97706] bg-[#D97706]/12 border-[#D97706]/30',
-  pending: 'text-[#D97706] bg-[#D97706]/12 border-[#D97706]/30',
-  proposed: 'text-[#D97706] bg-[#D97706]/12 border-[#D97706]/30',
+  live:       'text-[#34D399] bg-[#059669]/12 border-[#059669]/30',
+  scheduled:  'text-[#7AC0FF] bg-[#0A7AFF]/12 border-[#0A7AFF]/30',
+  publishing: 'text-[#7AC0FF] bg-[#0A7AFF]/12 border-[#0A7AFF]/30',
+  assembled:  'text-[#D4AF55] bg-[#B8953A]/12 border-[#B8953A]/30',
+  planned:    'text-[#6B8FA8] bg-[#1D2D3E] border-[#2A4158]',
+  generating: 'text-[#6B8FA8] bg-[#1D2D3E] border-[#2A4158]',
+  paused:     'text-[#D97706] bg-[#D97706]/12 border-[#D97706]/30',
+  completed:  'text-[#7AC0FF] bg-[#0A7AFF]/12 border-[#0A7AFF]/30',
+  failed:     'text-[#F87171] bg-[#DC2626]/12 border-[#DC2626]/30',
 };
 const CHANNEL_HE: Record<string, string> = {
-  facebook: 'פייסבוק',
-  instagram: 'אינסטגרם',
-  meta: 'מטא',
-  google: 'גוגל',
-  tiktok: 'טיקטוק',
-  email: 'אימייל',
+  meta_paid:    'מטא · ממומן',
+  meta_organic: 'מטא · אורגני',
+  whatsapp:     'וואטסאפ',
 };
 const FUNNEL_HE: Record<string, string> = {
-  awareness: 'מודעות',
-  consideration: 'שקילה',
-  conversion: 'המרה',
-  retention: 'שימור',
-  acquisition: 'גיוס',
+  TOFU: 'ראש המשפך (מודעות)',
+  MOFU: 'אמצע המשפך (שקילה)',
+  BOFU: 'תחתית המשפך (המרה)',
 };
 const DECISION_TYPE_HE: Record<string, string> = {
-  budget: 'תקציב',
-  targeting: 'קהל יעד',
-  creative: 'קריאייטיב',
-  channel: 'ערוץ',
-  bid: 'הצעת מחיר',
-  schedule: 'תזמון',
-  pause: 'השהיה',
+  channel:    'ערוץ',
+  angle:      'זווית',
+  audience:   'קהל יעד',
+  platform:   'פלטפורמה',
+  objective:  'מטרה',
+  funnel:     'שלב במשפך',
+  budget:     'תקציב',
+  precedents: 'תקדימים',
+  framework:  'מבנה קופי',
+};
+// diagnoses.failed_link CHECK (migration 030): the culpable link in the funnel.
+const FAILED_LINK_HE: Record<string, string> = {
+  hook:     'הוק (המשיכה הראשונית)',
+  avatar:   'אווטאר (הקהל)',
+  creative: 'קריאייטיב (המודעה)',
+  funnel:   'משפך',
+  offer:    'הצעה',
+  audience: 'טירגוט הקהל',
+  none:     'ללא כשל מזוהה',
 };
 
 const he = (map: Record<string, string>, key: string | null, fallback?: string) =>
@@ -58,6 +77,23 @@ const he = (map: Record<string, string>, key: string | null, fallback?: string) 
 
 const shekel = (n: number | null) =>
   n == null ? '—' : `₪${Number(n).toLocaleString('he-IL')}`;
+
+// Summarize a jsonb `decision` object into a short human string. The column is
+// jsonb (e.g. { channel:'meta_organic' } / { frameworks:[…], variant_count } /
+// { platform:'Facebook' }) — NEVER render it as a raw React child. Returns '' when
+// there's nothing worth showing (the caller then omits the value span).
+function summarizeDecision(decision: unknown): string {
+  if (decision == null) return '';
+  if (typeof decision === 'string' || typeof decision === 'number') return String(decision);
+  if (Array.isArray(decision)) return decision.map((v) => summarizeDecision(v)).filter(Boolean).join(', ');
+  if (typeof decision === 'object') {
+    const vals = Object.values(decision as Record<string, unknown>)
+      .map((v) => (Array.isArray(v) ? v.join(', ') : v == null || typeof v === 'object' ? '' : String(v)))
+      .filter((s) => s !== '');
+    return vals.join(' · ');
+  }
+  return '';
+}
 
 // ─── Status badge ─────────────────────────────────────────────
 export function StatusBadge({ status }: { status: string | null }) {
@@ -106,14 +142,15 @@ export function InsightCard({ insight }: { insight: ResolvedInsight }) {
 
 // ─── Decision row (rationale + its grounded insights) ─────────
 function DecisionBlock({ decision }: { decision: CampaignDecision }) {
+  const value = summarizeDecision(decision.decision);
   return (
     <div className="border-r-2 border-[#0A7AFF]/40 pr-3">
       <div className="flex items-center gap-2 mb-1">
         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#1D2D3E] text-[#7AC0FF]">
           {he(DECISION_TYPE_HE, decision.decision_type)}
         </span>
-        {decision.decision && (
-          <span className="text-[12px] font-semibold text-[#D9E8F5]">{decision.decision}</span>
+        {value && (
+          <span className="text-[12px] font-semibold text-[#D9E8F5]">{value}</span>
         )}
       </div>
       {decision.rationale && (
@@ -182,9 +219,13 @@ export function CampaignCard({
   busy: boolean;
   onAction: (action: 'pause' | 'resume' | 'approve') => void;
 }) {
-  const isActive = campaign.status === 'active';
-  const needsApproval =
-    campaign.status === 'proposed' || campaign.status === 'pending' || campaign.status === 'draft';
+  // Owner actions map to real lifecycle transitions (see the PATCH route + state
+  // machine): approve assembled→scheduled, pause live→paused, resume paused→live.
+  // Offer ONLY the button whose transition is currently legal — never a button
+  // that would 409.
+  const canApprove = campaign.status === 'assembled';
+  const canPause   = campaign.status === 'live';
+  const canResume  = campaign.status === 'paused';
 
   return (
     <Card>
@@ -212,16 +253,17 @@ export function CampaignCard({
           </div>
         </div>
         <div className="flex flex-col gap-2 flex-shrink-0">
-          {needsApproval && (
+          {canApprove && (
             <Btn variant="green" size="sm" loading={busy} onClick={() => onAction('approve')}>
               אשר
             </Btn>
           )}
-          {isActive ? (
+          {canPause && (
             <Btn variant="amber" size="sm" loading={busy} onClick={() => onAction('pause')}>
               השהה
             </Btn>
-          ) : (
+          )}
+          {canResume && (
             <Btn variant="outline" size="sm" loading={busy} onClick={() => onAction('resume')}>
               הפעל
             </Btn>
@@ -246,7 +288,7 @@ export function DiagnosesSection({ diagnoses }: { diagnoses: Diagnosis[] }) {
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-[14px]">⚠️</span>
               <span className="text-[13px] font-semibold text-[#D97706]">
-                {d.failed_link || 'קישור לא ידוע'}
+                {he(FAILED_LINK_HE, d.failed_link, 'קישור לא ידוע')}
               </span>
             </div>
             {d.rationale && (
