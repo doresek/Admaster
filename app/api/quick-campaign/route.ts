@@ -9,6 +9,15 @@ import { recordArtifactSafe, contextHash } from '@/lib/intelligence/artifacts';
 import { supabaseCampaignStore } from '@/lib/campaigns/store';
 import type { CampaignChannel, CampaignDecisionInsert } from '@/lib/campaigns/types';
 
+// This route makes a ~40-60s Anthropic call (3 variants in one shot) and then
+// records a campaign + items + decisions. The default Node function budget
+// (10s/60s) is not enough — a request that runs long can be terminated and
+// re-driven, which (now that we persist a campaigns row) duplicates the whole
+// trace AND double-charges credits. Give it the full Fluid-Compute budget, the
+// same as the master route.
+export const runtime = 'nodejs';
+export const maxDuration = 300;
+
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 const xt = (raw: string, t: string) => {
