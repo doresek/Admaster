@@ -27,6 +27,7 @@ function makeBuilder(table: string) {
   const result = { data: cfg.error ? null : (cfg.rows ?? []), error: cfg.error ?? null };
   const single = { data: cfg.error ? null : (cfg.rows?.[0] ?? null), error: cfg.error ?? null };
 
+  let updated = false; // this builder chain is an .update() — echo the merged row
   const builder: any = {
     select: () => builder,
     order: () => builder,
@@ -35,8 +36,11 @@ function makeBuilder(table: string) {
       if (table === 'campaigns' && H.updatePayload !== undefined) H.updateFilters.push([col, val]);
       return builder;
     },
-    update: (p: any) => { H.updatePayload = p; return builder; },
-    single: async () => single,
+    update: (p: any) => { H.updatePayload = p; updated = true; return builder; },
+    single: async () =>
+      updated && single.data
+        ? { data: { ...single.data, ...H.updatePayload }, error: single.error }
+        : single,
     then: (resolve: any) => resolve(result), // awaitable terminal
   };
   return builder;
@@ -175,8 +179,10 @@ describe('PATCH /api/command-center/campaigns/[id]', () => {
     expect(H.updatePayload).toBeUndefined();
   });
 
-  it('pause → status "paused", scoped to owner, never touches spend', async () => {
-    H.tables = { campaigns: { rows: [{ id: 'camp-1', status: 'paused', dry_run: true }] } };
+  // Actions map to REAL lifecycle states (campaigns.status CHECK / lib/campaigns/state.ts):
+  // pause live→paused · resume paused→live · approve assembled→scheduled.
+  it('pause (live) → status "paused", scoped to owner, never touches spend', async () => {
+    H.tables = { campaigns: { rows: [{ id: 'camp-1', status: 'live', dry_run: true }] } };
     const res = await patchCampaign(patchReq({ action: 'pause' }), { params: Promise.resolve({ id: 'camp-1' }) });
     expect(res.status).toBe(200);
     const data = await res.json();
@@ -189,20 +195,27 @@ describe('PATCH /api/command-center/campaigns/[id]', () => {
     expect(H.updateFilters).toContainEqual(['owner_user_id', 'owner-1']);
   });
 
-  it('approve → status "approved" and keeps dry_run unchanged', async () => {
-    H.tables = { campaigns: { rows: [{ id: 'camp-1', status: 'approved', dry_run: true }] } };
+  it('approve (assembled) → status "scheduled" and keeps dry_run unchanged', async () => {
+    H.tables = { campaigns: { rows: [{ id: 'camp-1', status: 'assembled', dry_run: true }] } };
     const res = await patchCampaign(patchReq({ action: 'approve' }), { params: Promise.resolve({ id: 'camp-1' }) });
     const data = await res.json();
-    expect(data.status).toBe('approved');
+    expect(data.status).toBe('scheduled');
     expect(data.dry_run).toBe(true); // approving a dry-run campaign stays dry-run
-    expect(H.updatePayload.status).toBe('approved');
+    expect(H.updatePayload.status).toBe('scheduled');
   });
 
-  it('resume → status "active"', async () => {
-    H.tables = { campaigns: { rows: [{ id: 'camp-1', status: 'active', dry_run: false }] } };
+  it('resume (paused) → status "live"', async () => {
+    H.tables = { campaigns: { rows: [{ id: 'camp-1', status: 'paused', dry_run: false }] } };
     const res = await patchCampaign(patchReq({ action: 'resume' }), { params: Promise.resolve({ id: 'camp-1' }) });
     const data = await res.json();
-    expect(data.status).toBe('active');
+    expect(data.status).toBe('live');
+  });
+
+  it('409s on an illegal transition (approve a live campaign) — no status written', async () => {
+    H.tables = { campaigns: { rows: [{ id: 'camp-1', status: 'live', dry_run: false }] } };
+    const res = await patchCampaign(patchReq({ action: 'approve' }), { params: Promise.resolve({ id: 'camp-1' }) });
+    expect(res.status).toBe(409);
+    expect(H.updatePayload).toBeUndefined();
   });
 
   it('404s when the campaigns table is absent', async () => {

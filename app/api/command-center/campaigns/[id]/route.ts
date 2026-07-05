@@ -35,7 +35,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params; // Next 15: route params are async
-    const supabase = createClient();
+    const supabase = await createClient(); // Next 15: cookies() is async → so is createClient
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
