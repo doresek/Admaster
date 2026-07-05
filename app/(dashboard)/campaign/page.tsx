@@ -1,7 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, Input, Btn, Alert, PageHeader, CostBadge } from '@/components/ui';
 import { useMetaClients } from '@/lib/hooks/useMetaClients';
+import { useActiveClient } from '@/components/ClientProvider';
 import type { MetaClient } from '@/types';
 
 const OBJECTIVES = [
@@ -14,6 +15,7 @@ const OBJECTIVES = [
 
 export default function CampaignPage() {
   const clients = useMetaClients();
+  const { activeClientId } = useActiveClient();
   const [step,  setStep]  = useState(1);
   const [selC,  setSelC]  = useState<MetaClient|null>(null);
   const [c, setC] = useState({ name:'', objective:'', budget:50, budgetType:'DAILY', ageMin:25, ageMax:65, headline:'', adText:'', cta:'LEARN_MORE' });
@@ -21,6 +23,14 @@ export default function CampaignPage() {
   const [result,  setResult]  = useState<{cid:string;aid:string}|null>(null);
   const [err,     setErr]     = useState('');
   const uc = (k: string, v: any) => setC(p => ({ ...p, [k]: v }));
+
+  // Default the selected client to the app-wide active client (top switcher is
+  // the source of truth — the owner does not re-pick here).
+  useEffect(() => {
+    if (selC || !activeClientId || clients.length === 0) return;
+    const match = clients.find(c => c.id === activeClientId);
+    if (match) setSelC(match);
+  }, [clients, activeClientId, selC]);
 
   async function create() {
     if (!selC?.selected_ad_account_id) return;
@@ -68,12 +78,25 @@ export default function CampaignPage() {
       </div>
 
       {step===1&&<div>
-        <div className="text-xs font-bold text-[#2E4459] uppercase tracking-wider mb-3">בחר לקוח</div>
-        {clients.map(c=><div key={c.id} onClick={()=>setSelC(c)}
-          className={`flex items-center gap-3 p-3 rounded-lg border mb-2 cursor-pointer transition-all ${selC?.id===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]'}`}>
-          <span>{c.emoji}</span><div><div className="font-medium text-sm">{c.name}</div><div className="text-[11px] text-[#6B8FA8]">{c.ad_accounts.length} חשבונות</div></div>
-          <div className={`w-4 h-4 rounded-full border ml-auto ${selC?.id===c.id?'border-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[#3D9FFF] text-[10px]':'border-[#2A4158]'}`}>{selC?.id===c.id?'✓':''}</div>
-        </div>)}
+        {activeClientId ? (
+          <Card className="mb-2">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">{selC?.emoji}</span>
+              <div>
+                <div className="text-[11px] text-[#6B8FA8]">פועל על:</div>
+                <div className="font-medium text-sm">{selC?.name}</div>
+              </div>
+              <div className="ml-auto text-[11px] text-[#2E4459]">לשינוי — החלף לקוח במתג למעלה</div>
+            </div>
+          </Card>
+        ) : (<>
+          <div className="text-xs font-bold text-[#2E4459] uppercase tracking-wider mb-3">בחר לקוח</div>
+          {clients.map(c=><div key={c.id} onClick={()=>setSelC(c)}
+            className={`flex items-center gap-3 p-3 rounded-lg border mb-2 cursor-pointer transition-all ${selC?.id===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/10':'border-[#1E2F42] bg-[#162030] hover:border-[#2A4158]'}`}>
+            <span>{c.emoji}</span><div><div className="font-medium text-sm">{c.name}</div><div className="text-[11px] text-[#6B8FA8]">{c.ad_accounts.length} חשבונות</div></div>
+            <div className={`w-4 h-4 rounded-full border ml-auto ${selC?.id===c.id?'border-[#3D9FFF] bg-[#0A7AFF]/20 flex items-center justify-center text-[#3D9FFF] text-[10px]':'border-[#2A4158]'}`}>{selC?.id===c.id?'✓':''}</div>
+          </div>)}
+        </>)}
         {selC&&!selC.selected_ad_account_id&&<Alert type="amber">⚠️ בחר חשבון מודעות ב"לקוחות" תחילה</Alert>}
         <Btn variant="primary" className="mt-3" onClick={()=>setStep(2)} disabled={!selC?.selected_ad_account_id}>הבא →</Btn>
       </div>}

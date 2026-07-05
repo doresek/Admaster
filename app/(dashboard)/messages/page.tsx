@@ -4,9 +4,8 @@ import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Chip, Textarea, Input, Btn, OutputBox, CopyBtn, CostBadge, Alert, PageHeader, Tabs } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
 import { FRAMEWORKS, FRAMEWORKS_BY_ID, type FrameworkId } from '@/lib/frameworks';
-import { readActiveClientFromDocument } from '@/lib/active-client';
-import type { MetaClient, CreditAction } from '@/types';
-import { clientToMetaClient } from '@/lib/clients';
+import { useActiveClient } from '@/components/ClientProvider';
+import type { CreditAction } from '@/types';
 
 type Channel = 'email' | 'sms' | 'whatsapp';
 
@@ -22,8 +21,7 @@ const xt = (raw: string, t: string) => {
 };
 
 export default function MessagesPage() {
-  const [clients,  setClients]  = useState<MetaClient[]>([]);
-  const [selC,     setSelC]     = useState<MetaClient|null>(null);
+  const { activeClient, activeClientId } = useActiveClient();
   const [channel,  setChannel]  = useState<Channel>('email');
   const [fw,       setFw]       = useState<FrameworkId>('aida');
   const [brief,    setBrief]    = useState('');
@@ -40,18 +38,6 @@ export default function MessagesPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from('clients').select('id, name, owner_user_id, created_at, updated_at').eq('owner_user_id', user.id)
-        .then(({ data }) => {
-          const list = (data ?? []).map(clientToMetaClient);
-          setClients(list);
-          // Default the client selector to the active client (cookie) so blasts
-          // attribute by default. User can still change it.
-          const activeId = readActiveClientFromDocument();
-          if (activeId) {
-            const active = list.find(c => c.id === activeId);
-            if (active) setSelC(active);
-          }
-        });
       supabase.from('messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20)
         .then(({ data }) => setHistory(data ?? []));
     });
@@ -67,7 +53,7 @@ export default function MessagesPage() {
       sms:      `אורך הודעה מקסימלי: 160 תווים בלבד. בלי אמוג'ים. בלי נושא. ישיר ומהיר.`,
     };
 
-    const system = `אתה קופירייטר ${ch.label}. ייעודי לקהל ${selC?.industry ?? 'כללי'}.
+    const system = `אתה קופירייטר ${ch.label}. ייעודי לקהל ${activeClient?.industry ?? 'כללי'}.
 
 ${fwObj.prompt}
 
@@ -92,7 +78,7 @@ ${channel === 'email' ? '[SUBJECT]נושא האימייל[/SUBJECT]\n' : ''}[BOD
     if (user) {
       const { data } = await supabase.from('messages').insert({
         user_id:   user.id,
-        client_id: selC?.id ?? null,
+        client_id: activeClientId ?? null,
         channel,
         framework: fw,
         subject:   result.subject || null,
@@ -148,16 +134,12 @@ ${channel === 'email' ? '[SUBJECT]נושא האימייל[/SUBJECT]\n' : ''}[BOD
               </div>
             </Card>
 
-            {clients.length > 0 && (
-              <Card className="mb-3">
-                <CardLabel>לקוח (אופציונלי)</CardLabel>
-                <div className="flex flex-wrap gap-2">
-                  <Chip label="ללא" active={!selC} onClick={() => setSelC(null)} />
-                  {clients.map(c => (
-                    <Chip key={c.id} label={`${c.emoji} ${c.name}`} active={selC?.id===c.id} onClick={() => setSelC(c)} />
-                  ))}
-                </div>
-              </Card>
+            {activeClient ? (
+              <div className="mb-3 text-[12px] text-[#6B8FA8] flex items-center gap-1.5">
+                פועל על: <Chip label={`${activeClient.emoji} ${activeClient.name}`} active />
+              </div>
+            ) : (
+              <Alert type="amber" className="mb-3">בחר לקוח פעיל מהמתג למעלה כדי להתחיל</Alert>
             )}
 
             <Card className="mb-3">
@@ -165,7 +147,7 @@ ${channel === 'email' ? '[SUBJECT]נושא האימייל[/SUBJECT]\n' : ''}[BOD
               <Textarea value={brief} onChange={setBrief} placeholder="תאר מה לכתוב — מוצר, הצעה, קהל יעד..." rows={5} />
             </Card>
 
-            <Btn variant="primary" full loading={loading} onClick={generate} disabled={!brief.trim()}>
+            <Btn variant="primary" full loading={loading} onClick={generate} disabled={!brief.trim() || !activeClientId}>
               {ch.emoji} צור הודעת {ch.label}
             </Btn>
             {error && <Alert type="red">❌ {error}</Alert>}

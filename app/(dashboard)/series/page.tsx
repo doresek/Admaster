@@ -3,9 +3,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Chip, Input, Btn, Alert, PageHeader, CostBadge, Tabs } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
-import { readActiveClientFromDocument } from '@/lib/active-client';
-import type { MetaClient } from '@/types';
-import { clientToMetaClient } from '@/lib/clients';
+import { useActiveClient } from '@/components/ClientProvider';
 
 type Channel = 'email' | 'sms' | 'whatsapp';
 type Goal    = 'lead_nurture' | 'onboarding' | 'reengagement' | 'launch';
@@ -39,9 +37,8 @@ interface SeriesMessage {
 }
 
 export default function SeriesPage() {
+  const { activeClient, activeClientId } = useActiveClient();
   const [tab,        setTab]        = useState('build');
-  const [clients,    setClients]    = useState<MetaClient[]>([]);
-  const [selC,       setSelC]       = useState<MetaClient|null>(null);
   const [name,       setName]       = useState('');
   const [goal,       setGoal]       = useState<Goal>('lead_nurture');
   const [duration,   setDuration]   = useState(60);
@@ -56,17 +53,6 @@ export default function SeriesPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from('clients').select('id, name, owner_user_id, created_at, updated_at').eq('owner_user_id', user.id).then(({ data }) => {
-        const list = (data ?? []).map(clientToMetaClient);
-        setClients(list);
-        // Default the client selector to the active client (cookie) so blasts
-        // attribute by default. User can still change it.
-        const activeId = readActiveClientFromDocument();
-        if (activeId) {
-          const active = list.find(c => c.id === activeId);
-          if (active) setSelC(active);
-        }
-      });
       supabase.from('message_series').select('id, name, duration_days, created_at, goal').eq('user_id', user.id).order('created_at', { ascending: false })
         .then(({ data }) => setSeries(data ?? []));
     });
@@ -86,7 +72,7 @@ export default function SeriesPage() {
     const system = `אתה אסטרטג Lifecycle Marketing.
 תכנן סדרת הודעות מולטי-ערוצית למשך ${duration} ימים עבור קמפיין "${goalLabel}".
 ערוצים זמינים: ${channelList}.
-${selC ? `לקוח: ${selC.name} | תחום: ${selC.industry ?? 'כללי'}` : ''}
+${activeClient ? `לקוח: ${activeClient.name} | תחום: ${activeClient.industry ?? 'כללי'}` : ''}
 
 עקרונות:
 - מקסימום 1-2 הודעות בשבוע (לא להציף)
@@ -135,7 +121,7 @@ BODY: <גוף ההודעה — לפי המגבלות של הערוץ>
 
     const { data: s, error: sErr } = await supabase.from('message_series').insert({
       user_id:       user.id,
-      client_id:     selC?.id ?? null,
+      client_id:     activeClientId ?? null,
       name,
       goal,
       duration_days: duration,
@@ -207,19 +193,15 @@ BODY: <גוף ההודעה — לפי המגבלות של הערוץ>
               </div>
             </Card>
 
-            {clients.length > 0 && (
-              <Card className="mb-3">
-                <CardLabel>לקוח (אופציונלי)</CardLabel>
-                <div className="flex flex-wrap gap-2">
-                  <Chip label="ללא" active={!selC} onClick={() => setSelC(null)} />
-                  {clients.map(c => (
-                    <Chip key={c.id} label={`${c.emoji} ${c.name}`} active={selC?.id===c.id} onClick={() => setSelC(c)} />
-                  ))}
-                </div>
-              </Card>
+            {activeClient ? (
+              <div className="mb-3 text-[12px] text-[#6B8FA8] flex items-center gap-1.5">
+                פועל על: <Chip label={`${activeClient.emoji} ${activeClient.name}`} active />
+              </div>
+            ) : (
+              <Alert type="amber" className="mb-3">בחר לקוח פעיל מהמתג למעלה כדי להתחיל</Alert>
             )}
 
-            <Btn variant="primary" full loading={loading} onClick={build} disabled={!name.trim() || channels.length===0}>
+            <Btn variant="primary" full loading={loading} onClick={build} disabled={!name.trim() || channels.length===0 || !activeClientId}>
               🗓 בנה תוכנית {duration} ימים
             </Btn>
             {error && <Alert type="red">❌ {error}</Alert>}

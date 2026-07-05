@@ -1,31 +1,16 @@
 'use client';
+// The top switcher is the SINGLE place a client is chosen. It no longer keeps its
+// own clients/active state or fetches independently — it reads and writes the app-wide
+// ClientProvider context, so picking here instantly re-renders every screen.
+// See docs/CLIENT-UX-PLAN.md §"Client-context propagation".
 import { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import { clsx } from 'clsx';
-import { writeActiveClientCookie } from '@/lib/active-client';
+import { useActiveClient } from '@/components/ClientProvider';
 
-interface Client {
-  id:       string;
-  name:     string;
-  industry: string | null;
-  emoji:    string;
-}
-
-export function ClientSwitcher({ initialActive }: { initialActive: string | null }) {
-  const [open,    setOpen]    = useState(false);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [active,  setActive]  = useState<string | null>(initialActive);
-  const [loading, setLoading] = useState(false);
-  const ref = useRouter();
+export function ClientSwitcher() {
+  const { clients, activeClientId: active, setActiveClient } = useActiveClient();
+  const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-
-  async function load() {
-    const res = await fetch('/api/active-client');
-    const data = await res.json();
-    setClients(data.clients || []);
-    setActive(data.active);
-  }
-  useEffect(() => { load(); }, []);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -36,19 +21,8 @@ export function ClientSwitcher({ initialActive }: { initialActive: string | null
   }, []);
 
   async function pick(id: string | null) {
-    setLoading(true); setOpen(false);
-    try {
-      const res = await fetch('/api/active-client', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
-      if (res.ok) {
-        setActive(id);
-        writeActiveClientCookie(id);
-        // Force a full refresh so server components re-read the cookie
-        ref.refresh();
-      }
-    } finally { setLoading(false); }
+    setOpen(false);
+    await setActiveClient(id);
   }
 
   const activeClient = clients.find(c => c.id === active);

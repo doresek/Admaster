@@ -1,10 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardLabel, Input, Textarea, Btn, Alert, PageHeader, CopyBtn } from '@/components/ui';
+import { Card, CardLabel, Input, Textarea, Btn, Alert, PageHeader, CopyBtn, Chip } from '@/components/ui';
 import { reportLink, whatsappShareLink } from '@/lib/share';
 import type { MetaClient } from '@/types';
 import { clientToMetaClient } from '@/lib/clients';
+import { useActiveClient } from '@/components/ClientProvider';
 
 // Pre-filled WhatsApp message for sharing a client-facing ROI report link.
 const WA_REPORT_MSG = (link: string) =>
@@ -28,15 +29,28 @@ export default function ReportsPage() {
   const [shareErr, setShareErr] = useState('');
   const [error,    setError]    = useState('');
   const supabase = createClient();
+  // App-wide active client is the operating context for report generation — no re-pick.
+  const { activeClientId, activeClient } = useActiveClient();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
       supabase.from('clients').select('id, name, owner_user_id, created_at, updated_at').eq('owner_user_id', user.id)
-        .then(({ data }) => { const list = (data ?? []).map(clientToMetaClient); setClients(list); if(list[0]) setSelC(list[0].id); });
+        .then(({ data }) => {
+          const list = (data ?? []).map(clientToMetaClient);
+          setClients(list);
+          // Default to the app-wide active client; fall back to first client.
+          if (activeClientId) setSelC(activeClientId);
+          else if (list[0]) setSelC(list[0].id);
+        });
       fetch('/api/reports').then(r=>r.json()).then(d=>setReports(Array.isArray(d)?d:[]));
     });
   }, []);
+
+  // Follow the active client once it resolves (context loads async).
+  useEffect(() => {
+    if (activeClientId) setSelC(activeClientId);
+  }, [activeClientId]);
 
   async function generate() {
     if (!selC||!form.start||!form.end) return;
@@ -80,12 +94,21 @@ export default function ReportsPage() {
         <div>
           <Card className="mb-3">
             <CardLabel>הגדר דוח</CardLabel>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {clients.map(c=><button key={c.id} onClick={()=>setSelC(c.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-all ${selC===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#1E2F42] bg-[#162030] text-[#6B8FA8]'}`}>
-                <span>{c.emoji}</span>{c.name}
-              </button>)}
-            </div>
+            {/* Active client is the operating context — read-only indicator. */}
+            {activeClientId && activeClient && (
+              <div className="mb-3">
+                <Chip label={`פועל על: ${activeClient.emoji} ${activeClient.name}`} active />
+              </div>
+            )}
+            {/* Fallback client picker (only when no app-wide active client is set). */}
+            {!activeClientId && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {clients.map(c=><button key={c.id} onClick={()=>setSelC(c.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-all ${selC===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#1E2F42] bg-[#162030] text-[#6B8FA8]'}`}>
+                  <span>{c.emoji}</span>{c.name}
+                </button>)}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-xs font-medium text-[#6B8FA8] mb-1.5">מתאריך</label>
                 <input type="date" value={form.start} onChange={e=>setForm(p=>({...p,start:e.target.value}))} className="w-full bg-[#162030] border border-[#1E2F42] rounded-lg px-3 py-2.5 text-sm text-[#D9E8F5] outline-none focus:border-[#0A7AFF]" dir="ltr"/></div>

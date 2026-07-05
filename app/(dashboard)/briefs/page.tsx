@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Btn, CopyBtn, Tabs, OutputBox, Alert, PageHeader, CostBadge, Select } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
 import { useMetaClients } from '@/lib/hooks/useMetaClients';
+import { useActiveClient } from '@/components/ClientProvider';
 import { briefLink, whatsappShareLink } from '@/lib/share';
 import { AVATAR_SYSTEM_PROMPT, AVATAR_MAX_TOKENS, buildAvatarUserPrompt } from '@/lib/avatar-prompt';
 import type { Brief } from '@/types';
@@ -247,7 +248,16 @@ export default function BriefsPage() {
   const [createErr, setCreateErr] = useState('');
   const [clientId, setClientId] = useState('');
   const clients = useMetaClients();
+  const { activeClientId } = useActiveClient();
   const supabase = createClient();
+
+  // Default the brief-link target to the app-wide active client (single source of
+  // truth) so the owner never re-picks; the select stays as an explicit override.
+  useEffect(() => {
+    if (!clientId && activeClientId && clients.some(c => c.id === activeClientId)) {
+      setClientId(activeClientId);
+    }
+  }, [activeClientId, clients]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     async function load() {

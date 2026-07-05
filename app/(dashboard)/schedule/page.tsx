@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardLabel, Textarea, Btn, Alert, PageHeader } from '@/components/ui';
+import { useActiveClient } from '@/components/ClientProvider';
 import type { MetaClient } from '@/types';
 import { clientToMetaClient } from '@/lib/clients';
 import { clsx } from 'clsx';
@@ -13,6 +14,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function SchedulePage() {
+  const { activeClientId } = useActiveClient();
   const [clients,    setClients]   = useState<MetaClient[]>([]);
   const [selC,       setSelC]      = useState<MetaClient|null>(null);
   const [year,       setYear]      = useState(new Date().getFullYear());
@@ -29,9 +31,22 @@ export default function SchedulePage() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
       supabase.from('clients').select('id, name, owner_user_id, created_at, updated_at').eq('owner_user_id', user.id)
-        .then(({ data }) => { const list = (data ?? []).map(clientToMetaClient); setClients(list); if (list[0]) setSelC(list[0]); });
+        .then(({ data }) => { const list = (data ?? []).map(clientToMetaClient); setClients(list); });
     });
   }, []);
+
+  // Default the selected client to the app-wide active client (top switcher is
+  // the source of truth). Fall back to the first client only when there is no
+  // active client.
+  useEffect(() => {
+    if (clients.length === 0) return;
+    if (activeClientId) {
+      const match = clients.find(c => c.id === activeClientId);
+      if (match && selC?.id !== match.id) setSelC(match);
+    } else if (!selC) {
+      setSelC(clients[0]);
+    }
+  }, [clients, activeClientId, selC]);
 
   useEffect(() => {
     if (!selC) return;
@@ -85,15 +100,23 @@ export default function SchedulePage() {
 
       {/* Client + Month nav */}
       <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-2">
-          {clients.map(c => (
-            <button key={c.id} onClick={() => setSelC(c)}
-              className={clsx('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-all',
-                selC?.id===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#1E2F42] bg-[#162030] text-[#6B8FA8]')}>
-              <span>{c.emoji}</span>{c.name}
-            </button>
-          ))}
-        </div>
+        {activeClientId ? (
+          <div className="flex items-center gap-2">
+            <span>{selC?.emoji}</span>
+            <span className="text-sm font-medium">פועל על: {selC?.name}</span>
+            <span className="text-[11px] text-[#2E4459]">· לשינוי — החלף לקוח במתג למעלה</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            {clients.map(c => (
+              <button key={c.id} onClick={() => setSelC(c)}
+                className={clsx('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-all',
+                  selC?.id===c.id?'border-[#0A7AFF] bg-[#0A7AFF]/12 text-[#3D9FFF]':'border-[#1E2F42] bg-[#162030] text-[#6B8FA8]')}>
+                <span>{c.emoji}</span>{c.name}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="flex items-center gap-3">
           <button onClick={() => { if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1); }}
             className="w-8 h-8 rounded-lg bg-[#162030] border border-[#1E2F42] text-[#6B8FA8] hover:text-white flex items-center justify-center">←</button>
