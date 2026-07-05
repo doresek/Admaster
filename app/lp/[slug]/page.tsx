@@ -1,10 +1,22 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { TEMPLATES_BY_ID, type LandingTemplate, type LandingContent } from '@/lib/landing-templates';
 import { coerceDesignSpec, DEFAULT_DESIGN, FONT_PAIRS, radiusFor, densityFor, type DesignSpec } from '@/lib/landing-design';
 import { createClient } from '@/lib/supabase/client';
 import { safeExternalUrl, safeEmbedUrl } from '@/lib/safe-url';
+import {
+  EMPTY_IDENTITY,
+  FIRST_TOUCH_COOKIE,
+  FIRST_TOUCH_MAX_AGE_S,
+  hasAnySignal,
+  mergeIdentity,
+  parseClickIds,
+  parseFirstTouchCookie,
+  sanitizeReferrer,
+  serializeFirstTouch,
+  type CapturedIdentity,
+} from '@/lib/measurement/capture';
 
 interface LPData {
   id:       string;
@@ -66,8 +78,38 @@ export default function PublicLandingPage() {
   const [formVals,  setFormVals]  = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState('');
+  // חוק הספאם: marketing consent is explicit and UNCHECKED by default.
+  const [consent, setConsent] = useState(false);
+  // L0 identity capture (measurement spine): the visit's click IDs / UTMs,
+  // merged with the 90-day first-touch cookie. Sent with the lead POST — the
+  // client-component equivalent of server-rendered hidden fields (the server
+  // re-validates everything; see lib/measurement/capture.ts for the strategy).
+  const identityRef = useRef<CapturedIdentity>(EMPTY_IDENTITY);
   const supabase = createClient();
   const reducedMotion = usePrefersReducedMotion();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const current = parseClickIds(window.location.href);
+    const visit = current.referrer !== null
+      ? current
+      : { ...current, referrer: sanitizeReferrer(document.referrer) };
+
+    // First-touch cookie: written ONCE, only when the visit carries any signal
+    // — so the ad click that started the journey survives cross-page browsing.
+    const cookiePair = document.cookie
+      .split('; ')
+      .find((c) => c.startsWith(`${FIRST_TOUCH_COOKIE}=`));
+    const firstTouch = parseFirstTouchCookie(
+      cookiePair ? cookiePair.slice(FIRST_TOUCH_COOKIE.length + 1) : null,
+    );
+    if (!firstTouch && hasAnySignal(visit)) {
+      document.cookie =
+        `${FIRST_TOUCH_COOKIE}=${serializeFirstTouch(visit)}; path=/; max-age=${FIRST_TOUCH_MAX_AGE_S}; samesite=lax`;
+    }
+    // Current visit wins per field (last-click); first touch fills the gaps.
+    identityRef.current = mergeIdentity(visit, firstTouch ?? EMPTY_IDENTITY);
+  }, []);
 
   useEffect(() => {
     if (!slug) return;
@@ -124,7 +166,12 @@ export default function PublicLandingPage() {
       const res = await fetch('/api/landing/lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: data.slug, fields: formVals }),
+        body: JSON.stringify({
+          slug:             data.slug,
+          fields:           formVals,
+          touchpoint:       identityRef.current,
+          consentMarketing: consent,
+        }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'שגיאה בשליחה');
@@ -752,6 +799,28 @@ export default function PublicLandingPage() {
                       )}
                     </div>
                   ))}
+                  {/* חוק הספאם 30א: explicit marketing consent, unchecked by default */}
+                  <label className="flex items-start gap-2 pt-1 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={consent}
+                      onChange={e => setConsent(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 flex-shrink-0"
+                      style={{ accentColor: design.primary }}
+                    />
+                    <span className="text-xs leading-relaxed" style={{ color: design.textMuted }}>
+                      אני מאשר/ת קבלת עדכונים ותוכן שיווקי{' '}
+                      <a
+                        href="/privacy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline"
+                        style={{ color: design.primary }}
+                      >
+                        מדיניות פרטיות
+                      </a>
+                    </span>
+                  </label>
                   {err && <div className="text-sm" style={{ color: '#DC2626' }}>❌ {err}</div>}
                   <button
                     type="submit"
