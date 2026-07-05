@@ -326,7 +326,7 @@ describe('Command Center API — grounded_in resolves to the WHY', () => {
       },
     };
 
-    const httpRes = await getCampaigns();
+    const httpRes = await getCampaigns(new Request('http://test/api/command-center/campaigns'));
     expect(httpRes.status).toBe(200);
     const { campaigns } = await httpRes.json();
     expect(campaigns).toHaveLength(1);

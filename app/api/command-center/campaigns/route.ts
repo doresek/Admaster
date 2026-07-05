@@ -18,18 +18,25 @@ import {
   type CampaignDecision,
 } from '../shared';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // 1) Campaigns owned by the caller (newest first).
-    const campaignsRes = await supabase
+    // Client-context propagation: when the app-wide active client is passed
+    // (?clientId=), scope the view to it; with no active client the Command
+    // Center stays the owner-wide "see everything" board. Ownership is still
+    // enforced by owner_user_id regardless.
+    const clientId = new URL(req.url).searchParams.get('clientId');
+
+    // 1) Campaigns owned by the caller (newest first), optionally client-scoped.
+    let campaignsQuery = supabase
       .from('campaigns')
       .select('id, status, channel, daily_budget, funnel_stage, grounded_in, rationale, meta_campaign_id, dry_run, created_at')
-      .eq('owner_user_id', user.id)
-      .order('created_at', { ascending: false });
+      .eq('owner_user_id', user.id);
+    if (clientId) campaignsQuery = campaignsQuery.eq('client_id', clientId);
+    const campaignsRes = await campaignsQuery.order('created_at', { ascending: false });
 
     if (campaignsRes.error) {
       if (isMissingRelation(campaignsRes.error)) return NextResponse.json({ campaigns: [] });
