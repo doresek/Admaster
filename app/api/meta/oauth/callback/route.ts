@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
 
     // The browser carries the Supabase session cookie on this top-level GET;
     // confirm the logged-in user is the one who started the flow.
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || user.id !== state.userId) {
       return back(req, returnTo, { meta: 'error', reason: 'session_mismatch' });

@@ -12,13 +12,13 @@ export const runtime = 'nodejs';
 
 const errMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const hypothesis = await getHypothesis(createAdminClient(), params.id, user.id);
+    const hypothesis = await getHypothesis(createAdminClient(), (await params).id, user.id);
     if (!hypothesis) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     return NextResponse.json({ hypothesis });

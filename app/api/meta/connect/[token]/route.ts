@@ -11,10 +11,10 @@ import { CONNECT_TOKEN_REGEX, lookupConnectClient, connectLinkState } from '@/li
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { token: string } },
+  { params }: { params: Promise<{ token: string }> },
 ) {
   // Cheap rejection of malformed tokens — no DB hit for bot/scan traffic.
-  if (!CONNECT_TOKEN_REGEX.test(params.token)) {
+  if (!CONNECT_TOKEN_REGEX.test((await params).token)) {
     return NextResponse.json({ valid: false, reason: 'invalid' }, { status: 400 });
   }
 
@@ -29,7 +29,7 @@ export async function GET(
   }
 
   const admin = createAdminClient();
-  const client = await lookupConnectClient(admin, params.token);
+  const client = await lookupConnectClient(admin, (await params).token);
   const state = connectLinkState(client);
 
   if (state !== 'valid' || !client) {

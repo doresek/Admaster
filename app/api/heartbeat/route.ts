@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
       }
       return await trigger(tickParam);
     }
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

@@ -15,7 +15,7 @@ const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 // POST /api/reports — generate report
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
 
 // GET /api/reports?clientId=xxx
 export async function GET(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

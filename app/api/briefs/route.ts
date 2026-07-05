@@ -4,7 +4,7 @@ import type { BriefValues } from '@/types';
 
 // GET /api/briefs — list all briefs for current user
 export async function GET() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

@@ -18,7 +18,7 @@ const errMessage = (e: unknown): string => (e instanceof Error ? e.message : Str
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

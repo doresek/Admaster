@@ -4,7 +4,7 @@ import { ACTIVE_CLIENT_COOKIE, readActiveClientCookie } from '@/lib/active-clien
 
 // GET — list all clients + currently-active id
 export async function GET(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 
 // POST — set active client (body: { id: string | null })
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

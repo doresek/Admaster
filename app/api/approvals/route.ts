@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 
 // Create a new approval request
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
 // List approvals for current user
 export async function GET() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -41,7 +41,7 @@ export async function GET() {
 
 // Delete an approval
 export async function DELETE(req: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

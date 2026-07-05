@@ -9,7 +9,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-04
 // Opens the Stripe Customer Portal so users can self-serve cancel / downgrade.
 export async function POST() {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

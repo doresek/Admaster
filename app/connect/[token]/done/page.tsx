@@ -20,12 +20,12 @@ function Shell({ icon, title, sub }: { icon: string; title: string; sub: string 
   );
 }
 
-export default function ConnectDonePage({
+export default async function ConnectDonePage({
   searchParams,
 }: {
-  searchParams: { meta?: string };
+  searchParams: Promise<{ meta?: string }>;
 }) {
-  const status = searchParams.meta;
+  const status = (await searchParams).meta;
 
   if (status === 'connected') {
     return (

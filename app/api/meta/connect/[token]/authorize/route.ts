@@ -22,9 +22,9 @@ import {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { token: string } },
+  { params }: { params: Promise<{ token: string }> },
 ) {
-  const token = params.token;
+  const token = (await params).token;
 
   // The token is the sole access control: regex-precheck + rate-limit before
   // any DB hit, then re-validate against the live row (single-use + expiry).

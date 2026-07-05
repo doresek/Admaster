@@ -31,10 +31,11 @@ const ACTION_STATUS: Record<string, CampaignStatus> = {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const supabase = createClient();
+    const { id } = await params; // Next 15: route params are async
+    const supabase = await createClient(); // Next 15: cookies() is async → so is createClient
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -54,7 +55,7 @@ export async function PATCH(
     const { data: current, error: readErr } = await supabase
       .from('campaigns')
       .select('id, status')
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('owner_user_id', user.id)
       .single();
 
@@ -79,7 +80,7 @@ export async function PATCH(
     const { data, error } = await supabase
       .from('campaigns')
       .update({ status: target })
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('owner_user_id', user.id)
       .select('id, status, dry_run')
       .single();

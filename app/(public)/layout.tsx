@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description: 'AI שמייצר מודעות, פוסטים וקמפיינים — מבריף ועד פרסום ב-Meta. בעברית, אנגלית וערבית.',
 };
 
-export default function PublicLayout({ children }: { children: React.ReactNode }) {
-  const locale = parseLocale(cookies().get(LOCALE_COOKIE)?.value);
+export default async function PublicLayout({ children }: { children: React.ReactNode }) {
+  const locale = parseLocale((await cookies()).get(LOCALE_COOKIE)?.value);
   return <PublicShell locale={locale}>{children}</PublicShell>;
 }

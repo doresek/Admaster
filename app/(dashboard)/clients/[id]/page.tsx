@@ -16,15 +16,15 @@ import { KnowledgeWall } from '@/components/intelligence/KnowledgeWall';
 import { StrategySnapshot } from '@/components/intelligence/StrategySnapshot';
 import { BuildingBrain } from '@/components/intelligence/BuildingBrain';
 
-export default async function ClientWorkspacePage({ params }: { params: { id: string } }) {
-  const supabase = createSupabaseClient();
+export default async function ClientWorkspacePage({ params }: { params: Promise<{ id: string }> }) {
+  const supabase = await createSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     return <Alert type="amber">התחבר כדי לצפות בלקוח.</Alert>;
   }
 
-  const client = await getClient(supabase, params.id, user.id);
+  const client = await getClient(supabase, (await params).id, user.id);
   if (!client) {
     return (
       <div>

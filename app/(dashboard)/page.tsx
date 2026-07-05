@@ -14,7 +14,7 @@ const HOLIDAYS = [
 ];
 
 export default async function DashboardPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   // Agency-led first run: a brand-new user (no clients yet) gets a single,

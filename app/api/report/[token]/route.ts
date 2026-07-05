@@ -9,10 +9,10 @@ import { REPORT_TOKEN_REGEX, resolveReportShare } from './resolve';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { token: string } },
+  { params }: { params: Promise<{ token: string }> },
 ) {
   // Cheap rejection of malformed tokens — no DB hit for bot/scan traffic.
-  if (!REPORT_TOKEN_REGEX.test(params.token)) {
+  if (!REPORT_TOKEN_REGEX.test((await params).token)) {
     return NextResponse.json({ valid: false, error: 'Invalid token' }, { status: 400 });
   }
 
@@ -28,7 +28,7 @@ export async function GET(
   }
 
   const admin = createAdminClient();
-  const resolved = await resolveReportShare(admin, params.token);
+  const resolved = await resolveReportShare(admin, (await params).token);
 
   if (!resolved.valid) {
     // 410 Gone for an expired link, 404 for an unknown one.

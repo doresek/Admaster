@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { Card, CardLabel, Textarea, Btn, Alert, PageHeader, CostBadge } from '@/components/ui';
 import { useAI } from '@/lib/hooks/useAI';
@@ -55,7 +56,7 @@ export default function PublishPage() {
   }
 
   if (clients.length === 0) return (
-    <div><PageHeader eyebrow="Meta" title="פרסם פוסט" /><Alert type="amber">⚠️ הוסף לקוח Meta תחילה <a href="/clients" className="font-bold underline">לדף לקוחות →</a></Alert></div>
+    <div><PageHeader eyebrow="Meta" title="פרסם פוסט" /><Alert type="amber">⚠️ הוסף לקוח Meta תחילה <Link href="/clients" className="font-bold underline">לדף לקוחות →</Link></Alert></div>
   );
 
   return (
