@@ -2,14 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { deductCredits, refundCredits } from '@/lib/credits';
-import { recordArtifactWith, contextHash } from '@/lib/intelligence/artifacts';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildAiContext } from '@/lib/ai-context';
 import { readActiveClientCookie } from '@/lib/active-client';
-import { runMasterPipeline, type StageRunner } from '@/lib/master-studio/pipeline';
+import { type StageRunner } from '@/lib/master-studio/pipeline';
 import { withRetry, classifyError } from '@/lib/master-studio/retry';
-import { deriveFunnelStage, type MasterStudioInput } from '@/lib/master-studio';
-import { MARKETERS_BY_ID, type Marketer, type MarketerId } from '@/lib/marketers';
+import { type MasterStudioInput } from '@/lib/master-studio';
+import { runAndPersistMaster } from '@/lib/generation-queue/run-master';
 
 // Best-of-N runs 5-6 sequential Anthropic calls; the default 10s/60s function
 // budget is not enough. Vercel Fluid Compute allows up to 300s on Node.
@@ -84,82 +83,61 @@ export async function POST(req: NextRequest) {
     : 'צור פוסט שיווקי מקצועי ללקוח הפעיל, מבוסס על הבריף, ה-Brand DNA והתובנות שלו.';
   const input: MasterStudioInput = { brief: effectiveBrief, masterNotes, platform, tone, type, framework, hook, locale };
 
-  let result;
-  try {
-    result = await runMasterPipeline(input, run);
-  } catch (e) {
+  // Run + persist (artifact tagging and the generated_content history row) via
+  // the shared runner also used by the batch route. Persistence details —
+  // framework/hook/funnel tagging, insight ids, artifact_id riding in the jsonb
+  // output — live in lib/generation-queue/run-master.ts.
+  const outcome = await runAndPersistMaster(input, {
+    supabase,
+    createAdmin:    createAdminClient,
+    runStage:       run,
+    userId:         user.id,
+    activeClientId: activeClientId ?? null,
+    ctx,
+    model: MODEL,
+  });
+
+  if (!outcome.ok && outcome.kind === 'thrown') {
     // Refund first — never swallow it, regardless of how we classify the error.
     await refundCredits(supabase, user.id, 'master_post', deduct.cost);
-    const kind = classifyError(e);
-    console.error(`[master route] pipeline failed (${kind}):`, e);
+    const kind = classifyError(outcome.error);
+    console.error(`[master route] pipeline failed (${kind}):`, outcome.error);
     return NextResponse.json(
-      { error: 'נכשל ביצירה — נסה שוב', kind, detail: `${kind}: ${String(e).slice(0, 200)}` },
+      { error: 'נכשל ביצירה — נסה שוב', kind, detail: `${kind}: ${String(outcome.error).slice(0, 200)}` },
       { status: 502 }
     );
   }
 
-  if (!result.ok) {
+  if (!outcome.ok) {
     await refundCredits(supabase, user.id, 'master_post', deduct.cost);
-    return NextResponse.json({ error: 'תוצאה חלקית — נסה שוב', reason: result.reason }, { status: 502 });
+    return NextResponse.json({ error: 'תוצאה חלקית — נסה שוב', reason: outcome.reason }, { status: 502 });
   }
 
-  // Persist for history/analytics (best-effort; do not fail the request on insert error).
-  const out = result.output;
-  const { error: insertErr } = await supabase.from('generated_content').insert({
-    user_id:   user.id,
-    client_id: activeClientId ?? null,
-    type:      'master_post',
-    platform:  platform ?? null,
-    input:     { brief: effectiveBrief.substring(0, 500) },
-    output: {
-      post:      out.winner.draft.post.substring(0, 2000),
-      marketer:  out.winner.marketer,
-      score:     out.winner.score,
-      boosted:   out.boosted,
-      avatar:    out.avatar,
-      scores:    out.scores,
-      why:       out.judgeRationale,
-    },
-  });
-  if (insertErr) console.error('[master route] insert failed:', insertErr.message);
+  return NextResponse.json({ ...outcome.output, credits: deduct.credits, artifact_id: outcome.artifactId });
+}
 
-  // Tagged write-through to the living-knowledge artifact log (best-effort).
-  // Records the winning post tagged with the framework/hook it used and the
-  // insight ids buildAiContext grounded on, so the user-signal loop can later
-  // resolve which beliefs this post relied on. Only when an active client exists.
-  // Resolve the framework the post actually used: the user's explicit choice when
-  // given, otherwise the winning marketer's default framework (the pipeline lets
-  // each marketer write in their own framework, so this is the AI-chosen one).
-  // Likewise tag the funnel stage so the artifact is fully isolatable; both were
-  // landing null before.
-  const winnerFramework =
-    (MARKETERS_BY_ID as Record<string, Marketer>)[out.winner.marketer.id as MarketerId]?.framework_default;
-  const resolvedFramework = framework ?? winnerFramework ?? null;
-  const funnelStage = deriveFunnelStage(type);
+// ── Read-back: the last 10 master posts for the caller (optionally per client). ──
+// The create page uses this to show "יצירות אחרונות" and to restore a generation
+// after navigation (the client only held the result in useState).
+export async function GET(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  let artifactId: string | null = null;
-  if (activeClientId) {
-    const artifact = await recordArtifactWith(createAdminClient, {
-      clientId:    activeClientId,
-      ownerUserId: user.id,
-      type:        'post',
-      content: {
-        post:     out.winner.draft.post,
-        hashtags: out.winner.draft.hashtags,
-        whatsapp: out.winner.draft.whatsapp,
-        image:    out.winner.draft.image,
-        marketer: out.winner.marketer,
-        score:    out.winner.score,
-      },
-      framework:    resolvedFramework,
-      angle:        hook ?? null,
-      funnelStage,
-      avatarRef:    (out.avatar as Record<string, unknown> | null) ?? null,
-      insightIds:   ctx.insightIds,
-      generatedFrom: { model: MODEL, context_hash: contextHash(ctx.combined), platform: platform ?? null },
-    });
-    artifactId = artifact?.id ?? null;
+  const clientId = req.nextUrl.searchParams.get('clientId');
+  let q = supabase
+    .from('generated_content')
+    .select('id, client_id, platform, input, output, created_at')
+    .eq('user_id', user.id)
+    .eq('type', 'master_post')
+    .order('created_at', { ascending: false })
+    .limit(10);
+  if (clientId) q = q.eq('client_id', clientId);
+
+  const { data, error } = await q;
+  if (error) {
+    console.error('[master route] read-back failed:', error.message);
+    return NextResponse.json({ error: 'שגיאה בטעינת ההיסטוריה' }, { status: 500 });
   }
-
-  return NextResponse.json({ ...out, credits: deduct.credits, artifact_id: artifactId });
+  return NextResponse.json({ items: data ?? [] });
 }

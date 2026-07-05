@@ -63,6 +63,7 @@ export interface ScoredVariant extends Variant {
 
 export interface PipelineAcc {
   variants?: Variant[];         // generate → score
+  insightIds?: string[];        // generate → approval (atoms buildAiContext grounded on)
   scored?: ScoredVariant[];     // score
   best?: ScoredVariant;         // score → judge/approval/targeting
   judge?: unknown;              // judge → approval (verdict from lib/judge)

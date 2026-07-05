@@ -35,14 +35,21 @@ describe('client-core/run route — long-orchestrator budget', () => {
   });
 });
 
-describe('ai/master route — full artifact isolation tags', () => {
-  const src = read('app/api/ai/master/route.ts');
+describe('ai/master run-and-persist — full artifact isolation tags', () => {
+  // CP-3 extracted the run-and-persist logic (shared by the single and batch
+  // master routes) into lib/generation-queue/run-master.ts — the artifact
+  // tagging asserted here lives there now, on behalf of BOTH routes.
+  const src = read('lib/generation-queue/run-master.ts');
   it('resolves a framework (input or winning marketer default) for the artifact', () => {
     expect(src).toMatch(/framework_default/);
     expect(src).toMatch(/framework:\s*resolvedFramework/);
   });
   it('derives and passes a funnel_stage for the artifact', () => {
-    expect(src).toMatch(/deriveFunnelStage\(type\)/);
+    expect(src).toMatch(/deriveFunnelStage\(input\.type\)/);
     expect(src).toMatch(/funnelStage/);
+  });
+  it('both master routes use the shared runner', () => {
+    expect(read('app/api/ai/master/route.ts')).toMatch(/runAndPersistMaster/);
+    expect(read('app/api/ai/master/batch/route.ts')).toMatch(/runAndPersistMaster/);
   });
 });

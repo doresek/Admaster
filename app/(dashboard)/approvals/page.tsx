@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardLabel, Textarea, Input, Btn, CopyBtn, Alert, PageHeader, Tabs, Chip } from '@/components/ui';
 import { useActiveClient } from '@/components/ClientProvider';
+import { AdPreview, AdThumb } from '@/components/approvals/AdPreview';
 import { clsx } from 'clsx';
 
 interface Approval {
@@ -24,7 +25,7 @@ const STATUS_LABELS = {
 };
 
 export default function ApprovalsPage() {
-  const { activeClient, activeClientId } = useActiveClient();
+  const { activeClient, activeClientId, clients } = useActiveClient();
   const [tab,       setTab]      = useState('list');
   const [items,     setItems]    = useState<Approval[]>([]);
   const [title,     setTitle]    = useState('');
@@ -33,16 +34,27 @@ export default function ApprovalsPage() {
   const [newLink,   setNewLink]  = useState('');
   const [error,     setError]    = useState('');
   const [loading,   setLoading]  = useState(false);
-
-  async function load() {
-    const res = await fetch('/api/approvals');
-    const data = await res.json();
-    setItems(Array.isArray(data) ? data : []);
-  }
+  // List scope: the active client by default, with an explicit "all" fallback.
+  const [scope,     setScope]    = useState<'active' | 'all'>('active');
 
   useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const qs = scope === 'active' && activeClientId ? `?client_id=${activeClientId}` : '';
+      const res = await fetch(`/api/approvals${qs}`);
+      const data = await res.json();
+      if (!cancelled) setItems(Array.isArray(data) ? data : []);
+    }
     load();
-  }, []);
+    return () => { cancelled = true; };
+  }, [activeClientId, scope]);
+
+  function clientLabel(item: Approval): string | null {
+    const c = clients.find((x) => x.id === item.client_id);
+    if (c) return `${c.emoji} ${c.name}`;
+    const snap = item.content?.client_name;
+    return typeof snap === 'string' && snap ? `🏢 ${snap}` : null;
+  }
 
   async function create() {
     if (!text.trim()) return;
@@ -144,24 +156,16 @@ export default function ApprovalsPage() {
           </div>
 
           <div>
-            {/* Live preview */}
+            {/* Live preview — the exact ad frame the client will see */}
             <div className="text-xs font-bold text-[#2E4459] uppercase tracking-wider mb-3">תצוגה מקדימה — מה הלקוח יראה</div>
-            <div className="bg-white text-black rounded-xl overflow-hidden border border-[#2A4158]">
-              <div className="bg-gradient-to-r from-[#0A7AFF] to-[#3D9FFF] text-white p-4">
-                <div className="text-xs opacity-90">בקשת אישור</div>
-                <div className="font-bold">{title || 'תוכן לאישור'}</div>
-              </div>
-              <div className="p-4">
-                {imageUrl && <img src={imageUrl} alt="" className="w-full rounded mb-3" />}
-                <div className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800 min-h-[80px]" dir="rtl">
-                  {text || 'התוכן יופיע כאן...'}
-                </div>
-                <div className="flex gap-2 mt-4 pt-3 border-t">
-                  <div className="flex-1 text-center py-2 bg-green-100 text-green-700 rounded text-sm font-bold">✅ אשר</div>
-                  <div className="flex-1 text-center py-2 bg-amber-100 text-amber-700 rounded text-sm font-bold">✍️ בקש שינויים</div>
-                  <div className="flex-1 text-center py-2 bg-red-100 text-red-700 rounded text-sm font-bold">❌ דחה</div>
-                </div>
-              </div>
+            <AdPreview
+              content={{ text: text || 'התוכן יופיע כאן...', image_url: imageUrl || null }}
+              clientName={activeClient?.name ?? null}
+            />
+            <div className="flex gap-2 mt-3">
+              <div className="flex-1 text-center py-2 bg-green-500/10 text-green-500 border border-green-500/20 rounded text-sm font-bold">✅ אשר</div>
+              <div className="flex-1 text-center py-2 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded text-sm font-bold">✍️ בקש שינויים</div>
+              <div className="flex-1 text-center py-2 bg-red-500/10 text-red-500 border border-red-500/20 rounded text-sm font-bold">❌ דחה</div>
             </div>
           </div>
         </div>
@@ -169,6 +173,17 @@ export default function ApprovalsPage() {
 
       {tab === 'list' && (
         <div>
+          {activeClient && (
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[11px] text-[#6B8FA8]">מציג:</span>
+              <Chip
+                label={`${activeClient.emoji} ${activeClient.name}`}
+                active={scope === 'active'}
+                onClick={() => setScope('active')}
+              />
+              <Chip label="כל הלקוחות" active={scope === 'all'} onClick={() => setScope('all')} />
+            </div>
+          )}
           {items.length === 0 ? (
             <div className="text-center py-16 border border-dashed border-[#2A4158] rounded-xl text-[#2E4459]">
               <div className="text-4xl mb-3 opacity-30">📭</div>
@@ -179,18 +194,25 @@ export default function ApprovalsPage() {
             items.map(item => {
               const s = STATUS_LABELS[item.status];
               const url = typeof window !== 'undefined' ? `${window.location.origin}/approve/${item.token}` : '';
+              const cLabel = clientLabel(item);
               return (
                 <div key={item.id} className="bg-[#111A24] border border-[#1E2F42] rounded-xl p-4 mb-2">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                         <span className={clsx('text-[10px] font-bold px-2 py-0.5 rounded-full')}
                           style={{background: `${s.color}15`, color: s.color, border: `1px solid ${s.color}33`}}>
                           {s.emoji} {s.label}
                         </span>
                         <span className="text-xs text-[#D9E8F5] truncate">{item.title || 'ללא כותרת'}</span>
+                        {cLabel && <Chip label={cLabel} />}
                       </div>
-                      <div className="text-[11px] text-[#6B8FA8] truncate">{item.content?.text?.substring(0, 100)}</div>
+                      <AdThumb content={item.content} />
+                      {item.status === 'approved' && (
+                        <div className="mt-2 text-[11px] text-[#059669]">
+                          ✅ הלקוח אישר — המודעה ממתינה להפעלה על ידך. שום דבר לא מתפרסם אוטומטית.
+                        </div>
+                      )}
                       {item.feedback && (
                         <div className="mt-2 bg-[#D97706]/10 border border-[#D97706]/20 text-[#D97706] text-xs rounded-lg px-2.5 py-1.5">
                           💬 פידבק: {item.feedback}
