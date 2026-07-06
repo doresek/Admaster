@@ -270,7 +270,9 @@ export interface FunnelRow {
 // ── learning_signals additions (migration 034 widened the CHECK) ─────────────
 
 /** New signal types the capabilities emit through the existing lifecycle. */
-export type CapabilitySignalType = 'hypothesis_supported' | 'hypothesis_refuted' | 'voc_evidence';
+export type CapabilitySignalType =
+  | 'hypothesis_supported' | 'hypothesis_refuted' | 'voc_evidence'
+  | 'competitor_evidence' | 'sales_outcome';
 
 // ── Autonomy modes (migrations 040+044; VISION-DEEP §1.4, D1 DECIDED) ─────────
 

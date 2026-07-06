@@ -6,6 +6,21 @@
 
 ---
 
+# ===== MEASUREMENT SPINE + DASHBOARDS (2026-07-06, branch `feat/measurement-spine`) — plans: MEASUREMENT-SPINE-PLAN.md (owner-approved) + DASHBOARD-ARCHITECTURE.md =====
+
+**RESUME HERE (fresh session entry point):** Wave M-A DONE+green+pushed (`c994618`): migration **060 applied+verified** (funnel_leads, lead_touchpoints, lead_stage_events, client_economics, channel_reconciliation + sales_outcome signal) · lib/economics (130 tests) · lib/measurement (84 tests; L0 capture live on /lp + lead route, back-compat locked by existing tests) · lib/metrics-layer + lib/narration (81 tests). Gate was green: tsc clean, **1,874 tests**, build 126 pages. **NEXT:** Wave M-B/D — (1) `app/(dashboard)/leads` stage-marking UI over `app/api/measurement`; (2) D-1 client dashboard `app/(dashboard)/pulse` + `app/api/pulse` (owner+marketer modes, DASHBOARD-ARCHITECTURE §1); (3) D-2 agency portfolio `app/(dashboard)/portfolio` (§2); then SERIAL wire-ins: heartbeat monthly → `runReconciliation` (fixture-ready), digest economics line. **Owner dashboard (D3) NOT built — awaiting security-session isolation review (§3, Rung-1 separate-app recommended).** Migration numbers: this session holds **060–063**; security session holds 052+. Money + self-campaign PAUSED. Nothing awaits the owner beyond the two standing gates.
+
+| Item | State | Notes |
+|---|---|---|
+| Migration 060 (5 tables + sales_outcome CHECK) | **applied+verified** ✅ | RLS 5/5; down file present |
+| Economics engine (`lib/economics` + API) | **green ✅** (130 tests) | break-even=1/CM, value-per-lead ceiling, BOTH-gates, computed-from-data n≥5 |
+| Measurement core (`lib/measurement` + API + /lp capture) | **green ✅** (84 tests) | strict L0 capture, 30d dedupe, forward-only stages, sales_outcome→lifecycle (+0.6/−0.4), lead-capture-is-sacred, reconciliation verdicts 1.3/2.0 |
+| Metrics layer + narration | **green ✅** (81 tests) | 12-KPI registry (honesty labels MUST be rendered by UI), anti-hallucination narration, owner/marketer registers |
+| **Wave M-A gate** | **green ✅** (`c994618`) | tsc · 1,874 tests · build · pushed |
+| Wave M-B/D (leads UI · pulse · portfolio · serial wire-ins) | **doing** | |
+
+---
+
 # ===== SESSION 2026-07-05 — UX layer: client-context propagation + campaign traceability =====
 
 **Theme:** make the whole app operate in ONE client's context, and make the owner's real campaign path auditable — then verify it all live on prod. Doctrine held: additive only, no migrations this session, money gate untouched, self-campaign PAUSED.
