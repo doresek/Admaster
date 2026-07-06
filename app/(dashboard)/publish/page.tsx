@@ -67,7 +67,11 @@ export default function PublishPage() {
         if (!res.ok) return;
         const rows = await res.json();
         if (!cancelled && Array.isArray(rows)) {
-          setApproved(rows.filter((r: ApprovalRow) => r?.status === 'approved'));
+          // approved = actionable; published (mig 053) = shown with a persistent פורסם ✓
+          setApproved(rows.filter((r: ApprovalRow) => r?.status === 'approved' || r?.status === 'published'));
+          setPublishedIds(new Set(
+            rows.filter((r: ApprovalRow) => r?.status === 'published').map((r: ApprovalRow) => r.id),
+          ));
         }
       } catch { /* composer still works without the approvals list */ }
       finally { if (!cancelled) setApprLoaded(true); }
@@ -114,11 +118,16 @@ export default function PublishPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setPub(data.id);
-      // Close the loop visually: mark the approved card as published.
-      // (The approvals status vocabulary has no 'published' — client-side marker only.)
+      // Close the loop FOR REAL: persist approved → published (mig 053 + PATCH).
+      // Best-effort — a failed mark never undoes a successful publish.
       if (fromApproval) {
         const id = fromApproval.id;
         setPublishedIds(prev => new Set(prev).add(id));
+        fetch('/api/approvals', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, action: 'mark_published' }),
+        }).catch(() => { /* visual mark already set; status persists on next success */ });
       }
       // Deduct credits
       await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'publish', system: '', prompt: '' }) });

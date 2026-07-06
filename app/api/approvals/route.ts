@@ -90,6 +90,34 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(data ?? []);
 }
 
+// Mark an approved item as published (mig 053 widened the status CHECK).
+// Narrow allow-list on purpose: the ONLY transition this route performs is
+// approved → published — approve/reject stay on the token-respond flow, and no
+// caller-supplied status is ever written verbatim.
+export async function PATCH(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const body = (await req.json().catch(() => ({}))) as { id?: string; action?: string };
+  if (!body.id || body.action !== 'mark_published') {
+    return NextResponse.json({ error: 'Expected { id, action: "mark_published" }' }, { status: 400 });
+  }
+
+  const { data, error } = await supabase
+    .from('approvals')
+    .update({ status: 'published', published_at: new Date().toISOString() })
+    .eq('id', body.id)
+    .eq('user_id', user.id)
+    .eq('status', 'approved') // only an approved item can become published
+    .select('id, status, published_at')
+    .maybeSingle();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data) return NextResponse.json({ error: 'Approval not found or not in approved state' }, { status: 404 });
+
+  return NextResponse.json(data);
+}
+
 // Delete an approval
 export async function DELETE(req: NextRequest) {
   const supabase = await createClient();
