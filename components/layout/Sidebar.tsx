@@ -37,6 +37,10 @@ const NAV: NavItem[] = [
   { id:'refine',     href:'/refine',     icon:'🔁', label:'שיפור',       cost:4 },
   { id:'analytics',  href:'/analytics',  icon:'📈', label:'ביצועים Meta' },
 
+  { sec:'שיווק אורגני' },
+  { id:'calendar', href:'/calendar', icon:'📅', label:'לוח תוכן' },
+  { id:'contacts', href:'/contacts', icon:'👥', label:'אנשי קשר' },
+
   { sec:'ערוצים' },
   { id:'messages', href:'/messages', icon:'📧', label:'Email/SMS/WA', cost:3 },
   { id:'series',   href:'/series',   icon:'🗓', label:'סדרות',        cost:20 },
@@ -49,8 +53,7 @@ const NAV: NavItem[] = [
   { id:'reports',    href:'/reports',    icon:'📋', label:'דוחות' },
   { id:'library',    href:'/library',    icon:'📚', label:'ספריית מודעות' },
   { id:'history',    href:'/history',    icon:'🕒', label:'היסטוריה' },
-  { id:'schedule',   href:'/schedule',   icon:'🗓', label:'לוח תוכן' },
-  { id:'calendar',   href:'/calendar',   icon:'📅', label:'לוח חגים', cost:3 },
+  { id:'schedule',   href:'/schedule',   icon:'🗓', label:'תזמון פוסטים' },
 
   { sec:'ניהול' },
   { id:'team',    href:'/team',    icon:'👤', label:'צוות' },

@@ -35,7 +35,13 @@
 - **CP-6b T5+T6 done** — series page: audience_tags + eligible-count preview + "הפעל סדרה (אישור Mode 2)" (enrollment upsert-idempotent, tombstone-safe, NEVER sends); `/contacts` page (consent-attestation-gated add + CSV import + tombstone opt-out); public `/optout/[token]` + rate-limited anon RPC route; middleware publicRoutes +`/optout` (planning-tree checked clean). 13 tests.
 - **P1-7 done** — `lib/organic-perf` + `/api/organic/perf` (32 tests): verdict math (ER≥0.05 worked / ≥0.02 under / else failed; reach<50 → null), Graph fetcher seam (header-token discipline; dryrun ids never fetched), per-day dedupe backstopped by mig-033 unique index (`ad_id=meta_post_id`), manual path works TODAY.
 
-**NEXT:** (1) U-1 sidebar organic section (orchestrator-serial). (2) P1-6 heartbeat weekly wire-in + retention daily tick (⚠ shared `lib/heartbeat` — orchestrator-serial). (3) P3-1/P3-2 topic engine (mine) per #75 spec-refs. **Waiting on owner:** G0-1 Business Verification (workbook ready — the 2-6-week clock); Nano-Banana billing (~the 10th); CP-4b routed around (LP=planning's); email/SMS provider creds for live retention sends. Money gate intact; self-campaign PAUSED; no destructive migrations pending.
+**Wave 5 (gate tsc 0 · 1,859 tests (+28) · build):**
+- **P3-1 done** — mig **054 articles APPLIED+verified** (idea→outline→draft→review→published, topic_source, grounded_in, unique client+slug). Ledger: 052/053/054 = this lane; planning = 060+.
+- **P3-2 done** — `lib/articles` topic engine to `ORGANIC-DEEP-RESEARCH` §1.1 (28 tests): atom→query mapping (objection→pricing/commercial · desire→transactional · alternative→comparison · proof→E-E-A-T · pain/unspoken_want→informational GEO; business atoms = injection-only), Hebrew morphological expansion, **band-safe commercial-first scoring** (a 0-confidence commercial topic always outranks a perfect informational one), VoC corroboration boost, idea-rows persisted (Hebrew-safe idempotent slugs) + `POST/GET /api/articles/topics`.
+- **U-1 done** — sidebar "שיווק אורגני" section (לוח תוכן /calendar + אנשי קשר /contacts); legacy schedule renamed.
+- **P1-6 DEFERRED (cross-branch honesty):** planning branch actively edits `lib/heartbeat` (types.ts + monthly.ts) — wiring weekly.ts now guarantees a merge conflict. Wire the weekly organic-plan emission + retention daily tick AFTER measurement-spine merges.
+
+**NEXT queue:** P3-3 article generator (binding GEO rules from #75 — answer-first openings, question-H2s, info-gain gate) → P3-4 video scripts → P2-1..P2-4 site model/generator/serving (with #75's §3.2 technical layer) → GBP family (manual-assist) → P1-6 after planning merges. **Waiting on owner:** G0-1 Business Verification (workbook ready — the 2-6-week clock); Nano-Banana billing (~the 10th); CP-4b (LP=planning's); email/SMS provider creds. Money gate intact; self-campaign PAUSED; no destructive migrations pending; nothing sends or spends.
 
 ---
 
