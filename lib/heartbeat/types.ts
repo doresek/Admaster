@@ -121,6 +121,15 @@ export interface TickDeps {
   observations?:   ObservationsProvider;
   now?:            Date;
   campaignRunner?: CampaignRunner;
+  /**
+   * Platform-claimed conversions per channel for a period — the reconciliation
+   * input (MEASUREMENT-SPINE-PLAN §6.5). Live numbers arrive at the H4 flip;
+   * absent (the default) → the monthly tick SKIPS reconciliation with an
+   * honest note instead of writing zero-claim noise rows. Returning null from
+   * the provider means "no data for this client/period" (also a skip).
+   */
+  platformClaims?: (clientId: string, period: { start: string; end: string }) =>
+    Promise<Partial<Record<string, number>> | null>;
 }
 
 // ── typed errors ──────────────────────────────────────────────────────────────

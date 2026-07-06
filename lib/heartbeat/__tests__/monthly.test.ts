@@ -119,3 +119,64 @@ describe('runMonthlyTick — mode suggestion (D1: suggest, never switch)', () =>
     expect(result.actions).toHaveLength(0);
   });
 });
+
+describe('runMonthlyTick — channel reconciliation (H4-gated seam)', () => {
+  it('no platformClaims provider → honest skip note, no reconciliation rows', async () => {
+    const result = await runMonthlyTick(ctx(), { supabase: db.client, now: NOW });
+    expect(result.notes.some((n) => n.includes('reconciliation skipped') && n.includes('H4'))).toBe(true);
+    expect(db.rows('channel_reconciliation')).toHaveLength(0);
+  });
+
+  it('provider returns null → skip note (no data for the period), no rows', async () => {
+    const result = await runMonthlyTick(ctx(), {
+      supabase: db.client, now: NOW,
+      platformClaims: async () => null,
+    });
+    expect(result.notes.some((n) => n.includes('provider returned no data'))).toBe(true);
+    expect(db.rows('channel_reconciliation')).toHaveLength(0);
+  });
+
+  it('provider returns claims → reconciliation runs, verdict noted with the numbers', async () => {
+    // One CRM-truth lead this period, acquired via paid Meta.
+    db.seed('funnel_leads', [{
+      id: 'lead-1', client_id: CLIENT, owner_user_id: OWNER,
+      source: 'landing', source_ref: {}, name: 'א', phone: '0501111111', email: null,
+      consent_marketing: false, consent_recorded_at: null,
+      current_stage: 'new', value: null,
+      created_at: '2026-07-10T10:00:00.000Z', updated_at: '2026-07-10T10:00:00.000Z',
+    }]);
+    db.seed('lead_touchpoints', [{
+      id: 'tp-1', lead_id: 'lead-1', client_id: CLIENT, owner_user_id: OWNER,
+      fbclid: 'fb.1.x', gclid: null, ctwa_clid: null, meta_lead_id: null,
+      utm: { source: 'facebook', medium: 'cpc' },
+      landing_path: '/lp/x', referrer: null, user_agent: null,
+      captured_at: '2026-07-10T10:00:00.000Z',
+    }]);
+
+    const seen: Array<{ clientId: string; period: { start: string; end: string } }> = [];
+    const result = await runMonthlyTick(ctx(), {
+      supabase: db.client, now: NOW,
+      platformClaims: async (clientId, period) => {
+        seen.push({ clientId, period });
+        return { meta_paid: 2 };
+      },
+    });
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].clientId).toBe(CLIENT);
+    expect(seen[0].period.start).toBe('2026-07-01');
+    const note = result.notes.find((n) => n.startsWith('reconciliation meta_paid'));
+    expect(note).toBeDefined();
+    expect(note).toContain('claimed 2 / truth 1');
+    expect(db.rows('channel_reconciliation').length).toBeGreaterThan(0);
+  });
+
+  it('provider throwing → failure note, the tick and its digest are unaffected', async () => {
+    const result = await runMonthlyTick(ctx(), {
+      supabase: db.client, now: NOW,
+      platformClaims: async () => { throw new Error('meta api down'); },
+    });
+    expect(result.notes.some((n) => n.includes('reconciliation failed') && n.includes('meta api down'))).toBe(true);
+    expect(result.notes.some((n) => n.includes('monthly digest'))).toBe(true);
+  });
+});

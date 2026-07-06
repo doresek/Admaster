@@ -16,6 +16,7 @@
 import type { HeartbeatAction } from '@/lib/capability-contracts';
 import { assessModeSuggestion, getOrCreateAutonomy, recordModeSuggestion } from '@/lib/autonomy';
 import { composeAndSave, type ApprovalRequest } from '@/lib/digest';
+import { runReconciliation, type ReconciliationChannel } from '@/lib/measurement';
 import { synthesizeAndSave } from '@/lib/strategy-objects';
 import { utcMonthStart } from '../ledger';
 import type { TickContext, TickDeps, TickResult } from '../types';
@@ -84,6 +85,37 @@ export async function runMonthlyTick(ctx: TickContext, deps: TickDeps): Promise<
     notes.push(`mode suggestion surfaced: ${assessment.suggestion.reason}`);
   } else {
     notes.push(`no mode suggestion (mode ${autonomy.mode}; the track record does not clear the bar or there is no next rung)`);
+  }
+
+  // 2b) channel reconciliation (MEASUREMENT-SPINE-PLAN §6.5): platform-claimed
+  // vs CRM truth for the closing month. The claims provider is the H4-gated
+  // seam — absent or returning null → honest skip note, never zero-claim
+  // noise rows. Failures degrade to a note (a broken reconciliation must not
+  // fail the strategy review).
+  const period = { start: fmtDay(utcMonthStart(now)), end: fmtDay(utcMonthEnd(now)) };
+  if (!deps.platformClaims) {
+    notes.push('reconciliation skipped: no platform-claims provider (gated on H4)');
+  } else {
+    try {
+      const claims = await deps.platformClaims(ctx.clientId, period);
+      if (claims === null) {
+        notes.push('reconciliation skipped: provider returned no data for this period');
+      } else {
+        const results = await runReconciliation(deps.supabase, ctx.clientId, ctx.ownerUserId, {
+          period,
+          platformClaimed: claims as Partial<Record<ReconciliationChannel, number>>,
+        });
+        for (const r of results) {
+          notes.push(
+            `reconciliation ${r.channel}: ${r.computed.verdict} (claimed ${r.claimed} / truth ${r.truth})` +
+            (r.computed.note ? ` — ${r.computed.note}` : ''),
+          );
+        }
+        if (results.length === 0) notes.push('reconciliation: no channels with activity this period');
+      }
+    } catch (err) {
+      notes.push(`reconciliation failed (run unaffected): ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   // 3) the monthly digest.

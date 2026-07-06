@@ -17,7 +17,13 @@
 | Measurement core (`lib/measurement` + API + /lp capture) | **green ✅** (84 tests) | strict L0 capture, 30d dedupe, forward-only stages, sales_outcome→lifecycle (+0.6/−0.4), lead-capture-is-sacred, reconciliation verdicts 1.3/2.0 |
 | Metrics layer + narration | **green ✅** (81 tests) | 12-KPI registry (honesty labels MUST be rendered by UI), anti-hallucination narration, owner/marketer registers |
 | **Wave M-A gate** | **green ✅** (`c994618`) | tsc · 1,874 tests · build · pushed |
-| Wave M-B/D (leads UI · pulse · portfolio · serial wire-ins) | **doing** | |
+| Leads UI (`app/(dashboard)/leads`) | **green ✅** (56 tests) | one-tap stage marking (legal-next-stages anti-drift-tested vs the lib map), optimistic+rollback, 409→resync, mobile tap targets |
+| Pulse — D-1 client dashboard (`app/(dashboard)/pulse` + API) | **green ✅** (67 tests) | owner mode (≤4 tiles, zero jargon — server-enforced) + marketer mode (12 KPIs, reconciliation panel, למה? popovers from diagnoses+shock); honesty labels always rendered; forecast NOT fabricated (gated) |
+| Portfolio — D-2 agency dashboard (`app/(dashboard)/portfolio` + API) | **green ✅** (43 tests) | triage lanes ordered by REAL attention ranking; per-client failure → partial, never breaks; 20-client metric cap (honest label); owner-scoped at every layer |
+| Serial wire-in: heartbeat monthly → channel reconciliation | **green ✅** (+4 tests) | H4-gated `platformClaims` seam: absent→honest skip, null→skip, present→verdict notes, throw→note (run unaffected); heartbeat mock gained upsert |
+| **FINAL GATE (branch)** | **green ✅** | tsc clean · **2,048 tests, 0 fail** · build 130 pages |
+
+**Logged follow-ups (deliberate deferrals):** digest economics line (verdicts already surface in Pulse/Portfolio; add to digest composer later) · `approvals.client_id` FKs legacy `meta_clients` → per-client pending scoping weak until FK migrated (pulse degrades honestly) · sidebar nav entries for /pulse /portfolio /leads (sidebar = shared component, serial edit later or security-session coordination) · portfolio batched metric loader (>20 clients) · **Owner dashboard (D3): awaiting security-session isolation review** · attention component reasons are English (Hebrew labels shown; lib/attention i18n later).
 
 ---
 

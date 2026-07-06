@@ -71,7 +71,8 @@ function orPredicate(clause: string): Filter {
 
 class MockQuery {
   private readonly filters: Filter[] = [];
-  private action: 'select' | 'insert' | 'update' = 'select';
+  private action: 'select' | 'insert' | 'update' | 'upsert' = 'select';
+  private conflictCols: string[] = [];
   private payload: MockRow = {};
   private mode: 'list' | 'single' | 'maybeSingle' | 'count' = 'list';
   private orderBy: { column: string; ascending: boolean } | null = null;
@@ -85,6 +86,12 @@ class MockQuery {
   }
   insert(row: MockRow): this { this.action = 'insert'; this.payload = row; return this; }
   update(patch: MockRow): this { this.action = 'update'; this.payload = patch; return this; }
+  upsert(row: MockRow, opts?: { onConflict?: string }): this {
+    this.action = 'upsert';
+    this.payload = row;
+    this.conflictCols = (opts?.onConflict ?? '').split(',').map((c) => c.trim()).filter(Boolean);
+    return this;
+  }
   overrideTypes(): this { return this; }
   single(): this { this.mode = 'single'; return this; }
   maybeSingle(): this { this.mode = 'maybeSingle'; return this; }
@@ -190,6 +197,23 @@ class MockQuery {
       const row: MockRow = { id: `${this.table}-${++this.state.seq}`, ...this.payload };
       table.push(row);
       this.state.log.push(`insert:${this.table}`);
+      return [row];
+    }
+
+    // upsert: merge into the row matching ALL onConflict columns, else insert —
+    // mirrors PostgREST `upsert(row, { onConflict })` semantics.
+    if (this.action === 'upsert') {
+      const existing = this.conflictCols.length > 0
+        ? table.find((r) => this.conflictCols.every((c) => r[c] === this.payload[c]))
+        : undefined;
+      if (existing) {
+        Object.assign(existing, this.payload);
+        this.state.log.push(`upsert:${this.table}(update)`);
+        return [existing];
+      }
+      const row: MockRow = { id: `${this.table}-${++this.state.seq}`, created_at: new Date(0).toISOString(), ...this.payload };
+      table.push(row);
+      this.state.log.push(`upsert:${this.table}(insert)`);
       return [row];
     }
 
