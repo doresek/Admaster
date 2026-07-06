@@ -17,6 +17,7 @@ import { recordArtifactWith, contextHash } from '@/lib/intelligence/artifacts';
 import { runMasterPipeline, type StageRunner } from '@/lib/master-studio/pipeline';
 import { deriveFunnelStage, type MasterStudioInput, type MasterV2Output } from '@/lib/master-studio';
 import { MARKETERS_BY_ID, type Marketer, type MarketerId } from '@/lib/marketers';
+import { loadLearningContext } from '@/lib/generation-queue/lessons';
 import type { AiContextBlocks } from '@/lib/ai-context';
 
 export interface RunMasterEnv {
@@ -50,9 +51,23 @@ export async function runAndPersistMaster(
   input: MasterStudioInput,
   env:   RunMasterEnv,
 ): Promise<RunMasterOutcome> {
+  // G1 — cross-run learning: distill the client's recent judge verdicts into a
+  // compact Hebrew lessons block and hand it to the pipeline (Creator + Editor
+  // prompts). Single wiring point: BOTH /api/ai/master and its /batch sibling go
+  // through here. Best-effort and client-scoped — no client / no judged history /
+  // a load error all leave `input` untouched (prompts byte-identical to before).
+  let effective = input;
+  if (input.learningContext === undefined) {
+    const learningContext = await loadLearningContext(env.supabase, {
+      userId:   env.userId,
+      clientId: env.activeClientId,
+    });
+    if (learningContext) effective = { ...input, learningContext };
+  }
+
   let result;
   try {
-    result = await runMasterPipeline(input, env.runStage);
+    result = await runMasterPipeline(effective, env.runStage);
   } catch (e) {
     return { ok: false, kind: 'thrown', error: e };
   }

@@ -17,6 +17,11 @@ export function composeCreatorPrompt(
   const avatarBlock = avatar
     ? `persona: ${avatar.persona}\nfears: ${avatar.fears}\ndesires: ${avatar.desires}\nawareness: ${avatar.awareness_level}\nobjections: ${avatar.objections}`
     : '— (infer from brief) —';
+  // Cross-run learning (G1): lessons distilled from past judge verdicts. Empty /
+  // absent ⇒ this is '' and the prompt stays byte-identical to the no-history one.
+  const lessons = input.learningContext?.trim()
+    ? `\n═══ לקחים מפוסטים קודמים — חיזוק נקודות התורפה ═══\n${input.learningContext.trim()}\n`
+    : '';
 
   const system = `אתה ${marketer.name} ${marketer.emoji}. גלם אותו במלואו — קולו, signature moves, ה-framework המועדף שלו.
 
@@ -30,7 +35,7 @@ ${marketerToPromptBlock(marketer)}
 
 ═══ אווטאר היעד ═══
 ${avatarBlock}
-
+${lessons}
 ═══ GROUNDING (🔒 גובר על הנטייה להוסיף "צבע") ═══
 ⛔ אסור להמציא: אל תמציא ואל תבדה שמות של אנשים, בעלי עסקים, מקומות, תאריכים, מחירים, הסמכות, או כל עובדה ספציפית שאינה מופיעה בבריף. אם שם בעל העסק לא ניתן — פנה בצורה כללית (למשל "בעל העסק", "הצוות", "אנחנו") ולעולם אל תמציא שם. מותר לכתוב בסגנון של המשווק ולהוסיף רגש, אך לא לבדות פרטים ספציפיים — השתמש אך ורק בפרטים שהבריף באמת מספק.
 

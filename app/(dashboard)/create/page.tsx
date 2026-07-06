@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Card, CardLabel, Chip, Textarea, Btn, OutputBox, Tabs, CopyBtn, CostBadge, Alert, PageHeader, Spinner } from '@/components/ui';
 import { FRAMEWORKS, FRAMEWORKS_BY_ID, type FrameworkId } from '@/lib/frameworks';
 import { MASTER_NOTES_MAX, type MasterV2Output } from '@/lib/master-studio';
+import { buildEditSignal } from '@/lib/master-studio/edit-signal';
 import { ScoreBadge } from '@/components/ScoreBadge';
 import { ScorePanel } from '@/components/ScorePanel';
 import { BoostButton } from '@/components/BoostButton';
@@ -128,6 +129,13 @@ export default function CreatePage() {
   const [artifactId, setArtifactId] = useState<string | null>(null);
   const [revealOpen, setRevealOpen] = useState(true);
 
+  // Manual edit of the winning post (G2 — edits are learning signals). The
+  // textarea toggles over the read-only OutputBox; saving diffs vs the original
+  // and feeds the existing /api/intelligence/signal loop, best-effort.
+  const [editing,    setEditing]    = useState(false);
+  const [editedPost, setEditedPost] = useState('');
+  const [editNote,   setEditNote]   = useState<string | null>(null);
+
   const [score, setScore]               = useState<(ScoreResult & { score_id: string; iteration: number; max: number }) | null>(null);
   const [showPanel, setShowPanel]       = useState(false);
   const [scoreLoading, setScoreLoading] = useState(false);
@@ -223,8 +231,45 @@ export default function CreatePage() {
     setOut(restored);
     setArtifactId(typeof o.artifact_id === 'string' ? o.artifact_id : null);
     setScore(null); setShowPanel(false); setError(null);
+    setEditing(false); setEditNote(null);
     setTab('post');
     setRevealOpen(true);
+  }
+
+  // ── G2 (capture side): the winning post is editable; a saved edit is a
+  //    learning signal. We diff original→final (word-level, deterministic) and
+  //    POST the same route SignalButtons uses — a light edit corroborates
+  //    ('worked', the fix rides in `detail`), a heavy rewrite refutes ('wrong').
+  //    Strictly best-effort: failures are silent-logged, the user is never blocked.
+  function startEdit() {
+    if (!out) return;
+    setEditedPost(out.winner.draft.post);
+    setEditing(true);
+    setEditNote(null);
+  }
+
+  function saveEdit() {
+    if (!out) { setEditing(false); return; }
+    const original = out.winner.draft.post;
+    const finalText = editedPost.trim();
+    setEditing(false);
+    if (!finalText || finalText === original.trim()) return;
+    setOut(prev => prev
+      ? { ...prev, winner: { ...prev.winner, draft: { ...prev.winner.draft, post: finalText } } }
+      : prev);
+    const sig = buildEditSignal(original, finalText);
+    if (sig && artifactId) {
+      fetch('/api/intelligence/signal', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ artifactId, kind: sig.kind, detail: sig.detail }),
+      })
+        .then(r => { if (!r.ok) console.error('[create] edit signal failed:', r.status); })
+        .catch(e => console.error('[create] edit signal failed:', e));
+      setEditNote('✓ העריכה נשמרה — הלקח הוזן למודל הלמידה');
+    } else {
+      setEditNote('✓ העריכה נשמרה');
+    }
   }
 
   async function fetchScore(copy: string, sourceId?: string) {
@@ -256,6 +301,7 @@ export default function CreatePage() {
       return;
     }
     setLoading(true); setStage(1); setError(null); setOut(null); setScore(null); setArtifactId(null);
+    setEditing(false); setEditNote(null);
     // Track the run so it survives navigation: the server persists on completion
     // (CP-4), and this marker keeps the recent list polling until it shows up.
     const marker = newMarker('single', 1, recent.map(r => r.id));
@@ -571,11 +617,25 @@ export default function CreatePage() {
 
               {tab === 'post' && (
                 <>
-                  <OutputBox text={out.winner.draft.post} />
-                  <div className="flex gap-2 mt-2">
-                    <CopyBtn text={out.winner.draft.post + '\n\n' + out.winner.draft.hashtags.join(' ')} />
-                    <Btn variant="ghost" size="sm" onClick={generate} disabled={loading}>🔄 שוב</Btn>
-                  </div>
+                  {editing ? (
+                    <>
+                      <Textarea value={editedPost} onChange={setEditedPost} rows={10} />
+                      <div className="flex gap-2">
+                        <Btn variant="primary" size="sm" onClick={saveEdit}>💾 שמור</Btn>
+                        <Btn variant="ghost" size="sm" onClick={() => setEditing(false)}>ביטול</Btn>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <OutputBox text={out.winner.draft.post} />
+                      <div className="flex gap-2 mt-2">
+                        <CopyBtn text={out.winner.draft.post + '\n\n' + out.winner.draft.hashtags.join(' ')} />
+                        <Btn variant="ghost" size="sm" onClick={startEdit} disabled={loading}>✏️ ערוך</Btn>
+                        <Btn variant="ghost" size="sm" onClick={generate} disabled={loading}>🔄 שוב</Btn>
+                      </div>
+                      {editNote && <div className="text-[11px] text-emerald-400 mt-2" dir="rtl">{editNote}</div>}
+                    </>
+                  )}
                   {artifactId && <SignalButtons artifactId={artifactId} className="mt-3" />}
                   {(score || scoreLoading) && (
                     <div className="flex items-center gap-3 mt-3" dir="rtl">

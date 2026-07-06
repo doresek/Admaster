@@ -6,6 +6,27 @@
 
 ---
 
+# ===== SESSION 2026-07-06 — Content Pipeline, Retention & Learning (execution lane) =====
+
+**Lane split:** this session = content-pipeline + ORGANIC-TASKS execution, in worktree `~/admaster-db-content`; the planning session = measurement/brain/LP/economics/market-intel/techniques/dashboards, in `~/admaster-db` @ `feat/measurement-spine`. Shared files serial; migration ledger: **051 applied** (organic_schedule) · **052 RESERVED contacts/retention (unapplied; SQL in `docs/RETENTION-ENGINE-DESIGN.md`)** · planning = 053+.
+
+**Organic cluster 1 (PR #71, merged):** P1-1 mig 051 `organic_schedule` applied+verified · P1-2 `lib/organic-calendar` (deterministic planner, TopicExpander LLM seam, holiday-PREP lookahead, records campaign+decisions+slots; 12 tests) · G0-2 `/privacy`+`/data-deletion` live on prod · G0-1/G0-3 owner workbook `docs/app-review-submission.md` (2-6-week external clock — owner to submit).
+
+**Content-Pipeline wave 1 (PR #74, merged; gate tsc 0 · 1,596 tests · build):**
+- **CP-4** work never vanishes: master route persists FULL output+artifact_id, GET read-back, "יצירות אחרונות" restore UI. Audit: quick-campaign/images persist OK; landing-generate same bug class → **CP-4b (ROUTED AROUND — LP folder is planning-owned)**.
+- **CP-3** non-blocking + batch: `lib/generation-queue` shared runner (single route byte-equivalent), `POST /api/ai/master/batch` (2-5 parallel full pipelines, rotated type+hook, upfront deduct, per-failure refunds, tested), progress survives navigation (sessionStorage markers + GET polling).
+- **CP-1** approval shows the ACTUAL ad: `components/approvals` AdPreview (FB-frame + grounded WHY) + AdThumb on dashboard list/create-tab/public approve page; approvals POST snapshots client_name+grounding; client-scoped list; autopilot grounding gap fixed (insightIds through PipelineAcc → approval content).
+- **CP-5a** `docs/LEARNING-LOOP-MAP.md`: judge has NO per-dim weights (model blend; scroll_stop 0.4 of winner *selection*), the ONE wired learning loop (user signals) had 0 rows ever, 87 = un-anchored-judge compression (n=9, sd 3.2), gaps G1-G3.
+- **CP-6 design** `docs/RETENTION-ENGINE-DESIGN.md`: `client_contacts` (name 'contacts' TAKEN), 8 testable don't-nag invariants, fail-closed compliance chokepoint (Shabbat/Yom-Tov/hours/caps), autonomy tie-in, 8 owner questions (best-call defaults authorized).
+
+**Content-Pipeline wave 2 (this branch `feat/content-pipeline-wave-2`; gate tsc 0 · 1,622 tests · build):**
+- **CP-2** publish-from-approved: approved ads = PRIMARY publish path (AdThumb cards → composer, same publish POST), create-from-scratch demoted, פורסם✓ session-mark. **Schema gap found:** `approvals.status` CHECK = `('pending','approved','changes','rejected')` — no `'published'`, no PATCH route (mig 003:98 + 007:81).
+- **CP-5b** learning wired: G1 lessons-block (client's last 8 posts → 3 weakest dims + judge rationales → creator+editor prompts via the shared runner; empty→byte-identical prompts) · G3 judge scale anchors (honest-spread instruction, dims/weights/parse untouched) · G2 edit-capture (editable winner post → LCS diff → existing signal route, worked<50%≤wrong). +26 tests.
+
+**NEXT (in order):** (1) approvals `'published'` CHECK widening + PATCH + publish-page persist (orchestrator-serial; migration number re-checked across both branches first). (2) CP-6b retention build: T1/T2 pure (`lib/retention/` invariants+gate, no migration) → apply 052 (additive) → T3-T6; owner-question defaults logged. (3) P1-3 `lib/organic-posts` + P1-4 `lib/organic-publish`+`app/api/organic/publish` (dry-run — the App-Review demo flow G0-4 needs). (4) P1-5 calendar UI, P1-7 organic perf. **Waiting on owner:** G0-1 Business Verification submission; Nano-Banana billing (~the 10th). Money gate intact; self-campaign PAUSED; no destructive migrations pending.
+
+---
+
 # ===== SESSION 2026-07-05 — UX layer: client-context propagation + campaign traceability =====
 
 **Theme:** make the whole app operate in ONE client's context, and make the owner's real campaign path auditable — then verify it all live on prod. Doctrine held: additive only, no migrations this session, money gate untouched, self-campaign PAUSED.

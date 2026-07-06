@@ -14,6 +14,28 @@ describe('composeEditorPrompt', () => {
     expect(system).toContain(marketer.name);
     expect(system).toContain('[POST]');
   });
+
+  it('includes the framed lessons section when learningContext is provided (G1)', () => {
+    const lessons = 'נימוקי השופט האחרונים:\n• "ה-CTA היה גנרי מדי"';
+    const { system } = composeEditorPrompt(
+      draft as any, marketer as any, score as any,
+      { brief: 'x', platform: 'FB', learningContext: lessons });
+    expect(system).toContain('═══ לקחים מפוסטים קודמים — חיזוק נקודות התורפה ═══');
+    expect(system).toContain('ה-CTA היה גנרי מדי');
+    expect(system).toContain('[POST]'); // output contract intact
+  });
+
+  it('prompts are byte-identical to the no-history prompt when learningContext is absent/empty', () => {
+    const base = composeEditorPrompt(draft as any, marketer as any, score as any, { brief: 'x', platform: 'FB' });
+    const withUndef = composeEditorPrompt(
+      draft as any, marketer as any, score as any, { brief: 'x', platform: 'FB', learningContext: undefined });
+    const withEmpty = composeEditorPrompt(
+      draft as any, marketer as any, score as any, { brief: 'x', platform: 'FB', learningContext: '  ' });
+    expect(withUndef.system).toBe(base.system);
+    expect(withEmpty.system).toBe(base.system);
+    expect(withEmpty.user).toBe(base.user);
+    expect(base.system).not.toContain('לקחים מפוסטים קודמים');
+  });
 });
 
 describe('parseEditor', () => {

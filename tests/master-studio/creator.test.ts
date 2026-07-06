@@ -26,6 +26,32 @@ describe('composeCreatorPrompt', () => {
     expect(system).toContain('בעל העסק'); // generic fallback, never an invented name
     expect(system).toContain('גובר על הנטייה להוסיף "צבע"');
   });
+  it('includes the framed lessons section when learningContext is provided (G1)', () => {
+    const lessons = '• עצירת-גלילה (scroll_stop) — ממוצע 70';
+    const { system } = composeCreatorPrompt(
+      { brief: 'x', platform: 'FB', learningContext: lessons }, MARKETERS_BY_ID.halbert, avatar);
+    expect(system).toContain('═══ לקחים מפוסטים קודמים — חיזוק נקודות התורפה ═══');
+    expect(system).toContain(lessons);
+    // Reliability contract intact — parser tags and grounding still present.
+    expect(system).toContain('[POST]');
+    expect(system).toContain('אסור להמציא');
+  });
+
+  it('prompts are byte-identical to the no-history prompt when learningContext is absent/empty', () => {
+    const base = composeCreatorPrompt({ brief: 'x', platform: 'FB' }, MARKETERS_BY_ID.halbert, avatar);
+    const withUndef = composeCreatorPrompt(
+      { brief: 'x', platform: 'FB', learningContext: undefined }, MARKETERS_BY_ID.halbert, avatar);
+    const withEmpty = composeCreatorPrompt(
+      { brief: 'x', platform: 'FB', learningContext: '' }, MARKETERS_BY_ID.halbert, avatar);
+    const withBlank = composeCreatorPrompt(
+      { brief: 'x', platform: 'FB', learningContext: '   \n ' }, MARKETERS_BY_ID.halbert, avatar);
+    expect(withUndef.system).toBe(base.system);
+    expect(withEmpty.system).toBe(base.system);
+    expect(withBlank.system).toBe(base.system);
+    expect(withEmpty.user).toBe(base.user);
+    expect(base.system).not.toContain('לקחים מפוסטים קודמים');
+  });
+
   it('engineers a scroll-stopping image + hook derived from the avatar atoms', () => {
     const { system } = composeCreatorPrompt(
       { brief: 'x', platform: 'FB' }, MARKETERS_BY_ID.halbert, avatar);
