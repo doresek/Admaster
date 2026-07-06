@@ -15,6 +15,13 @@ export interface MasterStudioInput {
   framework?:   FrameworkId;
   hook?:        string;
   locale?:      'he' | 'en' | 'ar';
+  /**
+   * Optional pre-derived Hebrew "lessons from past judged posts" block (G1 of
+   * the learning loop — see lib/generation-queue/lessons.ts). When present,
+   * Creator + Editor prompts include it as a framed section; when absent or
+   * empty, every prompt is byte-identical to the no-history behavior.
+   */
+  learningContext?: string;
 }
 
 export interface AvatarProfile {

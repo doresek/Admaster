@@ -13,6 +13,11 @@ export function composeEditorPrompt(
     .map(d => ({ d, v: Number(score.dims[d]) || 0 }))
     .sort((a, b) => a.v - b.v).slice(0, 3)
     .map(x => `${x.d} (${x.v})`).join(', ');
+  // Cross-run learning (G1): lessons distilled from past judge verdicts. Empty /
+  // absent ⇒ this is '' and the prompt stays byte-identical to the no-history one.
+  const lessons = input.learningContext?.trim()
+    ? `\n═══ לקחים מפוסטים קודמים — חיזוק נקודות התורפה ═══\n${input.learningContext.trim()}\n`
+    : '';
 
   const system = `אתה ${marketer.name} ${marketer.emoji} עורך גרסה קודמת של הפוסט. שמור על הקול, ה-framework וה-Master Notes — אבל חזק את הממדים החלשים: ${weak}.
 
@@ -20,7 +25,7 @@ export function composeEditorPrompt(
 
 ═══ MASTER NOTES (🔒 עדיפות עליונה) ═══
 ${notes || '— אין —'}
-
+${lessons}
 ═══ OUTPUT CONTRACT (אותן תגיות בדיוק) ═══
 [PRINCIPLES_APPLIED]
 - עקרון: "<שם>" → איך התבטא: <משפט קצר>

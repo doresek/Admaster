@@ -22,6 +22,29 @@ describe('composeJudgePrompt', () => {
     expect(system).toContain('עצירת-גלילה');            // defined as a judged dimension
     expect(system).toMatch(/pattern-interrupt/);        // craft cues present
   });
+
+  it('anchors the 0-100 scale with concrete bands and demands honest spread (G3)', () => {
+    const { system } = composeJudgePrompt(variants as any, { brief: 'x', platform: 'FB' });
+    expect(system).toContain('עוגני סקאלה');
+    // All four bands, each with a behavioral definition.
+    expect(system).toContain('90-100 = יוצא דופן, נדיר');
+    expect(system).toContain('75-89 = חזק');
+    expect(system).toContain('60-74 = בינוני');
+    expect(system).toContain('מתחת 60 = חלש');
+    // Per-band behavioral anchors for scroll_stop.
+    expect(system).toContain('עוגנים התנהגותיים ל-scroll_stop');
+    expect(system).toContain('עוצר את האגודל מיידית גם בפיד עמוס');
+    // Anti-compression instruction — the ~87 ceiling fix.
+    expect(system).toContain('אל תדחס הכל ל-80-87');
+    expect(system).toContain('השתמש בכל הסקאלה');
+  });
+
+  it('anchors did NOT change the dims, the weights, or the output contract', () => {
+    const { system } = composeJudgePrompt(variants as any, { brief: 'x', platform: 'FB' });
+    expect(system).toContain('שוקלל 40% מבחירת המנצח'); // SCROLL_STOP_WEIGHT untouched
+    expect(system).toContain('"winner_index": <int>');   // parse format untouched
+    expect(system).toContain('"rationale"');
+  });
 });
 
 describe('parseJudge', () => {
