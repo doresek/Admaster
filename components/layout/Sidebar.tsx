@@ -40,6 +40,7 @@ const NAV: NavItem[] = [
   { sec:'שיווק אורגני' },
   { id:'calendar', href:'/calendar', icon:'📅', label:'לוח תוכן' },
   { id:'contacts', href:'/contacts', icon:'👥', label:'אנשי קשר' },
+  { id:'gbp',      href:'/gbp',      icon:'📍', label:'Google עסקי' },
 
   { sec:'ערוצים' },
   { id:'messages', href:'/messages', icon:'📧', label:'Email/SMS/WA', cost:3 },

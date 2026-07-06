@@ -77,3 +77,34 @@ export interface SaveTopicsResult {
   created: number;
   skipped: number;
 }
+
+// ── P3-3/P3-4 additive types (article generator + video-script generator) ────
+
+/** One outline section — H2 must be question-form per ORGANIC-DEEP-RESEARCH §3.1. */
+export interface OutlineSection {
+  h2:     string;
+  points: string[];
+}
+
+/** articles.outline jsonb (migration 054: {h1, sections:[{h2,points[]}], faq:[{q}]}).
+    opening_answer = the §3.1 answer-first 40–150-word opening. */
+export interface ArticleOutline {
+  h1:             string;
+  opening_answer: string;
+  sections:       OutlineSection[];
+  faq:            { q: string }[];
+}
+
+/** A 30–60s video script (P3-4): scroll-stop hook, 3–5 beats, CTA. */
+export interface VideoScriptBeat {
+  /** Timestamp label, e.g. "0-5s". */
+  t:    string;
+  line: string;
+}
+
+export interface VideoScript {
+  /** ≤10 words — the scroll-stop opener. */
+  hook:  string;
+  beats: VideoScriptBeat[];
+  cta:   string;
+}
