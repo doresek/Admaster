@@ -29,7 +29,7 @@
 | P1-3 | Organic post generator | Per plan slot → full post + image prompt via master-studio; C-07 lint; artifact + `campaign_items(post, draft/assembled)` | P1-2 | `lib/organic-posts/` (new; thin over `lib/master-studio`) | M | NOW | done — lib/organic-posts (9 tests): slot→brief per post_type, master-studio pipeline, flag-only lint, artifact+item, zero-writes-on-failure, SlotWriter seam |
 | P1-4 | Publishing worker (dry-run) | Item → `routeAndLog('publish_organic')` → `lib/meta-publish` (dryRun) → item status + meta_object_id; Meta-native `scheduled_publish_time` for future slots. **This is the App-Review demo flow.** | P1-1, P1-3 | `lib/organic-publish/` (new), `app/api/organic/publish/route.ts` | M | NOW (dry-run); live = G0-6 | done (dry-run) — lib/organic-publish + POST /api/organic/publish (17 tests): claim-idempotent worker, publish_organic autonomy routing, photo/link/text dispatch, G0-6 live-flip list documented in worker.ts |
 | P1-5 | Calendar UI = real content calendar | `app/(dashboard)/calendar` shows the client plan; review/edit/approve per autonomy mode; uses `useActiveClient()` | P1-2, P1-3 | `app/(dashboard)/calendar/` | M | NOW | done — /calendar = real content calendar (plan create/list APIs, per-slot generate 6⚡ w/ refund, dry-run publish button, holiday cards, week grouping; 16 tests) |
-| P1-6 | Heartbeat weekly wire-in ⚠ | Weekly tick emits the organic plan (≤N posts/week client setting) + digest lists planned posts | P1-2..P1-4 | ⚠ `lib/heartbeat/ticks/weekly.ts`, `lib/digest` | M | NOW | todo |
+| P1-6 | Heartbeat weekly wire-in ⚠ | Weekly tick emits the organic plan (≤N posts/week client setting) + digest lists planned posts | P1-2..P1-4 | ⚠ `lib/heartbeat/ticks/weekly.ts`, `lib/digest` | M | NOW | DEFERRED (cross-branch) — planning branch actively edits lib/heartbeat (types.ts+monthly.ts); wire weekly organic-plan + retention daily tick AFTER measurement-spine merges |
 | P1-7 | Organic performance ingestion | Page-post metrics (`pages_read_engagement` — already granted) → `content_performance` → verdicts → `diagnoses` | P1-4 (posts exist) | `lib/organic-perf/` (new), `app/api/organic/perf/route.ts` | M | NOW (works on any page posts) | done — lib/organic-perf (ingester seam-injected, Graph fetcher live-ready, manual path works today, verdicts 0.05/0.02/reach<50→null) + /api/organic/perf, 32 tests |
 | P1-8 | IG publishing path | IG container+publish via existing `lib/meta-publish/instagram.ts`; per-client IG-business link check in onboarding | P1-4 | `lib/organic-publish/instagram.ts` | S | blocked-on-app-review | todo |
 
@@ -48,8 +48,8 @@
 
 | ID | Task | What it does | Depends on | Files/owned | Effort | NOW/gated | Status |
 |---|---|---|---|---|---|---|---|
-| P3-1 | Article model (schema) | Additive mig: `articles` (outline/body_md/seo/keywords/status lifecycle, grounded_in) | — | `supabase/migrations/0XX_articles.sql` | S | NOW | todo |
-| P3-2 | Topic engine | customers-atoms + VoC questions → scored topic backlog (pain × awareness × keyword intent, Hebrew-first); topics = grounded decisions | P3-1 | `lib/articles/topics.ts` (new) | M | NOW | todo |
+| P3-1 | Article model (schema) | Additive mig: `articles` (outline/body_md/seo/keywords/status lifecycle, grounded_in) | — | `supabase/migrations/0XX_articles.sql` | S | NOW | done — mig 054 articles applied+verified (idea→outline→draft→review→published lifecycle, topic_source, grounded_in, unique client+slug) |
+| P3-2 | Topic engine | customers-atoms + VoC questions → scored topic backlog (pain × awareness × keyword intent, Hebrew-first); topics = grounded decisions | P3-1 | `lib/articles/topics.ts` (new) | M | NOW | done — lib/articles topic engine per ORGANIC-DEEP-RESEARCH §1.1 (28 tests): atom→query map, Hebrew morphological expansion, commercial-first band-safe scoring, VoC corroboration, idea-row persistence + /api/articles/topics |
 | P3-3 | Article generator | Outline → per-section → edit-pass multi-call pipeline; brand-lint; FAQ+JSON-LD from objection atoms; internal links | P3-2 | `lib/articles/generate.ts`, `app/api/articles/` (new) | L | NOW | todo |
 | P3-4 | Video-script generator | Topic → 30–60s script (hook/beats/CTA), scroll-stop-judged | P3-2 | `lib/articles/video-script.ts` | S | NOW | todo |
 | P3-5 | Blog on the client site | Render published articles as `site_pages(kind='article')` + blog index | P2-4, P3-3 | `app/site/` (blog templates) | S | after P2-4 | todo |
@@ -98,7 +98,7 @@
 
 | ID | Task | What it does | Depends on | Files/owned | Effort | NOW/gated | Status |
 |---|---|---|---|---|---|---|---|
-| U-1 | Sidebar: "שיווק אורגני" section | Calendar / Site / Articles entries; client-aware | any pillar shipping | ⚠ `components/layout/Sidebar.tsx` | S | with first pillar | todo |
+| U-1 | Sidebar: "שיווק אורגני" section | Calendar / Site / Articles entries; client-aware | any pillar shipping | ⚠ `components/layout/Sidebar.tsx` | S | with first pillar | done — sidebar "שיווק אורגני" section (לוח תוכן + אנשי קשר); legacy schedule renamed תזמון פוסטים |
 | U-2 | Client command-center organic panel | Client page shows the organic plan + site + articles state (CLIENT-UX-PLAN wave) | P1-5 / P2-5 / P3 | `app/(dashboard)/clients/[id]/` | M | after pillars | todo |
 
 ---
