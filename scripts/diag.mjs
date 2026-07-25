@@ -1,0 +1,15 @@
+import { chromium } from 'playwright';
+const b = await chromium.launch({ headless: true });
+const p = await (await b.newContext()).newPage();
+const errs = [];
+p.on('console', m => { if (m.type()==='error') errs.push(m.text().slice(0,200)); });
+await p.goto('http://localhost:3007/login', { waitUntil: 'networkidle' });
+await p.fill('input[type=email]', 'elirankahalani27@gmail.com');
+await p.fill('input[type=password]', '0503377');
+await p.click('button[type=submit]');
+await p.waitForTimeout(6000);
+console.log('url:', p.url());
+const body = await p.locator('body').innerText();
+console.log('visible text:\n' + body.split('\n').map(s=>s.trim()).filter(Boolean).slice(0,20).join('\n'));
+console.log('console errors:', errs.slice(0,5));
+await b.close();

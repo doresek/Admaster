@@ -39,6 +39,7 @@ const NAV: NavItem[] = [
   { id:'history',    href:'/history',     icon:'🕒', labelKey:'history',    badge:'new' },
   { sec:'sec_meta' },
   { id:'clients',    href:'/clients',     icon:'👥', labelKey:'clients' },
+  { id:'send_brief', href:'/send-brief',  icon:'📨', labelKey:'send_brief', badge:'new' },
   { id:'briefs',     href:'/briefs',      icon:'📝', labelKey:'briefs' },
   { id:'publish',    href:'/publish',     icon:'📤', labelKey:'publish',    cost:2 },
   { id:'campaign',   href:'/campaign',    icon:'🚀', labelKey:'campaign',   cost:15 },

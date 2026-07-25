@@ -67,6 +67,7 @@ type Dict = {
     support:         string;
     clients:         string;
     briefs:          string;
+    send_brief:      string;
     publish:         string;
     campaign:        string;
     ads_launcher:    string;
@@ -148,6 +149,7 @@ const HE: Dict = {
     support: 'תמיכה',
     clients: 'לקוחות',
     briefs: 'בריפים',
+    send_brief: 'שלח בריף ללקוח',
     publish: 'פרסום',
     campaign: 'קמפיין',
     ads_launcher: 'משגר מודעות',
@@ -227,6 +229,7 @@ const EN: Dict = {
     support: 'Support',
     clients: 'Clients',
     briefs: 'Briefs',
+    send_brief: 'Send brief to client',
     publish: 'Publish',
     campaign: 'Campaign',
     ads_launcher: 'Ads Launcher',
@@ -306,6 +309,7 @@ const AR: Dict = {
     support: 'الدعم',
     clients: 'العملاء',
     briefs: 'الموجزات',
+    send_brief: 'إرسال موجز للعميل',
     publish: 'نشر',
     campaign: 'حملة',
     ads_launcher: 'مطلق الإعلانات',

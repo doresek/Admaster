@@ -252,6 +252,7 @@ export default function BriefsPage() {
   const [sel,    setSel]    = useState<Brief|null>(null);
   const [loading, setLoading] = useState(true);
   const [newCode, setNewCode] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -279,7 +280,11 @@ export default function BriefsPage() {
     setNewCode(code);
   }
 
-  const statusStyle = {
+  const statusStyle: Record<string, { bg:string; text:string; border:string; label:string }> = {
+    sent:        { bg:'bg-[#6B8FA8]/10', text:'text-[#6B8FA8]', border:'border-[#6B8FA8]/20', label:'נשלח' },
+    opened:      { bg:'bg-[#0A7AFF]/10', text:'text-[#3D9FFF]', border:'border-[#0A7AFF]/20', label:'נפתח' },
+    in_progress: { bg:'bg-[#D97706]/10', text:'text-[#D97706]', border:'border-[#D97706]/20', label:'במילוי' },
+    submitted:   { bg:'bg-[#059669]/10', text:'text-[#34D399]', border:'border-[#059669]/20', label:'הוגש' },
     new:        { bg:'bg-[#0A7AFF]/10', text:'text-[#3D9FFF]', border:'border-[#0A7AFF]/20', label:'חדש' },
     has_avatar: { bg:'bg-[#D97706]/10', text:'text-[#D97706]', border:'border-[#D97706]/20', label:'יש אווטאר' },
     complete:   { bg:'bg-[#059669]/10', text:'text-[#34D399]', border:'border-[#059669]/20', label:'הושלם' },
@@ -304,7 +309,27 @@ export default function BriefsPage() {
   return (
     <div>
       <PageHeader eyebrow="בריפים" title="בריפי לקוחות" sub={`${briefs.length} בריפים התקבלו`}
-        right={<Btn variant="primary" onClick={createCode}>+ צור קישור בריף</Btn>} />
+        right={
+          <div className="flex gap-2">
+            <Btn variant="primary" onClick={()=>setDialogOpen(true)}>+ בריף פר-לקוח</Btn>
+            <Btn variant="ghost" onClick={createCode}>קוד מהיר</Btn>
+          </div>
+        } />
+
+      {dialogOpen && (
+        <CreateBriefDialog
+          onClose={()=>setDialogOpen(false)}
+          onCreated={()=>{
+            // reload briefs so the new tokenized draft shows up
+            supabase.auth.getUser().then(({ data:{ user } })=>{
+              if (!user) return;
+              supabase.from('briefs').select('*').eq('user_id', user.id)
+                .order('submitted_at', { ascending: false })
+                .then(({ data })=> setBriefs(data ?? []));
+            });
+          }}
+        />
+      )}
 
       {newCode && (
         <Card className="mb-4" style={{borderColor:'rgba(184,149,58,.3)'}}>
@@ -371,6 +396,105 @@ export default function BriefsPage() {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ─── CREATE BRIEF DIALOG (tokenized v2, dark) ─────────────────
+function CreateBriefDialog({ onClose, onCreated }: { onClose: ()=>void; onCreated: ()=>void }) {
+  const [clientName, setClientName]   = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [submitting, setSubmitting]   = useState(false);
+  const [result, setResult]           = useState<{ url:string; whatsapp_url:string|null }|null>(null);
+  const [err, setErr]                 = useState<string|null>(null);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && !submitting) onClose(); }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose, submitting]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!clientName.trim() || submitting) return;
+    setSubmitting(true); setErr(null);
+    try {
+      const res = await fetch('/api/briefs/create-tokenized', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_name:  clientName.trim(),
+          client_phone: clientPhone.trim() || undefined,
+          client_email: clientEmail.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(data?.error || `שגיאה ${res.status}`);
+      setResult({ url: data.url, whatsapp_url: data.whatsapp_url });
+      onCreated();
+    } catch (e: any) {
+      setErr(e?.message || 'שגיאה ביצירת הקישור');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={submitting ? undefined : onClose} aria-hidden="true" />
+      <div className="relative bg-[#111A24] border border-[#1E2F42] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+        {result ? (
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-1.5">
+              <div className="w-9 h-9 rounded-full bg-[#059669]/15 text-[#34D399] flex items-center justify-center font-bold text-lg">✓</div>
+              <h2 className="text-xl font-bold text-[#D9E8F5]">הקישור מוכן</h2>
+            </div>
+            <p className="text-[#6B8FA8] text-sm mb-4">שלח את הקישור ללקוח — הוא ימלא את הבריף בנוחות ויישמר אצלך.</p>
+
+            <div className="bg-[#070A0E] border border-[#2A4158] rounded-lg p-3 mb-3">
+              <div className="text-[10px] uppercase tracking-wider text-[#2E4459] mb-1.5">קישור הבריף</div>
+              <div className="font-mono text-[12px] text-[#D4AF55] break-all leading-relaxed" dir="ltr">{result.url}</div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mb-4">
+              <CopyBtn text={result.url} label="🔗 העתק קישור" />
+              {result.whatsapp_url && (
+                <a href={result.whatsapp_url} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg font-semibold px-4 py-2 text-[13px] bg-[#059669] hover:brightness-110 text-white transition-all">
+                  💬 שלח בוואטסאפ
+                </a>
+              )}
+            </div>
+
+            <Btn variant="ghost" full onClick={onClose}>סגור</Btn>
+          </div>
+        ) : (
+          <form onSubmit={submit} className="p-6">
+            <h2 className="text-xl font-bold text-[#D9E8F5] mb-1">בריף חדש ללקוח</h2>
+            <p className="text-[#6B8FA8] text-sm mb-5">הזן את פרטי הלקוח — ניצור קישור ייחודי + לינק וואטסאפ מוכן לשליחה.</p>
+
+            <label className="block text-[12px] text-[#6B8FA8] mb-1">שם הלקוח / העסק <span className="text-[#D97706]">*</span></label>
+            <input autoFocus value={clientName} onChange={e=>setClientName(e.target.value)}
+              className="w-full bg-[#070A0E] border border-[#1E2F42] rounded-lg px-3 py-2 text-sm text-[#D9E8F5] mb-3 focus:border-[#0A7AFF] outline-none" placeholder="למשל: סטודיו דנה" />
+
+            <label className="block text-[12px] text-[#6B8FA8] mb-1">טלפון (לשליחת וואטסאפ)</label>
+            <input value={clientPhone} onChange={e=>setClientPhone(e.target.value)} dir="ltr"
+              className="w-full bg-[#070A0E] border border-[#1E2F42] rounded-lg px-3 py-2 text-sm text-[#D9E8F5] mb-3 focus:border-[#0A7AFF] outline-none text-right" placeholder="050-0000000" />
+
+            <label className="block text-[12px] text-[#6B8FA8] mb-1">אימייל (לא חובה)</label>
+            <input value={clientEmail} onChange={e=>setClientEmail(e.target.value)} dir="ltr"
+              className="w-full bg-[#070A0E] border border-[#1E2F42] rounded-lg px-3 py-2 text-sm text-[#D9E8F5] mb-4 focus:border-[#0A7AFF] outline-none text-right" placeholder="client@email.com" />
+
+            {err && <Alert type="red" className="mb-3">{err}</Alert>}
+
+            <div className="flex gap-2">
+              <Btn type="submit" variant="primary" full loading={submitting} disabled={!clientName.trim()}>צור קישור</Btn>
+              <Btn type="button" variant="ghost" onClick={onClose} disabled={submitting}>ביטול</Btn>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   );
 }
