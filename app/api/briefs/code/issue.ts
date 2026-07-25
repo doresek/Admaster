@@ -36,15 +36,58 @@ export interface IssuedBriefCode {
   token:     string;
 }
 
+// The production brief_codes table carries a UNIQUE(client_id) constraint
+// (`brief_codes_client_uniq`): each client has at MOST ONE brief code, hence one
+// stable magic link. This is true on the live DB even though older migrations
+// only created a (non-unique) index; migration 019 records it so fresh DBs match.
+const CLIENT_UNIQUE_CONSTRAINT = 'brief_codes_client_uniq';
+
+// Distinguish the per-client unique violation from a (rare) code/token clash.
+// Both surface as Postgres 23505, but only the former mentions the client_id
+// column / the constraint name — and it can never be resolved by regenerating
+// code+token, so it must be handled by returning the existing row instead.
+function isClientUniqueViolation(error: { code?: string; message?: string; details?: string }): boolean {
+  if (error?.code !== '23505') return false;
+  const blob = `${error.message ?? ''} ${error.details ?? ''}`;
+  return blob.includes(CLIENT_UNIQUE_CONSTRAINT) || /\bclient_id\b/.test(blob);
+}
+
+// Fetch this client's existing brief code (if any). Returns null when the client
+// has no code yet, or has a legacy row with a null token (no working link).
+async function findClientCode(
+  supabase: SupabaseClient,
+  userId: string,
+  clientId: string,
+): Promise<IssuedBriefCode | null> {
+  const { data } = await supabase
+    .from('brief_codes')
+    .select('code, client_id, token')
+    .eq('user_id', userId)
+    .eq('client_id', clientId)
+    .maybeSingle();
+  if (data?.token) {
+    return { code: data.code, client_id: data.client_id, token: data.token };
+  }
+  return null;
+}
+
 /**
- * Resolve agency_name from users.name (unchanged), generate a code, and insert
- * a brief_codes row for `userId`. `clientId` is now REQUIRED and must belong to
- * the user's meta_clients — issuance is client-scoped.
+ * Resolve agency_name from users.name (unchanged), and return the brief code +
+ * magic-link token for `userId`'s `clientId`. `clientId` is REQUIRED and must
+ * belong to the user's meta_clients — issuance is client-scoped.
  *
- * ROBUSTNESS IMPROVEMENT: the original client code inserted a single random
- * code with no collision handling. Here we retry on the unique(code) constraint
- * (Postgres 23505) up to `maxAttempts` times, regenerating each time, so a rare
- * code clash no longer surfaces as a hard error.
+ * IDEMPOTENT PER CLIENT: the live DB enforces one code per client
+ * (`brief_codes_client_uniq`), so if the client already has a code we RETURN it
+ * rather than attempting a duplicate insert. This fixes the real-runtime bug
+ * where "create code" for a client that already had one threw
+ * "could not generate a unique brief code after N attempts" and produced no
+ * magic link — the previous retry loop mistook the per-client 23505 for a
+ * code/token clash and just regenerated code+token (which never changes
+ * client_id), exhausting every attempt.
+ *
+ * For the genuinely-new case we still retry on the unique(code)/unique(token)
+ * constraints (regenerating each time), and we tolerate a concurrent creator
+ * winning the race by re-reading the client's row on a per-client 23505.
  */
 export async function issueBriefCode(
   supabase: SupabaseClient,
@@ -71,6 +114,11 @@ export async function issueBriefCode(
     throw new BriefCodeError(400, 'client_id does not belong to this user');
   }
 
+  // Already has a code → return its (existing) magic link instead of colliding
+  // with brief_codes_client_uniq.
+  const existing = await findClientCode(supabase, userId, clientId);
+  if (existing) return existing;
+
   // agency_name from users.name (faithful to today; null when absent).
   const { data: profile } = await supabase
     .from('users')
@@ -94,11 +142,21 @@ export async function issueBriefCode(
       return { code: data.code, client_id: data.client_id, token: data.token };
     }
 
-    // 23505 = unique_violation → code/token clash, regenerate both and retry.
-    // Any other error is a real failure; surface it immediately.
+    // Non-unique errors are real failures; surface immediately.
     if (error.code !== '23505') {
       throw new Error(error.message);
     }
+
+    // Per-client unique violation → a concurrent request created this client's
+    // code between our check and insert. Re-read and return it; regenerating
+    // would never succeed (client_id is fixed).
+    if (isClientUniqueViolation(error)) {
+      const raced = await findClientCode(supabase, userId, clientId);
+      if (raced) return raced;
+      throw new Error(error.message);
+    }
+
+    // Otherwise it's a code/token clash → regenerate both and retry.
   }
 
   throw new Error(`could not generate a unique brief code after ${maxAttempts} attempts`);

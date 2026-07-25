@@ -9,22 +9,42 @@ import { issueBriefCode, generateBriefCode, generateBriefToken, BriefCodeError }
 // ── Mock Supabase ───────────────────────────────────────────────
 // meta_clients: from('meta_clients').select('id').eq('id',_).eq('user_id',_).maybeSingle()
 // users:        from('users').select('name').eq('id',_).maybeSingle()
-// brief_codes:  from('brief_codes').insert(row).select('code, client_id').single()
+// brief_codes:  from('brief_codes').insert(row).select(...).single()  (write)
+//               from('brief_codes').select(...).eq(...).maybeSingle() (read)
 //
-// `ownedClients` lists client ids the user owns (drives the ownership check).
-// `insertOutcomes` is consumed once per insert attempt; each entry is either
-// { error } (failed attempt) or undefined (success, echoes the row back).
-// All inserted rows are recorded on `_inserted` for assertions.
+// Faithfulness notes (these mirror the LIVE DB and are what makes the
+// per-client-uniqueness bug reproducible here):
+//   * `_inserted` records every insert ATTEMPT (for assertions), but lookups
+//     read only PERSISTED rows (`_stored`) — a failed insert never becomes
+//     visible, exactly like Postgres.
+//   * brief_codes carries UNIQUE(client_id) (`brief_codes_client_uniq`): a
+//     second insert for a non-null client_id already present fails with 23505.
+//   * `existingRows` seeds already-persisted rows (drives idempotency + lookups).
+//   * `insertOutcomes` (optional) scripts forced per-attempt results — used to
+//     simulate code/token (NOT client) collisions; an entry is { error } or
+//     undefined (success). When omitted, inserts are governed by the real
+//     uniqueness model above.
+//   * `injectOnFirstInsert` simulates a concurrent creator landing a row for the
+//     client between our existence check and our insert (the race path).
+function pickReturned(row: any) {
+  return { code: row.code, client_id: row.client_id ?? null, token: row.token ?? null };
+}
+
 function makeSupabase(opts: {
   profileName?: string | null;          // undefined → users row absent
   ownedClients?: string[];              // client ids owned by the user
-  insertOutcomes?: Array<{ error?: { code?: string; message?: string } } | undefined>;
+  existingRows?: any[];                 // rows already persisted before this call
+  insertOutcomes?: Array<{ error?: { code?: string; message?: string; details?: string } } | undefined>;
+  injectOnFirstInsert?: any;            // concurrent creator's row (race simulation)
 }) {
-  const inserted: any[] = [];
-  const outcomes = [...(opts.insertOutcomes ?? [undefined])];
+  const attempts: any[] = [];                              // every insert attempt
+  const stored: any[] = [...(opts.existingRows ?? [])];    // persisted rows
+  const outcomes = [...(opts.insertOutcomes ?? [])];
   const owned = opts.ownedClients ?? [];
+  let injected = false;
   const supabase: any = {
-    _inserted: inserted,
+    _inserted: attempts,
+    _stored: stored,
     from(table: string) {
       if (table === 'meta_clients') {
         const filters: any = {};
@@ -49,22 +69,45 @@ function makeSupabase(opts: {
       }
       if (table === 'brief_codes') {
         let row: any;
-        const lookup: any = {};
+        const lookup: Record<string, any> = {};
         const b: any = {
-          insert: (r: any) => { row = r; inserted.push(r); return b; },
+          insert: (r: any) => { row = r; attempts.push(r); return b; },
           select: () => b,
-          // Resolution path (mirrors the /brief/[token] resolver + submit lookup):
-          //   from('brief_codes').select(...).eq('token'|'code', v).maybeSingle()
-          eq: (col: string, val: any) => { lookup.col = col; lookup.val = val; return b; },
+          // Read path — matches PERSISTED rows on ALL applied .eq() filters.
+          // Mirrors the /brief/[token] resolver, the idempotency check, and the
+          // race re-read (.eq('user_id',_).eq('client_id',_)).
+          eq: (col: string, val: any) => { lookup[col] = val; return b; },
           maybeSingle: () =>
-            Promise.resolve({ data: inserted.find(r => r[lookup.col] === lookup.val) ?? null, error: null }),
-          single: () => {
-            const outcome = outcomes.shift();
-            if (outcome?.error) return Promise.resolve({ data: null, error: outcome.error });
-            return Promise.resolve({
-              data: { code: row.code, client_id: row.client_id ?? null, token: row.token ?? null },
+            Promise.resolve({
+              data: stored.find(r => Object.keys(lookup).every(k => r[k] === lookup[k])) ?? null,
               error: null,
-            });
+            }),
+          single: () => {
+            // Forced outcome (scripts code/token collisions) takes precedence.
+            if (outcomes.length) {
+              const outcome = outcomes.shift();
+              if (outcome?.error) return Promise.resolve({ data: null, error: outcome.error });
+              stored.push(row);
+              return Promise.resolve({ data: pickReturned(row), error: null });
+            }
+            // A concurrent creator lands the client's row just before us.
+            if (opts.injectOnFirstInsert && !injected) {
+              injected = true;
+              stored.push(opts.injectOnFirstInsert);
+            }
+            // Enforce brief_codes_client_uniq (one row per non-null client_id).
+            if (row.client_id != null && stored.some(r => r.client_id === row.client_id)) {
+              return Promise.resolve({
+                data: null,
+                error: {
+                  code: '23505',
+                  message: 'duplicate key value violates unique constraint "brief_codes_client_uniq"',
+                  details: `Key (client_id)=(${row.client_id}) already exists.`,
+                },
+              });
+            }
+            stored.push(row);
+            return Promise.resolve({ data: pickReturned(row), error: null });
           },
         };
         return b;
@@ -221,6 +264,44 @@ describe('issueBriefCode', () => {
 
     // 4) The built link has the expected /brief/<token> shape.
     expect(`/brief/${issued.token}`).toMatch(/^\/brief\/[a-f0-9]{64}$/);
+  });
+
+  // Regression for the real-runtime bug: brief_codes has UNIQUE(client_id), so a
+  // client that already has a code must get its EXISTING magic link back — not a
+  // "could not generate a unique brief code after N attempts" failure. The old
+  // code skipped straight to the insert loop, hit the per-client 23505, and
+  // (mis)treated it as a code/token clash, regenerating forever.
+  it('REGRESSION: a client that already has a code returns its existing link (idempotent), never errors', async () => {
+    const EXISTING_TOKEN = 'a'.repeat(64);
+    const supabase = makeSupabase({
+      profileName: 'Acme',
+      ownedClients: [CLIENT],
+      existingRows: [{ code: 'OLD123', client_id: CLIENT, token: EXISTING_TOKEN, user_id: 'user-1' }],
+    });
+
+    const issued = await issueBriefCode(supabase, 'user-1', CLIENT, { genCode: () => 'NEW999' });
+
+    // Returns the EXISTING code + token (the stable per-client link)…
+    expect(issued).toEqual({ code: 'OLD123', client_id: CLIENT, token: EXISTING_TOKEN });
+    expect(issued.token).toMatch(/^[a-f0-9]{64}$/);
+    // …and never attempted a doomed duplicate insert.
+    expect(supabase._inserted.length).toBe(0);
+  });
+
+  // A concurrent request can create the client's code between our existence
+  // check and our insert. The per-client 23505 must be recovered by re-reading
+  // and returning the winning row (regenerating code+token can never help).
+  it('tolerates a concurrent creator: per-client 23505 re-reads and returns the winning row', async () => {
+    const RACE_TOKEN = 'b'.repeat(64);
+    const supabase = makeSupabase({
+      profileName: 'Acme',
+      ownedClients: [CLIENT],
+      injectOnFirstInsert: { code: 'WON111', client_id: CLIENT, token: RACE_TOKEN, user_id: 'user-1' },
+    });
+
+    const issued = await issueBriefCode(supabase, 'user-1', CLIENT, { genCode: () => 'MINE22' });
+
+    expect(issued).toEqual({ code: 'WON111', client_id: CLIENT, token: RACE_TOKEN });
   });
 
   it('gives up after maxAttempts when every code collides', async () => {
